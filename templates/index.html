@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiFi Setup</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WiFi Setup</h1>
+            <p>Connect your device to a WiFi network</p>
+        </div>
+        
+        <div class="content">
+            <div id="status-card" class="status-card disconnected">
+                <div class="status-title">Connection Status</div>
+                <div id="status-info" class="status-info">Checking connection...</div>
+            </div>
+            
+            <div id="alert-container"></div>
+            
+            <div class="form-group">
+                <label for="ssid-input">Network Name (SSID)</label>
+                <input type="text" id="ssid-input" placeholder="Enter WiFi network name">
+            </div>
+            
+            <div class="form-group">
+                <label for="password-input">Password</label>
+                <input type="password" id="password-input" placeholder="Enter password (leave empty for open networks)">
+            </div>
+            
+            <div>
+                <button id="connect-btn" class="btn btn-primary">Connect</button>
+                <button id="complete-btn" class="btn btn-success" style="display: none;">Complete Setup</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/wifi-setup.js"></script>
+</body>
+</html> 
