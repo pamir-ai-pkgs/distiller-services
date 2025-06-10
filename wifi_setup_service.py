@@ -18,6 +18,7 @@ from pathlib import Path
 import uvicorn
 from network.wifi_manager import WiFiManager, WiFiManagerError
 from network.wifi_server import WiFiServer
+from mdns_service import MDNSService
 
 # Import evdev for button checking
 try:
@@ -47,19 +48,24 @@ class WiFiSetupService:
         hotspot_password: str = "setupwifi123",
         device_name: str = "Pamir AI Key Input",
         check_button: bool = True,
-        enable_eink: bool = True
+        enable_eink: bool = True,
+        mdns_hostname: str = "pamir-ai",
+        mdns_port: int = 8000
     ):
         self.hotspot_ssid = hotspot_ssid
         self.hotspot_password = hotspot_password
         self.device_name = device_name
         self.check_button = check_button and EVDEV_AVAILABLE
         self.enable_eink = enable_eink and EINK_AVAILABLE
+        self.mdns_hostname = mdns_hostname
+        self.mdns_port = mdns_port
         self.device_path = None
         self.check_duration = 2.0  # seconds to check for button hold
         
         self.wifi_manager = WiFiManager()
         self.wifi_server = WiFiServer(self.wifi_manager)
         self.server = None
+        self.mdns_service = None
         self.running = False
 
         # Setup logging
@@ -250,6 +256,35 @@ class WiFiSetupService:
         except Exception as e:
             self.logger.error(f"Failed to display success screen on e-ink: {e}")
 
+    async def start_mdns_service(self):
+        """Start mDNS service for post-connection access"""
+        try:
+            self.logger.info(f"Starting mDNS service: {self.mdns_hostname}.local:{self.mdns_port}")
+            
+            self.mdns_service = MDNSService(
+                hostname=self.mdns_hostname,
+                service_name="Pamir AI Device",
+                port=self.mdns_port
+            )
+            
+            # Start the mDNS web server
+            mdns_server_task = await self.mdns_service.start_web_server()
+            
+            self.logger.info(f"✅ mDNS service active: http://{self.mdns_hostname}.local:{self.mdns_port}")
+            print(f"\n🎉 Setup Complete!")
+            print(f"🌐 Device accessible at:")
+            print(f"   • mDNS: http://{self.mdns_hostname}.local:{self.mdns_port}")
+            print(f"   • Direct IP: http://{self.mdns_service.get_local_ip()}:{self.mdns_port}")
+            print(f"\n💡 Now you can use Cursor to play with MCP!")
+            print(f"📱 Note: If .local doesn't work, use the direct IP address")
+            print(f"🔧 To enable mDNS on Linux: sudo systemctl enable --now avahi-daemon\n")
+            
+            return mdns_server_task
+            
+        except Exception as e:
+            self.logger.error(f"Failed to start mDNS service: {e}")
+            return None
+
     async def wait_for_network(self, max_wait=30):
         """Wait for network connectivity before proceeding"""
         self.logger.info("Waiting for network connectivity...")
@@ -370,8 +405,17 @@ class WiFiSetupService:
                     }
                     self.display_success_screen(connection_info)
 
+                    # Stop the hotspot
                     if self.wifi_manager._hotspot_active:
                         await self.wifi_manager.stop_hotspot()
+
+                    # Start mDNS service for post-connection access
+                    mdns_server_task = await self.start_mdns_service()
+                    
+                    if mdns_server_task:
+                        # Keep the mDNS service running - don't wait for it to complete
+                        # It will run in the background to serve the "Cursor MCP" page
+                        pass
 
                     return True
                 elif status.connected:
@@ -402,6 +446,11 @@ class WiFiSetupService:
                 self.logger.info("Stopping web server...")
                 self.server.should_exit = True
                 await asyncio.sleep(1)  # Give server time to stop
+
+            # Stop mDNS service
+            if self.mdns_service:
+                self.logger.info("Stopping mDNS service...")
+                await self.mdns_service.stop_web_server()
 
             # Stop hotspot
             self.logger.info("Stopping hotspot...")
@@ -531,6 +580,17 @@ def main():
         help="Disable e-ink display functionality (useful for testing without hardware). Can also be set via WIFI_SETUP_NO_EINK=true",
     )
     parser.add_argument(
+        "--mdns-hostname",
+        default="pamir-ai",
+        help="mDNS hostname for post-connection access (default: pamir-ai)",
+    )
+    parser.add_argument(
+        "--mdns-port",
+        type=int,
+        default=8000,
+        help="Port for mDNS web service (default: 8000)",
+    )
+    parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )
 
@@ -554,7 +614,9 @@ def main():
         args.password, 
         args.device_name,
         check_button=not args.no_button_check,
-        enable_eink=not args.no_eink
+        enable_eink=not args.no_eink,
+        mdns_hostname=args.mdns_hostname,
+        mdns_port=args.mdns_port
     )
 
     try:
