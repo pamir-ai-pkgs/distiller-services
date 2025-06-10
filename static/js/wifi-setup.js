@@ -5,7 +5,7 @@ class WiFiSetup {
         this.ssidInput = document.getElementById('ssid-input');
         this.passwordInput = document.getElementById('password-input');
         this.connectBtn = document.getElementById('connect-btn');
-        this.completeBtn = document.getElementById('complete-btn');
+        // this.completeBtn = document.getElementById('complete-btn'); // Commented out
         this.alertContainer = document.getElementById('alert-container');
         
         this.init();
@@ -13,12 +13,17 @@ class WiFiSetup {
     
     init() {
         this.connectBtn.addEventListener('click', () => this.connectToNetwork());
-        this.completeBtn.addEventListener('click', () => this.completeSetup());
+        // this.completeBtn.addEventListener('click', () => this.completeSetup()); // Commented out
         
-        this.checkStatus();
-        setInterval(() => this.checkStatus(), 5000);
+        // Remove automatic status checking since we'll redirect to status page
+        // this.checkStatus();
+        // setInterval(() => this.checkStatus(), 5000);
+        
+        // Show initial disconnected state
+        this.updateStatusDisplay({ connected: false });
     }
     
+    // Keep this method but don't use it automatically
     async checkStatus() {
         try {
             const response = await fetch('/api/status');
@@ -37,11 +42,11 @@ class WiFiSetup {
                 <strong>IP Address:</strong> ${status.ip_address || 'N/A'}<br>
                 <strong>Interface:</strong> ${status.interface || 'N/A'}
             `;
-            this.completeBtn.style.display = 'inline-block';
+            // this.completeBtn.style.display = 'inline-block'; // Commented out
         } else {
             this.statusCard.className = 'status-card disconnected';
-            this.statusInfo.textContent = 'Not connected to any network';
-            this.completeBtn.style.display = 'none';
+            this.statusInfo.textContent = 'Ready to connect to WiFi network';
+            // this.completeBtn.style.display = 'none'; // Commented out
         }
     }
     
@@ -58,9 +63,10 @@ class WiFiSetup {
         this.connectBtn.disabled = true;
         
         const passwordInfo = password ? 'with password' : '(open network)';
-        this.showAlert(`Connecting to ${ssid} ${passwordInfo}... (Hotspot may temporarily disconnect)`, 'info');
+        this.showAlert(`Connecting to ${ssid} ${passwordInfo}... This may take a moment.`, 'info');
         
         try {
+            // Start the connection request
             const response = await fetch('/api/connect', {
                 method: 'POST',
                 headers: {
@@ -72,31 +78,44 @@ class WiFiSetup {
             const result = await response.json();
             
             if (result.success) {
-                this.showAlert(`Successfully connected to ${ssid}`, 'success');
-                if (result.hotspot_stopped) {
-                    this.showAlert('Setup hotspot has been stopped - you are now connected to your WiFi network', 'info');
-                }
-                this.checkStatus();
+                // Success - redirect to status page
+                this.showAlert(`Successfully connected to ${ssid}! Redirecting to status page...`, 'success');
+                setTimeout(() => {
+                    const currentPort = window.location.port || '8080';
+                    const redirectUrl = `http://distiller.local:${currentPort}/wifi_status`;
+                    window.location.href = redirectUrl;
+                }, 2000);
+                
+            } else if (result.redirect_to_status) {
+                // Network exists but connection will be attempted (hotspot will go down)
+                this.showAlert(`Attempting connection... Redirecting to check status.`, 'info');
+                setTimeout(() => {
+                    const currentPort = window.location.port || '8080';
+                    const redirectUrl = `http://distiller.local:${currentPort}/wifi_status`;
+                    window.location.href = redirectUrl;
+                }, 2000);
+                
             } else {
-                let message = result.message || 'Connection failed';
-                if (result.hotspot_restored) {
-                    message += ' Setup hotspot has been restored.';
-                }
-                this.showAlert(message, 'error');
+                // Network doesn't exist or other immediate error (no hotspot disruption)
+                this.showAlert(result.message || 'Connection failed. Please check your credentials and try again.', 'error');
+                this.connectBtn.textContent = 'Connect';
+                this.connectBtn.disabled = false;
             }
+            
         } catch (error) {
-            let errorMessage = 'Connection failed. Please try again.';
-            if (error.message) {
-                errorMessage = error.message;
-            }
-            this.showAlert(errorMessage, 'error');
-            console.error('Connection error:', error);
-        } finally {
-            this.connectBtn.textContent = 'Connect';
-            this.connectBtn.disabled = false;
+            // Network error - likely means hotspot went down during connection attempt
+            this.showAlert('Connection in progress... Redirecting to check status.', 'info');
+            
+            setTimeout(() => {
+                const currentPort = window.location.port || '8080';
+                const redirectUrl = `http://distiller.local:${currentPort}/wifi_status`;
+                window.location.href = redirectUrl;
+            }, 3000);
         }
     }
     
+    // Commented out complete setup functionality
+    /*
     async completeSetup() {
         try {
             const response = await fetch('/api/complete-setup', {
@@ -111,6 +130,7 @@ class WiFiSetup {
             console.error('Complete setup failed:', error);
         }
     }
+    */
     
     showAlert(message, type) {
         const alertClass = `alert-${type}`;

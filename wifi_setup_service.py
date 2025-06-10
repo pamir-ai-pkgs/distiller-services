@@ -49,7 +49,7 @@ class WiFiSetupService:
         device_name: str = "Pamir AI Key Input",
         check_button: bool = True,
         enable_eink: bool = True,
-        mdns_hostname: str = "pamir-ai",
+        mdns_hostname: str = "distiller",
         mdns_port: int = 8000
     ):
         self.hotspot_ssid = hotspot_ssid
@@ -277,7 +277,7 @@ class WiFiSetupService:
             print(f"   * Direct IP: http://{self.mdns_service.get_local_ip()}:{self.mdns_port}")
             print(f"\nNow you can use Cursor to play with MCP!")
             print(f"Note: If .local doesn't work, use the direct IP address")
-            print(f"To enable mDNS on Linux: sudo systemctl enable --now avahi-daemon\n")
+            # print(f"To enable mDNS on Linux: sudo systemctl enable --now avahi-daemon\n")
             
             return mdns_server_task
             
@@ -331,11 +331,31 @@ class WiFiSetupService:
             # Button was held - start WiFi setup
             self.logger.info("Button held - starting WiFi setup mode")
             return True
-        else:
-            # Button not held - display WiFi info and exit gracefully
-            self.logger.info("No WiFi setup trigger detected - displaying WiFi info")
-            self.display_wifi_info()
-            return False
+        
+        # Check if there's any WiFi connection (auto-setup mode)
+        try:
+            self.logger.info("Checking current WiFi connection status...")
+            status = await self.wifi_manager.get_connection_status()
+            
+            if not status.connected:
+                self.logger.info("No WiFi connection detected - automatically starting WiFi setup mode")
+                return True
+            elif status.ssid and not status.ssid.startswith("SetupWiFi"):
+                # Connected to a real WiFi network
+                self.logger.info(f"Already connected to WiFi network: {status.ssid}")
+                self.logger.info("No WiFi setup trigger detected - displaying WiFi info")
+                self.display_wifi_info()
+                return False
+            else:
+                # Connected to our own setup hotspot or similar - start setup
+                self.logger.info(f"Connected to setup/hotspot network ({status.ssid}) - starting WiFi setup mode")
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"Error checking WiFi status: {e}")
+            # If we can't check status, assume we need setup
+            self.logger.info("Unable to determine WiFi status - starting WiFi setup mode as fallback")
+            return True
 
     async def start_hotspot(self) -> bool:
         """Start the WiFi hotspot"""
@@ -410,12 +430,17 @@ class WiFiSetupService:
                         await self.wifi_manager.stop_hotspot()
 
                     # Start mDNS service for post-connection access
-                    mdns_server_task = await self.start_mdns_service()
+                    # mdns_server_task = await self.start_mdns_service()
                     
-                    if mdns_server_task:
-                        # Keep the mDNS service running - don't wait for it to complete
-                        # It will run in the background to serve the "Cursor MCP" page
-                        pass
+                    # if mdns_server_task:
+                    #     # Keep the mDNS service running - don't wait for it to complete
+                    #     # It will run in the background to serve the "Cursor MCP" page
+                    #     pass
+
+                    # Keep server running for 2 minutes to allow status page to reconnect via WiFi
+                    self.logger.info("WiFi connection successful - keeping server running for 2 minutes to allow status page reconnection")
+                    await asyncio.sleep(120)
+                    self.logger.info("2-minute grace period completed")
 
                     return True
                 elif status.connected:
@@ -448,9 +473,9 @@ class WiFiSetupService:
                 await asyncio.sleep(1)  # Give server time to stop
 
             # Stop mDNS service
-            if self.mdns_service:
-                self.logger.info("Stopping mDNS service...")
-                await self.mdns_service.stop_web_server()
+            # if self.mdns_service:
+            #     self.logger.info("Stopping mDNS service...")
+            #     await self.mdns_service.stop_web_server()
 
             # Stop hotspot
             self.logger.info("Stopping hotspot...")
@@ -581,8 +606,8 @@ def main():
     )
     parser.add_argument(
         "--mdns-hostname",
-        default="pamir-ai",
-        help="mDNS hostname for post-connection access (default: pamir-ai)",
+        default="distiller",
+        help="mDNS hostname for post-connection access (default: distiller)",
     )
     parser.add_argument(
         "--mdns-port",
