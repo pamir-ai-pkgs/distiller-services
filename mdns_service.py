@@ -223,7 +223,6 @@ class MDNSService:
             <body>
                 <div class="container">
                     <div class="header">
-                        <div class="icon">🚀</div>
                         <h1>Device Ready</h1>
                         <p>Connection Established Successfully</p>
                     </div>
@@ -231,7 +230,7 @@ class MDNSService:
                     <div class="content">
                         <div class="status-card">
                             <div class="status-title">Connection Status</div>
-                            <div class="status-info">✓ WiFi Connected Successfully</div>
+                            <div class="status-info">WiFi Connected Successfully</div>
                         </div>
                         
                         <div class="info-section">
@@ -244,7 +243,7 @@ class MDNSService:
                         </div>
                         
                         <div class="instructions">
-                            <h3>🎯 What's Next?</h3>
+                            <h3>What's Next?</h3>
                             <p style="color: #4a4a4a; font-size: 0.9rem;">
                                 Open <strong>Cursor IDE</strong> and start experimenting with 
                                 <strong>Model Context Protocol (MCP)</strong> integrations.
@@ -406,12 +405,12 @@ class MDNSService:
             self.logger.info(f"Starting mDNS service: {self.hostname}.local")
             server_task = await self.start_web_server()
             
-            print(f"\n🌐 mDNS Service Started")
-            print(f"📡 Access your device at:")
-            print(f"   • http://{self.hostname}.local:{self.port}")
-            print(f"   • http://{self.get_local_ip()}:{self.port}")
-            print(f"\n💡 Now you can use Cursor to play with MCP!")
-            print(f"📱 Note: If .local doesn't work, use the direct IP address")
+            print(f"\nmDNS Service Started")
+            print(f"Access your device at:")
+            print(f"   * http://{self.hostname}.local:{self.port}")
+            print(f"   * http://{self.get_local_ip()}:{self.port}")
+            print(f"\nNow you can use Cursor to play with MCP!")
+            print(f"Note: If .local doesn't work, use the direct IP address")
             print("Press Ctrl+C to stop\n")
             
             # Wait for server

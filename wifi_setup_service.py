@@ -270,14 +270,14 @@ class WiFiSetupService:
             # Start the mDNS web server
             mdns_server_task = await self.mdns_service.start_web_server()
             
-            self.logger.info(f"✅ mDNS service active: http://{self.mdns_hostname}.local:{self.mdns_port}")
-            print(f"\n🎉 Setup Complete!")
-            print(f"🌐 Device accessible at:")
-            print(f"   • mDNS: http://{self.mdns_hostname}.local:{self.mdns_port}")
-            print(f"   • Direct IP: http://{self.mdns_service.get_local_ip()}:{self.mdns_port}")
-            print(f"\n💡 Now you can use Cursor to play with MCP!")
-            print(f"📱 Note: If .local doesn't work, use the direct IP address")
-            print(f"🔧 To enable mDNS on Linux: sudo systemctl enable --now avahi-daemon\n")
+            self.logger.info(f"mDNS service active: http://{self.mdns_hostname}.local:{self.mdns_port}")
+            print(f"\nSetup Complete!")
+            print(f"Device accessible at:")
+            print(f"   * mDNS: http://{self.mdns_hostname}.local:{self.mdns_port}")
+            print(f"   * Direct IP: http://{self.mdns_service.get_local_ip()}:{self.mdns_port}")
+            print(f"\nNow you can use Cursor to play with MCP!")
+            print(f"Note: If .local doesn't work, use the direct IP address")
+            print(f"To enable mDNS on Linux: sudo systemctl enable --now avahi-daemon\n")
             
             return mdns_server_task
             
@@ -603,7 +603,7 @@ def main():
     # Check for root privileges
     if os.geteuid() != 0:
         print(
-            "❌ Error: This service requires root privileges for NetworkManager operations"
+            "Error: This service requires root privileges for NetworkManager operations"
         )
         print("Please run with: sudo python wifi_setup_service.py")
         sys.exit(1)
@@ -623,10 +623,10 @@ def main():
         success = asyncio.run(service.run(check_startup=not args.no_startup_check))
         sys.exit(0 if success else 1)
     except KeyboardInterrupt:
-        print("\n🛑 Service stopped by user")
+        print("\nService stopped by user")
         sys.exit(0)
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"Unexpected error: {e}")
         sys.exit(1)
 
 
