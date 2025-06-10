@@ -46,12 +46,14 @@ class WiFiSetupService:
         hotspot_ssid: str = "SetupWiFi", 
         hotspot_password: str = "setupwifi123",
         device_name: str = "Pamir AI Key Input",
-        check_button: bool = True
+        check_button: bool = True,
+        enable_eink: bool = True
     ):
         self.hotspot_ssid = hotspot_ssid
         self.hotspot_password = hotspot_password
         self.device_name = device_name
         self.check_button = check_button and EVDEV_AVAILABLE
+        self.enable_eink = enable_eink and EINK_AVAILABLE
         self.device_path = None
         self.check_duration = 2.0  # seconds to check for button hold
         
@@ -63,6 +65,14 @@ class WiFiSetupService:
         # Setup logging
         self.setup_logging()
         self.logger = logging.getLogger(__name__)
+
+        # Log eink status
+        if not enable_eink:
+            self.logger.info("E-ink display disabled by configuration")
+        elif not EINK_AVAILABLE:
+            self.logger.info("E-ink display not available (missing dependencies)")
+        else:
+            self.logger.info("E-ink display enabled and available")
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -179,8 +189,8 @@ class WiFiSetupService:
 
     def display_wifi_info(self):
         """Display WiFi information on eink display"""
-        if not EINK_AVAILABLE:
-            self.logger.warning("E-ink display not available")
+        if not self.enable_eink:
+            self.logger.debug("E-ink display disabled - skipping WiFi info display")
             return
             
         try:
@@ -201,8 +211,8 @@ class WiFiSetupService:
 
     def display_setup_instructions(self):
         """Display setup instructions on e-ink screen"""
-        if not EINK_AVAILABLE:
-            self.logger.warning("E-ink display not available")
+        if not self.enable_eink:
+            self.logger.debug("E-ink display disabled - skipping setup instructions display")
             return
             
         try:
@@ -224,8 +234,8 @@ class WiFiSetupService:
 
     def display_success_screen(self, connection_info):
         """Display success screen on e-ink"""
-        if not EINK_AVAILABLE:
-            self.logger.warning("E-ink display not available")
+        if not self.enable_eink:
+            self.logger.debug("E-ink display disabled - skipping success screen display")
             return
             
         try:
@@ -410,6 +420,8 @@ class WiFiSetupService:
         print(f"Hotspot Name: {self.hotspot_ssid}")
         print(f"Password: {self.hotspot_password}")
         print("Web Interface: http://192.168.4.1:8080")
+        print(f"E-ink Display: {'Enabled' if self.enable_eink else 'Disabled'}")
+        print(f"Button Check: {'Enabled' if self.check_button else 'Disabled'}")
         print("\nSetup Instructions:")
         print("1. Connect your device to the hotspot above")
         print("2. Open a web browser and visit: http://192.168.4.1:8080")
@@ -513,6 +525,12 @@ def main():
         help="Skip startup check and go directly to setup mode",
     )
     parser.add_argument(
+        "--no-eink",
+        action="store_true",
+        default=os.getenv("WIFI_SETUP_NO_EINK", "false").lower() in ("true", "1", "yes"),
+        help="Disable e-ink display functionality (useful for testing without hardware). Can also be set via WIFI_SETUP_NO_EINK=true",
+    )
+    parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )
 
@@ -535,7 +553,8 @@ def main():
         args.ssid, 
         args.password, 
         args.device_name,
-        check_button=not args.no_button_check
+        check_button=not args.no_button_check,
+        enable_eink=not args.no_eink
     )
 
     try:
