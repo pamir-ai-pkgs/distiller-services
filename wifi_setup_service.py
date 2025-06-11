@@ -11,6 +11,7 @@ import asyncio
 import logging
 import os
 import signal
+import socket
 import sys
 import time
 from pathlib import Path
@@ -49,7 +50,7 @@ class WiFiSetupService:
         device_name: str = "Pamir AI Key Input",
         check_button: bool = True,
         enable_eink: bool = True,
-        mdns_hostname: str = "distiller",
+        mdns_hostname: str = None,  # Will auto-detect if None
         mdns_port: int = 8000
     ):
         self.hotspot_ssid = hotspot_ssid
@@ -57,20 +58,34 @@ class WiFiSetupService:
         self.device_name = device_name
         self.check_button = check_button and EVDEV_AVAILABLE
         self.enable_eink = enable_eink and EINK_AVAILABLE
-        self.mdns_hostname = mdns_hostname
         self.mdns_port = mdns_port
         self.device_path = None
         self.check_duration = 2.0  # seconds to check for button hold
         
         self.wifi_manager = WiFiManager()
-        self.wifi_server = WiFiServer(self.wifi_manager)
+        # WiFiServer will be created after hostname is determined
         self.server = None
         self.mdns_service = None
         self.running = False
 
-        # Setup logging
+        # Setup logging first
         self.setup_logging()
         self.logger = logging.getLogger(__name__)
+        
+        # Auto-detect system hostname if not provided (after logging is set up)
+        if mdns_hostname is None:
+            try:
+                self.mdns_hostname = socket.gethostname()
+                self.logger.info(f"Auto-detected system hostname: {self.mdns_hostname}")
+            except Exception as e:
+                self.logger.warning(f"Failed to auto-detect hostname, using fallback: {e}")
+                self.mdns_hostname = "pamir-ai"  # Fallback
+        else:
+            self.mdns_hostname = mdns_hostname
+            self.logger.info(f"Using provided mDNS hostname: {self.mdns_hostname}")
+
+        # Create WiFiServer now that we have the hostname
+        self.wifi_server = WiFiServer(self.wifi_manager, mdns_hostname=self.mdns_hostname)
 
         # Log eink status
         if not enable_eink:
@@ -429,13 +444,16 @@ class WiFiSetupService:
                     if self.wifi_manager._hotspot_active:
                         await self.wifi_manager.stop_hotspot()
 
-                    # Start mDNS service for post-connection access
-                    # mdns_server_task = await self.start_mdns_service()
+                    # =======================================================
+                    # !! THIS IS THE FIX !!
+                    # Uncomment the following lines to start the mDNS service
+                    # =======================================================
+                    mdns_server_task = await self.start_mdns_service()
                     
-                    # if mdns_server_task:
-                    #     # Keep the mDNS service running - don't wait for it to complete
-                    #     # It will run in the background to serve the "Cursor MCP" page
-                    #     pass
+                    if mdns_server_task:
+                        # Keep the mDNS service running in the background
+                        pass
+                    # =======================================================
 
                     # Keep server running for 2 minutes to allow status page to reconnect via WiFi
                     self.logger.info("WiFi connection successful - keeping server running for 2 minutes to allow status page reconnection")
@@ -606,8 +624,8 @@ def main():
     )
     parser.add_argument(
         "--mdns-hostname",
-        default="distiller",
-        help="mDNS hostname for post-connection access (default: distiller)",
+        default=None,
+        help="mDNS hostname for post-connection access (default: auto-detect system hostname)",
     )
     parser.add_argument(
         "--mdns-port",

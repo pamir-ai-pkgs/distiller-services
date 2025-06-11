@@ -7,7 +7,7 @@ Provides REST API endpoints and web interface for WiFi configuration.
 import asyncio
 import logging
 from typing import Dict, List
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -40,11 +40,12 @@ class WiFiServer:
     """FastAPI-based WiFi setup web server"""
 
     def __init__(
-        self, wifi_manager: WiFiManager, host: str = "0.0.0.0", port: int = 8080
+        self, wifi_manager: WiFiManager, host: str = "0.0.0.0", port: int = 8080, mdns_hostname: str = None
     ):
         self.wifi_manager = wifi_manager
         self.host = host
         self.port = port
+        self.mdns_hostname = mdns_hostname
         self.logger = logging.getLogger(__name__)
         self.templates = Jinja2Templates(directory="templates")
         self.app = self._create_app()
@@ -102,85 +103,62 @@ class WiFiServer:
                 "ip_address": status.ip_address,
                 "setup_complete": self._setup_complete,
                 "connection_in_progress": connection_in_progress,
+                "mdns_hostname": self.mdns_hostname,
             }
         except Exception as e:
             self.logger.error(f"Status check failed: {e}")
             raise HTTPException(status_code=500, detail="Failed to get status")
 
-    async def connect_network(self, request: ConnectRequest) -> Dict:
-        """POST /api/connect - Connect to WiFi network"""
+    async def connect_network(self, request: ConnectRequest, background_tasks: BackgroundTasks) -> Dict:
+        """POST /api/connect - Immediately responds and triggers connection in the background."""
         try:
             self.logger.info(f"Connection request for SSID: {request.ssid}")
 
-            # Check if hotspot is active to inform user about the process
-            if self.wifi_manager._hotspot_active:
-                self.logger.info("Stopping hotspot for connection attempt")
-
-            success = await self.wifi_manager.connect_to_network(
-                request.ssid, request.password
+            # This is the key change: schedule the connection to run in the background
+            # after this function returns a response.
+            background_tasks.add_task(
+                self._perform_connection_with_delay, request.ssid, request.password
             )
 
-            if success:
-                # Give network time to fully establish
-                await asyncio.sleep(2)
-                status = await self.wifi_manager.get_connection_status()
+            # Set flags to indicate a connection is starting
+            self._connection_in_progress = True
+            import time
+            self._connection_start_time = time.time()
 
-                return {
-                    "success": True,
-                    "message": f"Successfully connected to {request.ssid}",
-                    "hotspot_stopped": True,  # Indicate hotspot was stopped
-                    "status": {
-                        "connected": status.connected,
-                        "ssid": status.ssid,
-                        "ip_address": status.ip_address,
-                    },
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": f"Failed to connect to {request.ssid}. Hotspot has been restored.",
-                    "hotspot_restored": True,
-                }
+            # Immediately return a response to the client
+            # This tells the frontend that the process has started and it should redirect.
+            return {
+                "success": True,
+                "message": "Connection process initiated. Redirecting to check status...",
+                "redirect_to_status": True,
+            }
 
-        except WiFiManagerError as e:
-            self.logger.error(f"Connection failed: {e}")
-            # Extract more user-friendly error messages
-            error_detail = str(e)
-            if "No network with SSID" in error_detail:
-                error_detail = f"Network '{request.ssid}' not found. Make sure the network name is correct and the network is available."
-            elif "Connection failed" in error_detail:
-                error_detail = f"Failed to connect to '{request.ssid}'. Please check the password and try again."
-
-            raise HTTPException(status_code=400, detail=error_detail)
         except Exception as e:
-            self.logger.error(f"Unexpected connection error: {e}")
+            self.logger.error(f"Unexpected error initiating connection: {e}")
             raise HTTPException(
-                status_code=500, detail="Connection failed due to unexpected error"
+                status_code=500, detail="Failed to start connection process"
             )
 
     async def _perform_connection_with_delay(self, ssid: str, password: str):
-        """Perform connection with hotspot management in background with delay"""
+        """Perform connection with hotspot management in background."""
         try:
-            # Wait for frontend to receive response and redirect (5 seconds should be enough)
-            self.logger.info(f"Waiting 5 seconds before starting connection to {ssid} to allow frontend redirect")
-            await asyncio.sleep(5)
+            # A short delay can sometimes help ensure the HTTP response is sent before
+            # the network interface is disrupted.
+            await asyncio.sleep(2)
             
-            self.logger.info(f"Starting actual connection to {ssid}")
-            success = await self.wifi_manager.connect_to_network(ssid, password, max_retries=3)
+            self.logger.info(f"Background task: Starting actual connection to {ssid}")
             
-            if success:
-                self.logger.info(f"Background connection to {ssid} completed successfully")
-            else:
-                self.logger.error(f"Background connection to {ssid} failed")
+            # This now runs independently of the user's browser session
+            await self.wifi_manager.connect_to_network(ssid, password, max_retries=3)
             
-            # Clear connection progress flags
-            self._connection_in_progress = False
-            self._connection_start_time = None
+            # Note: We don't set the in-progress flags to False here.
+            # They will time out naturally in the get_status endpoint,
+            # which correctly reflects the "connecting" state for a period.
             
         except Exception as e:
             self.logger.error(f"Background connection to {ssid} failed: {e}")
-            
-            # Clear connection progress flags on failure
+            # If the connection fails, the flags will eventually time out,
+            # and the status page will reflect the failure.
             self._connection_in_progress = False
             self._connection_start_time = None
 

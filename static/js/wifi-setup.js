@@ -63,54 +63,61 @@ class WiFiSetup {
         this.connectBtn.disabled = true;
         
         const passwordInfo = password ? 'with password' : '(open network)';
-        this.showAlert(`Connecting to ${ssid} ${passwordInfo}... This may take a moment.`, 'info');
+        this.showAlert(`Connection initiated for ${ssid} ${passwordInfo}. Redirecting...`, 'info');
         
         try {
-            // Start the connection request
-            const response = await fetch('/api/connect', {
+            // Fire the request to the backend. We don't need to wait for the response
+            // because the server will disconnect.
+            fetch('/api/connect', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ ssid: ssid, password: password })
             });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                // Success - redirect to status page
-                this.showAlert(`Successfully connected to ${ssid}! Redirecting to status page...`, 'success');
-                setTimeout(() => {
-                    const currentPort = window.location.port || '8080';
-                    const redirectUrl = `http://distiller.local:${currentPort}/wifi_status`;
-                    window.location.href = redirectUrl;
-                }, 2000);
+
+            // The key change: Wait a couple of seconds to ensure the request has been sent
+            // before the browser is redirected and the local network is lost.
+            setTimeout(async () => {
+                const currentPort = window.location.port || '8080';
                 
-            } else if (result.redirect_to_status) {
-                // Network exists but connection will be attempted (hotspot will go down)
-                this.showAlert(`Attempting connection... Redirecting to check status.`, 'info');
-                setTimeout(() => {
-                    const currentPort = window.location.port || '8080';
-                    const redirectUrl = `http://distiller.local:${currentPort}/wifi_status`;
-                    window.location.href = redirectUrl;
-                }, 2000);
+                // Try to get the device's mDNS hostname from the backend
+                let redirectHostname = 'localhost'; // Fallback
                 
-            } else {
-                // Network doesn't exist or other immediate error (no hotspot disruption)
-                this.showAlert(result.message || 'Connection failed. Please check your credentials and try again.', 'error');
-                this.connectBtn.textContent = 'Connect';
-                this.connectBtn.disabled = false;
-            }
+                try {
+                    // Make a quick request to get the device's mDNS hostname
+                    const hostnameResponse = await fetch('/api/status');
+                    const statusData = await hostnameResponse.json();
+                    if (statusData.mdns_hostname) {
+                        redirectHostname = statusData.mdns_hostname.endsWith('.local') 
+                            ? statusData.mdns_hostname 
+                            : `${statusData.mdns_hostname}.local`;
+                    }
+                } catch (error) {
+                    // If we can't get the hostname from the API, try to construct it
+                    const currentHostname = window.location.hostname;
+                    if (currentHostname === '192.168.4.1') {
+                        // We're on hotspot - we'll redirect and let the browser keep trying
+                        // until the device connects and mDNS starts working
+                        redirectHostname = 'device.local'; // Generic fallback
+                    } else {
+                        redirectHostname = currentHostname.endsWith('.local') 
+                            ? currentHostname 
+                            : `${currentHostname}.local`;
+                    }
+                }
+                
+                const redirectUrl = `http://${redirectHostname}:${currentPort}/wifi_status`;
+                window.location.href = redirectUrl;
+            }, 2000); // 2-second delay
             
         } catch (error) {
-            // Network error - likely means hotspot went down during connection attempt
-            this.showAlert('Connection in progress... Redirecting to check status.', 'info');
-            
-            setTimeout(() => {
-                const currentPort = window.location.port || '8080';
-                const redirectUrl = `http://distiller.local:${currentPort}/wifi_status`;
-                window.location.href = redirectUrl;
-            }, 3000);
+            // This catch block is unlikely to be hit because we don't await the fetch,
+            // but it's good practice to keep it.
+            console.error('Error sending connect request:', error);
+            this.showAlert('Failed to send connect request.', 'error');
+            this.connectBtn.textContent = 'Connect';
+            this.connectBtn.disabled = false;
         }
     }
     
