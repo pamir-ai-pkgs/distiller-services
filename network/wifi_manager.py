@@ -131,10 +131,10 @@ class WiFiManager:
             self.logger.info(f"Checking network availability for {ssid} before stopping hotspot")
             
             # Quick check if network exists without disrupting hotspot
-            if not await self._network_exists(ssid):
-                raise WiFiManagerError(f"Network '{ssid}' not found. Please check the network name and ensure it's available.")
-            
-            self.logger.info(f"Network {ssid} found, proceeding with connection attempt")
+            # if not await self._network_exists(ssid):
+            #     raise WiFiManagerError(f"Network '{ssid}' not found. Please check the network name and ensure it's available.")
+            #
+            # self.logger.info(f"Network {ssid} found, proceeding with connection attempt")
             return await self._connect_with_hotspot_management(ssid, password)
         else:
             # No hotspot active, use normal retry logic

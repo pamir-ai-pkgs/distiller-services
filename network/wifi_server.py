@@ -112,63 +112,45 @@ class WiFiServer:
         try:
             self.logger.info(f"Connection request for SSID: {request.ssid}")
 
-            # If hotspot is active, first check network existence
+            # Check if hotspot is active to inform user about the process
             if self.wifi_manager._hotspot_active:
-                # Quick network existence check without hotspot disruption
-                if not await self.wifi_manager._network_exists(request.ssid):
-                    return {
-                        "success": False,
-                        "redirect_to_status": False,
-                        "message": f"Network '{request.ssid}' not found. Please check the network name and ensure it's available."
-                    }
-                
-                # Network exists - we'll need to stop hotspot, so signal redirect
-                self.logger.info(f"Network {request.ssid} found, starting connection process")
-                
-                # Mark connection as in progress
-                import time
-                self._connection_in_progress = True
-                self._connection_start_time = time.time()
-                
-                # Start the connection process in background with a delay
-                # This gives time for the response to reach frontend and redirect to happen
-                asyncio.create_task(self._perform_connection_with_delay(request.ssid, request.password))
-                
+                self.logger.info("Stopping hotspot for connection attempt")
+
+            success = await self.wifi_manager.connect_to_network(
+                request.ssid, request.password
+            )
+
+            if success:
+                # Give network time to fully establish
+                await asyncio.sleep(2)
+                status = await self.wifi_manager.get_connection_status()
+
                 return {
-                    "success": False,  # Not connected yet
-                    "redirect_to_status": True,  # Signal frontend to redirect
-                    "message": f"Connection to {request.ssid} initiated. Check status page for results."
+                    "success": True,
+                    "message": f"Successfully connected to {request.ssid}",
+                    "hotspot_stopped": True,  # Indicate hotspot was stopped
+                    "status": {
+                        "connected": status.connected,
+                        "ssid": status.ssid,
+                        "ip_address": status.ip_address,
+                    },
                 }
             else:
-                # No hotspot - can handle normally with retries
-                success = await self.wifi_manager.connect_to_network(
-                    request.ssid, request.password, max_retries=3
-                )
-
-                if success:
-                    await asyncio.sleep(2)
-                    status = await self.wifi_manager.get_connection_status()
-                    return {
-                        "success": True,
-                        "message": f"Successfully connected to {request.ssid}",
-                        "status": {
-                            "connected": status.connected,
-                            "ssid": status.ssid,
-                            "ip_address": status.ip_address,
-                        },
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "redirect_to_status": False,
-                        "message": f"Failed to connect to {request.ssid} after multiple attempts."
-                    }
+                return {
+                    "success": False,
+                    "message": f"Failed to connect to {request.ssid}. Hotspot has been restored.",
+                    "hotspot_restored": True,
+                }
 
         except WiFiManagerError as e:
             self.logger.error(f"Connection failed: {e}")
+            # Extract more user-friendly error messages
             error_detail = str(e)
+            if "No network with SSID" in error_detail:
+                error_detail = f"Network '{request.ssid}' not found. Make sure the network name is correct and the network is available."
+            elif "Connection failed" in error_detail:
+                error_detail = f"Failed to connect to '{request.ssid}'. Please check the password and try again."
 
-            # These are immediate errors (network not found, etc.) - no hotspot disruption
             raise HTTPException(status_code=400, detail=error_detail)
         except Exception as e:
             self.logger.error(f"Unexpected connection error: {e}")
