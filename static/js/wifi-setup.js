@@ -109,7 +109,7 @@ class WiFiSetup {
                 
                 const redirectUrl = `http://${redirectHostname}:${currentPort}/wifi_status`;
                 window.location.href = redirectUrl;
-            }, 2000); // 2-second delay
+            }, 5000); // 5-second delay
             
         } catch (error) {
             // This catch block is unlikely to be hit because we don't await the fetch,
