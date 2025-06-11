@@ -63,7 +63,6 @@ class WiFiSetup {
         this.connectBtn.disabled = true;
         
         const passwordInfo = password ? 'with password' : '(open network)';
-        this.showAlert(`Connection initiated for ${ssid} ${passwordInfo}. Redirecting...`, 'info');
         
         try {
             // Fire the request to the backend. We don't need to wait for the response
@@ -76,9 +75,8 @@ class WiFiSetup {
                 body: JSON.stringify({ ssid: ssid, password: password })
             });
 
-            // The key change: Wait a couple of seconds to ensure the request has been sent
-            // before the browser is redirected and the local network is lost.
-            setTimeout(async () => {
+            // Show connection progress with animated messages
+            this.showConnectionProgress(ssid, async () => {
                 const currentPort = window.location.port || '8080';
                 
                 // Try to get the device's mDNS hostname from the backend
@@ -99,7 +97,7 @@ class WiFiSetup {
                     if (currentHostname === '192.168.4.1') {
                         // We're on hotspot - we'll redirect and let the browser keep trying
                         // until the device connects and mDNS starts working
-                        redirectHostname = 'device.local'; // Generic fallback
+                        redirectHostname = 'localhost'; // Generic fallback
                     } else {
                         redirectHostname = currentHostname.endsWith('.local') 
                             ? currentHostname 
@@ -109,7 +107,7 @@ class WiFiSetup {
                 
                 const redirectUrl = `http://${redirectHostname}:${currentPort}/wifi_status`;
                 window.location.href = redirectUrl;
-            }, 5000); // 5-second delay
+            });
             
         } catch (error) {
             // This catch block is unlikely to be hit because we don't await the fetch,
@@ -119,6 +117,57 @@ class WiFiSetup {
             this.connectBtn.textContent = 'Connect';
             this.connectBtn.disabled = false;
         }
+    }
+    
+    showConnectionProgress(ssid, onComplete) {
+        const steps = [
+            { message: `Initiating connection to ${ssid}...`, duration: 1000 },
+            { message: 'Stopping WiFi hotspot...', duration: 1000 },
+            { message: 'Connecting to network...', duration: 1500 },
+            { message: 'Establishing network connection...', duration: 1000 },
+            { message: 'Starting mDNS service...', duration: 500 },
+            { message: 'Redirecting to device status page...', duration: 100 }
+        ];
+        
+        let currentStep = 0;
+        let spinnerInterval;
+        
+        const showStep = () => {
+            if (currentStep < steps.length) {
+                const step = steps[currentStep];
+                
+                // Start animating spinner for this step
+                const updateSpinner = () => {
+                    const spinner = this.getSpinner();
+                    this.showAlert(`${spinner} ${step.message}`, 'info');
+                };
+                
+                // Show initial message
+                updateSpinner();
+                
+                // Update spinner every 100ms for animation
+                spinnerInterval = setInterval(updateSpinner, 100);
+                
+                // Move to next step after duration
+                setTimeout(() => {
+                    clearInterval(spinnerInterval);
+                    currentStep++;
+                    showStep();
+                }, step.duration);
+            } else {
+                // All steps shown, execute completion callback
+                onComplete();
+            }
+        };
+        
+        showStep();
+    }
+    
+    getSpinner() {
+        // Simple CSS spinner using Unicode characters
+        const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+        const frameIndex = Math.floor(Date.now() / 100) % frames.length;
+        return `<span style="color: #007bff; font-weight: bold;">${frames[frameIndex]}</span>`;
     }
     
     // Commented out complete setup functionality
