@@ -20,11 +20,13 @@ from zeroconf.asyncio import AsyncZeroconf
 
 class MDNSService:
     """mDNS service for advertising the device on local network"""
-    
-    def __init__(self, 
-                 hostname: str = "pamir-ai", 
-                 service_name: str = "Pamir AI Device",
-                 port: int = 8080):
+
+    def __init__(
+        self,
+        hostname: str = "pamir-ai",
+        service_name: str = "Pamir AI Device",
+        port: int = 8080,
+    ):
         self.hostname = hostname
         self.service_name = service_name
         self.port = port
@@ -32,20 +34,21 @@ class MDNSService:
         self.service_info: Optional[ServiceInfo] = None
         self.app = FastAPI(title="Pamir AI Device")
         self.server: Optional[uvicorn.Server] = None
-        
+
         # Setup logging
         self.logger = logging.getLogger(__name__)
-        
+
         # Setup web routes
         self._setup_routes()
-    
+
     def _setup_routes(self):
         """Setup FastAPI routes"""
-        
+
         @self.app.get("/", response_class=HTMLResponse)
         async def home(request: Request):
             """Main page showing Cursor MCP message"""
-            html_content = """
+            html_content = (
+                """
             <!DOCTYPE html>
             <html lang="en">
             <head>
@@ -252,9 +255,15 @@ class MDNSService:
                         </div>
                         
                         <div class="network-info">
-                            <div><strong>Device:</strong> """ + self.hostname + """.local</div>
-                            <div><strong>Service:</strong> """ + self.service_name + """</div>
-                            <div><strong>Port:</strong> """ + str(self.port) + """</div>
+                            <div><strong>Device:</strong> """
+                + self.hostname
+                + """.local</div>
+                            <div><strong>Service:</strong> """
+                + self.service_name
+                + """</div>
+                            <div><strong>Port:</strong> """
+                + str(self.port)
+                + """</div>
                         </div>
                         
                         <div class="footer">
@@ -265,8 +274,9 @@ class MDNSService:
             </body>
             </html>
             """
+            )
             return HTMLResponse(content=html_content)
-        
+
         @self.app.get("/api/status")
         async def status():
             """API endpoint for device status"""
@@ -275,13 +285,14 @@ class MDNSService:
                 "hostname": f"{self.hostname}.local",
                 "service": self.service_name,
                 "port": self.port,
-                "mdns_active": self.zeroconf is not None
+                "mdns_active": self.zeroconf is not None,
             }
-        
+
         @self.app.get("/wifi_status", response_class=HTMLResponse)
         async def wifi_status(request: Request):
             """WiFi status page with helpful information"""
-            html_content = """
+            html_content = (
+                """
             <!DOCTYPE html>
             <html lang="en">
             <head>
@@ -346,12 +357,16 @@ class MDNSService:
                         
                         <div class="alert">
                             <strong>Note:</strong> The WiFi setup server runs on port 8080 for 2 minutes after connection, 
-                            then switches to this permanent service on port """ + str(self.port) + """.
+                            then switches to this permanent service on port """
+                + str(self.port)
+                + """.
                         </div>
                         
                         <div style="text-align: center; margin-top: 24px;">
                             <p style="margin-bottom: 16px;">Try accessing the setup server while it's still active:</p>
-                            <a href="http://""" + self.hostname + """.local:8080/wifi_status" class="btn">
+                            <a href="http://"""
+                + self.hostname
+                + """.local:8080/wifi_status" class="btn">
                                 Check Setup Server (Port 8080)
                             </a>
                             <a href="/" class="btn btn-secondary">
@@ -362,9 +377,13 @@ class MDNSService:
                         <div style="margin-top: 32px; padding: 20px; background: #f8f8f8; border: 2px solid #1a1a1a;">
                             <h3 style="margin-bottom: 12px; text-transform: uppercase; font-size: 0.9rem;">Device Access Information:</h3>
                             <div style="font-size: 0.9rem;">
-                                <div><strong>Hostname:</strong> """ + self.hostname + """.local</div>
+                                <div><strong>Hostname:</strong> """
+                + self.hostname
+                + """.local</div>
                                 <div><strong>Setup Server:</strong> Port 8080 (temporary, 2 minutes)</div>
-                                <div><strong>Device Service:</strong> Port """ + str(self.port) + """ (permanent)</div>
+                                <div><strong>Device Service:</strong> Port """
+                + str(self.port)
+                + """ (permanent)</div>
                             </div>
                         </div>
                     </div>
@@ -377,8 +396,9 @@ class MDNSService:
             </body>
             </html>
             """
+            )
             return HTMLResponse(content=html_content)
-    
+
     def get_local_ip(self) -> str:
         """Get the local IP address"""
         try:
@@ -388,20 +408,20 @@ class MDNSService:
                 return s.getsockname()[0]
         except Exception:
             return "127.0.0.1"
-    
+
     async def start_mdns(self):
         """Start mDNS service advertising"""
         if self.zeroconf is not None:
             self.logger.warning("mDNS service already running")
             return
-        
+
         try:
             self.zeroconf = AsyncZeroconf()
-            
+
             # Get local IP
             local_ip = self.get_local_ip()
             self.logger.info(f"Advertising mDNS service on {local_ip}:{self.port}")
-            
+
             # Create service info
             self.service_info = ServiceInfo(
                 "_http._tcp.local.",
@@ -412,21 +432,23 @@ class MDNSService:
                     "description": self.service_name,
                     "path": "/",
                     "version": "1.0",
-                    "device": "pamir-ai"
+                    "device": "pamir-ai",
                 },
-                server=f"{self.hostname}.local."
+                server=f"{self.hostname}.local.",
             )
-            
+
             # Register service
             await self.zeroconf.async_register_service(self.service_info)
-            self.logger.info(f"mDNS service registered: {self.hostname}.local:{self.port}")
-            
+            self.logger.info(
+                f"mDNS service registered: {self.hostname}.local:{self.port}"
+            )
+
         except Exception as e:
             self.logger.error(f"Failed to start mDNS service: {e}")
             if self.zeroconf:
                 await self.zeroconf.async_close()
                 self.zeroconf = None
-    
+
     async def stop_mdns(self):
         """Stop mDNS service"""
         if self.zeroconf:
@@ -440,7 +462,7 @@ class MDNSService:
             finally:
                 self.zeroconf = None
                 self.service_info = None
-    
+
     async def start_web_server(self):
         """Start the web server"""
         try:
@@ -451,20 +473,22 @@ class MDNSService:
                 log_level="warning",
                 access_log=False,
             )
-            
+
             self.server = uvicorn.Server(config)
             self.logger.info(f"Starting mDNS web server on port {self.port}")
-            
+
             # Start mDNS advertising
             await self.start_mdns()
-            
+
             # Run server in background task
             server_task = asyncio.create_task(self.server.serve())
             return server_task
-            
+
         except OSError as e:
             if e.errno == 98:  # Address already in use
-                self.logger.error(f"Port {self.port} is already in use. Please choose a different port or stop the conflicting service.")
+                self.logger.error(
+                    f"Port {self.port} is already in use. Please choose a different port or stop the conflicting service."
+                )
                 # Try alternative ports
                 for alt_port in [self.port + 1, self.port + 2, 8001, 8002, 8003]:
                     try:
@@ -480,32 +504,36 @@ class MDNSService:
                         self.server = uvicorn.Server(config)
                         await self.start_mdns()
                         server_task = asyncio.create_task(self.server.serve())
-                        self.logger.info(f"Successfully started mDNS web server on alternative port {self.port}")
+                        self.logger.info(
+                            f"Successfully started mDNS web server on alternative port {self.port}"
+                        )
                         return server_task
                     except OSError:
                         continue
-                raise Exception(f"Could not find an available port starting from {self.port}")
+                raise Exception(
+                    f"Could not find an available port starting from {self.port}"
+                )
             else:
                 raise
         except Exception as e:
             self.logger.error(f"Failed to start mDNS web server: {e}")
             raise
-    
+
     async def stop_web_server(self):
         """Stop the web server"""
         if self.server:
             self.logger.info("Stopping mDNS web server...")
             self.server.should_exit = True
             await asyncio.sleep(1)  # Give server time to stop
-        
+
         await self.stop_mdns()
-    
+
     async def run(self):
         """Run the mDNS service (for standalone use)"""
         try:
             self.logger.info(f"Starting mDNS service: {self.hostname}.local")
             server_task = await self.start_web_server()
-            
+
             print(f"\nmDNS Service Started")
             print(f"Access your device at:")
             print(f"   * http://{self.hostname}.local:{self.port}")
@@ -513,10 +541,10 @@ class MDNSService:
             print(f"\nNow you can use Cursor to play with MCP!")
             print(f"Note: If .local doesn't work, use the direct IP address")
             print("Press Ctrl+C to stop\n")
-            
+
             # Wait for server
             await server_task
-            
+
         except KeyboardInterrupt:
             self.logger.info("mDNS service interrupted by user")
         except Exception as e:
@@ -528,23 +556,33 @@ class MDNSService:
 async def main():
     """Main entry point for standalone use"""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="mDNS Service for Pamir AI Device")
-    parser.add_argument("--hostname", default="pamir-ai", help="Hostname for mDNS (default: pamir-ai)")
-    parser.add_argument("--port", type=int, default=8080, help="Port for web server (default: 8080)")
-    parser.add_argument("--service-name", default="Pamir AI Device", help="Service name")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
-    
+    parser.add_argument(
+        "--hostname", default="pamir-ai", help="Hostname for mDNS (default: pamir-ai)"
+    )
+    parser.add_argument(
+        "--port", type=int, default=8080, help="Port for web server (default: 8080)"
+    )
+    parser.add_argument(
+        "--service-name", default="Pamir AI Device", help="Service name"
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Enable verbose logging"
+    )
+
     args = parser.parse_args()
-    
+
     # Setup logging
     log_level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    
+    logging.basicConfig(
+        level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+
     # Create and run service
     mdns_service = MDNSService(args.hostname, args.service_name, args.port)
     await mdns_service.run()
 
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())

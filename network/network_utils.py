@@ -16,7 +16,7 @@ class NetworkUtils:
 
     def get_wifi_name(self):
         """Get the WiFi SSID name.
-        
+
         Returns:
             SSID name as a string or an error message
         """
@@ -25,7 +25,7 @@ class NetworkUtils:
         except Exception as e:
             logger.error(f"Error getting WiFi name: {e}")
             return "Unknown WiFi"
-            
+
     def get_wifi_ip_address(self):
         """Get the WiFi IP address of the system.
 
@@ -409,7 +409,7 @@ class NetworkUtils:
 
     def _get_linux_wifi_name(self):
         """Get the WiFi SSID name for Linux systems.
-        
+
         Returns:
             SSID name as a string or an error message
         """
@@ -422,14 +422,14 @@ class NetworkUtils:
                     text=True,
                     check=True,
                 )
-                
+
                 # Parse output to find active connection
-                for line in result.stdout.split('\n'):
-                    if line.startswith('yes:'):
-                        return line.split(':', 1)[1]  # Return SSID
+                for line in result.stdout.split("\n"):
+                    if line.startswith("yes:"):
+                        return line.split(":", 1)[1]  # Return SSID
             except (FileNotFoundError, subprocess.CalledProcessError):
                 pass
-                
+
             # Try iwconfig as fallback
             try:
                 # Find WiFi interface
@@ -444,7 +444,7 @@ class NetworkUtils:
 
                 if not wifi_interface:
                     return "No WiFi interface found"
-                    
+
                 # Get SSID using iwconfig
                 result = subprocess.run(
                     ["iwconfig", wifi_interface],
@@ -452,14 +452,14 @@ class NetworkUtils:
                     text=True,
                     check=True,
                 )
-                
+
                 # Extract ESSID from output
                 essid_match = re.search(r'ESSID:"([^"]*)"', result.stdout)
                 if essid_match:
                     return essid_match.group(1)
             except (FileNotFoundError, subprocess.CalledProcessError):
                 pass
-                
+
             # Try iw as second fallback
             try:
                 # Find WiFi interface
@@ -474,7 +474,7 @@ class NetworkUtils:
 
                 if not wifi_interface:
                     return "No WiFi interface found"
-                    
+
                 # Get SSID using iw
                 result = subprocess.run(
                     ["iw", "dev", wifi_interface, "link"],
@@ -482,14 +482,14 @@ class NetworkUtils:
                     text=True,
                     check=True,
                 )
-                
+
                 # Extract SSID from output
-                ssid_match = re.search(r'SSID: (.*?)$', result.stdout, re.MULTILINE)
+                ssid_match = re.search(r"SSID: (.*?)$", result.stdout, re.MULTILINE)
                 if ssid_match:
                     return ssid_match.group(1).strip()
             except (FileNotFoundError, subprocess.CalledProcessError):
                 pass
-                
+
             return "No WiFi name found"
         except Exception as e:
             logger.error(f"Error getting Linux WiFi name: {e}")
