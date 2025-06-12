@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+import time
 
 from .wifi_manager import WiFiManager, WiFiManagerError
 
@@ -44,7 +45,7 @@ class WiFiServer:
         wifi_manager: WiFiManager,
         host: str = "0.0.0.0",
         port: int = 8080,
-        mdns_hostname: str = None,
+        mdns_hostname: str = "",
     ):
         self.wifi_manager = wifi_manager
         self.host = host
@@ -91,8 +92,6 @@ class WiFiServer:
             connection_in_progress = False
             if self._connection_in_progress and self._connection_start_time:
                 # Consider connection in progress for up to 2 minutes
-                import time
-
                 elapsed = time.time() - self._connection_start_time
                 connection_in_progress = elapsed < 120  # 2 minutes timeout
 
@@ -101,18 +100,41 @@ class WiFiServer:
                     self._connection_in_progress = False
                     self._connection_start_time = None
 
-            return {
+            # Ensure mdns_hostname is properly formatted
+            mdns_hostname = self.mdns_hostname
+            if mdns_hostname and not mdns_hostname.endswith(".local"):
+                mdns_hostname = f"{mdns_hostname}.local"
+
+            response_data = {
                 "connected": status.connected,
                 "ssid": status.ssid,
                 "interface": status.interface,
                 "ip_address": status.ip_address,
                 "setup_complete": self._setup_complete,
                 "connection_in_progress": connection_in_progress,
-                "mdns_hostname": self.mdns_hostname,
+                "mdns_hostname": mdns_hostname,
+                "hostname": self.mdns_hostname,  # Raw hostname without .local
+                "timestamp": int(time.time()) if "time" in locals() else None,
             }
+
+            self.logger.debug(f"Status response: {response_data}")
+            return response_data
+
         except Exception as e:
             self.logger.error(f"Status check failed: {e}")
-            raise HTTPException(status_code=500, detail="Failed to get status")
+            # Return a basic response even if status check fails
+            return {
+                "connected": False,
+                "ssid": None,
+                "interface": None,
+                "ip_address": None,
+                "setup_complete": self._setup_complete,
+                "connection_in_progress": self._connection_in_progress,
+                "mdns_hostname": f"{self.mdns_hostname}.local",
+                "hostname": self.mdns_hostname,
+                "error": "Status check failed",
+                "timestamp": None,
+            }
 
     async def connect_network(
         self, request: ConnectRequest, background_tasks: BackgroundTasks

@@ -6,11 +6,8 @@ using NetworkManager via nmcli commands.
 """
 
 import asyncio
-import json
 import logging
-import subprocess
-import time
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 from dataclasses import dataclass
 
 

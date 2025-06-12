@@ -23,8 +23,8 @@ class MDNSService:
 
     def __init__(
         self,
-        hostname: str = "pamir-ai",
-        service_name: str = "Pamir AI Device",
+        hostname: str = "",
+        service_name: str = "Distiller",
         port: int = 8080,
     ):
         self.hostname = hostname
@@ -32,7 +32,7 @@ class MDNSService:
         self.port = port
         self.zeroconf: Optional[AsyncZeroconf] = None
         self.service_info: Optional[ServiceInfo] = None
-        self.app = FastAPI(title="Pamir AI Device")
+        self.app = FastAPI(title="Distiller")
         self.server: Optional[uvicorn.Server] = None
 
         # Setup logging
@@ -54,7 +54,7 @@ class MDNSService:
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Pamir AI Device - Ready</title>
+                <title>Distiller - Ready</title>
                 <style>
                     * {
                         margin: 0;
@@ -250,7 +250,7 @@ class MDNSService:
                             <p style="color: #4a4a4a; font-size: 0.9rem;">
                                 Open <strong>Cursor IDE</strong> and start experimenting with 
                                 <strong>Model Context Protocol (MCP)</strong> integrations.
-                                Your Pamir AI device is now accessible on the local network.
+                                Your Distiller is now accessible on the local network.
                             </p>
                         </div>
                         
@@ -267,7 +267,7 @@ class MDNSService:
                         </div>
                         
                         <div class="footer">
-                            <p>Pamir AI • mDNS Service Active</p>
+                            <p>Distiller • mDNS Service Active</p>
                         </div>
                     </div>
                 </div>
@@ -298,7 +298,7 @@ class MDNSService:
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>WiFi Status - Pamir AI Device</title>
+                <title>WiFi Status - Distiller</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body { 
@@ -344,7 +344,7 @@ class MDNSService:
                 <div class="container">
                     <div class="header">
                         <h1>WiFi Connection Status</h1>
-                        <p>Pamir AI Device Network Information</p>
+                        <p>Distiller Network Information</p>
                     </div>
                     
                     <div class="content">
@@ -432,7 +432,7 @@ class MDNSService:
                     "description": self.service_name,
                     "path": "/",
                     "version": "1.0",
-                    "device": "pamir-ai",
+                    "device": "distiller",
                 },
                 server=f"{self.hostname}.local.",
             )
@@ -557,16 +557,14 @@ async def main():
     """Main entry point for standalone use"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="mDNS Service for Pamir AI Device")
+    parser = argparse.ArgumentParser(description="mDNS Service for Distiller")
     parser.add_argument(
-        "--hostname", default="pamir-ai", help="Hostname for mDNS (default: pamir-ai)"
+        "--hostname", default="", help="Hostname for mDNS"
     )
     parser.add_argument(
         "--port", type=int, default=8080, help="Port for web server (default: 8080)"
     )
-    parser.add_argument(
-        "--service-name", default="Pamir AI Device", help="Service name"
-    )
+    parser.add_argument("--service-name", default="Distiller", help="Service name")
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )

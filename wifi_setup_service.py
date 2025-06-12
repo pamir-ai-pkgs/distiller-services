@@ -56,7 +56,7 @@ class WiFiSetupService:
         device_name: str = "Pamir AI Key Input",
         check_button: bool = True,
         enable_eink: bool = True,
-        mdns_hostname: str = None,  # Will auto-detect if None
+        mdns_hostname: str = "",  # Will auto-detect if None
         mdns_port: int = 8000,
     ):
         self.hotspot_ssid = hotspot_ssid
@@ -79,7 +79,7 @@ class WiFiSetupService:
         self.logger = logging.getLogger(__name__)
 
         # Auto-detect system hostname if not provided (after logging is set up)
-        if mdns_hostname is None:
+        if not mdns_hostname:
             try:
                 self.mdns_hostname = socket.gethostname()
                 self.logger.info(f"Auto-detected system hostname: {self.mdns_hostname}")
@@ -87,7 +87,6 @@ class WiFiSetupService:
                 self.logger.warning(
                     f"Failed to auto-detect hostname, using fallback: {e}"
                 )
-                self.mdns_hostname = "pamir-ai"  # Fallback
         else:
             self.mdns_hostname = mdns_hostname
             self.logger.info(f"Using provided mDNS hostname: {self.mdns_hostname}")
