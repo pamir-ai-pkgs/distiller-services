@@ -147,9 +147,13 @@ def create_wifi_info_image(
     draw.ellipse([icon_x - 2, icon_y - 2, icon_x + 2, icon_y + 2], fill=0)
 
     y_pos += 35
-
-    # Timestamp
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Timestamp with timezone
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S %Z")
+    if not timestamp.endswith(' Z') and not timestamp.split()[-1]:  # If no timezone info
+        import time
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S") + f" {time.tzname[0]}"
+    
     draw.text((10, y_pos), f"Updated: {timestamp}", fill=0, font=font_tiny)
     y_pos += 25
 
@@ -206,28 +210,42 @@ def create_wifi_info_image(
             )
 
     y_pos += 50
-
+    
+    # SSH Connection Instructions
+    draw.text((10, y_pos), "SSH CONNECTION:", fill=0, font=font_medium)
+    y_pos += 20
+    ssh_command = f"distiller@{ip_address}"
+    draw.text((10, y_pos), ssh_command, fill=0, font=font_medium)
+    y_pos += 30
+    
+    # Default Password
+    draw.text((10, y_pos), "PASSWORD:", fill=0, font=font_medium)
+    y_pos += 20
+    draw.text((10, y_pos), "one", fill=0, font=font_large)
+    y_pos += 30
+    
     # MAC Address
-    draw.text((10, y_pos), "MAC ADDRESS:", fill=0, font=font_medium)
-    y_pos += 20
-    # Split MAC address into two lines if too long
-    if len(mac_address) > 17:
-        mac_line1 = mac_address[:17]
-        mac_line2 = mac_address[17:]
-        draw.text((10, y_pos), mac_line1, fill=0, font=font_small)
-        y_pos += 15
-        draw.text((10, y_pos), mac_line2, fill=0, font=font_small)
-        y_pos += 20
-    else:
-        draw.text((10, y_pos), mac_address, fill=0, font=font_small)
-        y_pos += 25
+    # draw.text((10, y_pos), "MAC ADDRESS:", fill=0, font=font_medium)
+    # y_pos += 20
 
-    # Hostname
-    hostname = network_details.get("hostname", "Unknown")
-    draw.text((10, y_pos), "HOSTNAME:", fill=0, font=font_medium)
-    y_pos += 20
-    draw.text((10, y_pos), hostname, fill=0, font=font_small)
-    y_pos += 25
+    # # Split MAC address into two lines if too long
+    # if len(mac_address) > 17:
+    #     mac_line1 = mac_address[:17]
+    #     mac_line2 = mac_address[17:]
+    #     draw.text((10, y_pos), mac_line1, fill=0, font=font_small)
+    #     y_pos += 15
+    #     draw.text((10, y_pos), mac_line2, fill=0, font=font_small)
+    #     y_pos += 20
+    # else:
+    #     draw.text((10, y_pos), mac_address, fill=0, font=font_small)
+    #     y_pos += 25
+
+    # # Hostname
+    # hostname = network_details.get("hostname", "Unknown")
+    # draw.text((10, y_pos), "HOSTNAME:", fill=0, font=font_medium)
+    # y_pos += 20
+    # draw.text((10, y_pos), hostname, fill=0, font=font_small)
+    # y_pos += 25
 
     # Network Interfaces
     # interfaces = network_details.get("interfaces", [])
