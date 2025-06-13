@@ -11,6 +11,7 @@ import asyncio
 import logging
 import os
 import signal
+import socket
 import sys
 import time
 from pathlib import Path
@@ -24,6 +25,7 @@ from mdns_service import MDNSService
 try:
     import evdev
     from evdev import InputDevice, ecodes
+
     EVDEV_AVAILABLE = True
 except ImportError:
     print("Warning: evdev package not available - button monitoring disabled")
@@ -32,7 +34,12 @@ except ImportError:
 # Import eink display functionality
 try:
     from eink_display_flush import SimpleEinkDriver, load_and_convert_image
-    from wifi_info_display import create_wifi_info_image, create_wifi_setup_image, create_wifi_success_image
+    from wifi_info_display import (
+        create_wifi_info_image,
+        create_wifi_setup_image,
+        create_wifi_success_image,
+    )
+
     EINK_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: eink functionality not available - {e}")
@@ -43,34 +50,51 @@ class WiFiSetupService:
     """Main WiFi setup service orchestrator"""
 
     def __init__(
-        self, 
-        hotspot_ssid: str = "SetupWiFi", 
+        self,
+        hotspot_ssid: str = "SetupWiFi",
         hotspot_password: str = "setupwifi123",
         device_name: str = "Pamir AI Key Input",
         check_button: bool = True,
         enable_eink: bool = True,
-        mdns_hostname: str = "distiller",
-        mdns_port: int = 8000
+        mdns_hostname: str = "",  # Will auto-detect if None
+        mdns_port: int = 8000,
     ):
         self.hotspot_ssid = hotspot_ssid
         self.hotspot_password = hotspot_password
         self.device_name = device_name
         self.check_button = check_button and EVDEV_AVAILABLE
         self.enable_eink = enable_eink and EINK_AVAILABLE
-        self.mdns_hostname = mdns_hostname
         self.mdns_port = mdns_port
         self.device_path = None
         self.check_duration = 2.0  # seconds to check for button hold
-        
+
         self.wifi_manager = WiFiManager()
-        self.wifi_server = WiFiServer(self.wifi_manager)
+        # WiFiServer will be created after hostname is determined
         self.server = None
         self.mdns_service = None
         self.running = False
 
-        # Setup logging
+        # Setup logging first
         self.setup_logging()
         self.logger = logging.getLogger(__name__)
+
+        # Auto-detect system hostname if not provided (after logging is set up)
+        if not mdns_hostname:
+            try:
+                self.mdns_hostname = socket.gethostname()
+                self.logger.info(f"Auto-detected system hostname: {self.mdns_hostname}")
+            except Exception as e:
+                self.logger.warning(
+                    f"Failed to auto-detect hostname, using fallback: {e}"
+                )
+        else:
+            self.mdns_hostname = mdns_hostname
+            self.logger.info(f"Using provided mDNS hostname: {self.mdns_hostname}")
+
+        # Create WiFiServer now that we have the hostname
+        self.wifi_server = WiFiServer(
+            self.wifi_manager, mdns_hostname=self.mdns_hostname
+        )
 
         # Log eink status
         if not enable_eink:
@@ -105,12 +129,14 @@ class WiFiSetupService:
         # Clear any existing handlers
         for handler in logging.root.handlers[:]:
             logging.root.removeHandler(handler)
-            
+
         handlers = [logging.StreamHandler(sys.stdout)]
         if log_file:
             handlers.append(logging.FileHandler(log_file))
 
-        logging.basicConfig(level=logging.INFO, format=log_format, handlers=handlers, force=True)
+        logging.basicConfig(
+            level=logging.INFO, format=log_format, handlers=handlers, force=True
+        )
 
         if log_file:
             print(f"Logging to: {log_file}")
@@ -126,17 +152,23 @@ class WiFiSetupService:
         """Find the input device by name"""
         if not EVDEV_AVAILABLE:
             return False
-            
+
         try:
             devices = [InputDevice(path) for path in evdev.list_devices()]
             for device in devices:
-                self.logger.debug(f"Checking device: {device.path}, Name: {device.name}")
+                self.logger.debug(
+                    f"Checking device: {device.path}, Name: {device.name}"
+                )
                 if device.name == self.device_name:
                     self.device_path = device.path
-                    self.logger.info(f"Found device '{self.device_name}' at path: {device.path}")
+                    self.logger.info(
+                        f"Found device '{self.device_name}' at path: {device.path}"
+                    )
                     return True
-            
-            self.logger.warning(f"Could not find input device with name: '{self.device_name}'")
+
+            self.logger.warning(
+                f"Could not find input device with name: '{self.device_name}'"
+            )
             return False
         except Exception as e:
             self.logger.error(f"Error finding device: {e}")
@@ -146,19 +178,19 @@ class WiFiSetupService:
         """Check if ENTER button is currently being held"""
         if not self.device_path or not EVDEV_AVAILABLE:
             return False
-        
+
         try:
             device = InputDevice(self.device_path)
-            
+
             # Get the current state of all keys
             active_keys = device.active_keys()
-            
+
             # Check if ENTER key is in the active keys
             is_held = ecodes.KEY_ENTER in active_keys
-            
+
             device.close()
             return is_held
-            
+
         except Exception as e:
             self.logger.error(f"Error checking button state: {e}")
             return False
@@ -167,27 +199,33 @@ class WiFiSetupService:
         """Check if button is held during the startup check period"""
         if not self.check_button:
             return False
-            
-        self.logger.info(f"Checking for ENTER button hold for {self.check_duration} seconds...")
-        
+
+        self.logger.info(
+            f"Checking for ENTER button hold for {self.check_duration} seconds..."
+        )
+
         start_time = time.time()
         samples_held = 0
         total_samples = 0
-        
+
         while time.time() - start_time < self.check_duration:
             if self.is_enter_button_held():
                 samples_held += 1
             total_samples += 1
             time.sleep(0.1)  # Check every 100ms
-        
+
         # Consider button held if it was held for at least 80% of the time
         hold_ratio = samples_held / total_samples if total_samples > 0 else 0
         is_consistently_held = hold_ratio >= 0.8
-        
-        self.logger.info(f"Button hold ratio: {hold_ratio:.2f} ({samples_held}/{total_samples} samples)")
-        
+
+        self.logger.info(
+            f"Button hold ratio: {hold_ratio:.2f} ({samples_held}/{total_samples} samples)"
+        )
+
         if is_consistently_held:
-            self.logger.info("ENTER button consistently held during startup - triggering WiFi setup!")
+            self.logger.info(
+                "ENTER button consistently held during startup - triggering WiFi setup!"
+            )
             return True
         else:
             self.logger.info("ENTER button not consistently held - normal startup")
@@ -198,33 +236,32 @@ class WiFiSetupService:
         if not self.enable_eink:
             self.logger.debug("E-ink display disabled - skipping WiFi info display")
             return
-            
+
         try:
             self.logger.info("Displaying WiFi information on eink display...")
-            
+
             # Create and automatically display WiFi info image on eink
             create_wifi_info_image(
-                width=240, 
-                height=416, 
-                filename="wifi_info.png", 
-                auto_display=True
+                width=240, height=416, filename="wifi_info.png", auto_display=True
             )
-            
+
             self.logger.info("WiFi information displayed successfully on eink")
-                
+
         except Exception as e:
             self.logger.error(f"Error displaying WiFi info: {e}")
 
     def display_setup_instructions(self):
         """Display setup instructions on e-ink screen"""
         if not self.enable_eink:
-            self.logger.debug("E-ink display disabled - skipping setup instructions display")
+            self.logger.debug(
+                "E-ink display disabled - skipping setup instructions display"
+            )
             return
-            
+
         try:
             # Get the hotspot IP address
             hotspot_ip = "192.168.4.1"  # Default hotspot IP
-            
+
             self.logger.info("Displaying setup instructions on e-ink screen...")
             create_wifi_setup_image(
                 ssid=self.hotspot_ssid,
@@ -232,7 +269,7 @@ class WiFiSetupService:
                 ip_address=hotspot_ip,
                 port=8080,
                 filename="wifi_setup_instructions.png",
-                auto_display=True
+                auto_display=True,
             )
             self.logger.info("Setup instructions displayed on e-ink screen")
         except Exception as e:
@@ -241,16 +278,18 @@ class WiFiSetupService:
     def display_success_screen(self, connection_info):
         """Display success screen on e-ink"""
         if not self.enable_eink:
-            self.logger.debug("E-ink display disabled - skipping success screen display")
+            self.logger.debug(
+                "E-ink display disabled - skipping success screen display"
+            )
             return
-            
+
         try:
             self.logger.info("Displaying success screen on e-ink...")
             create_wifi_success_image(
-                ssid=connection_info.get('ssid', 'Unknown'),
-                ip_address=connection_info.get('ip_address', 'Unknown'),
+                ssid=connection_info.get("ssid", "Unknown"),
+                ip_address=connection_info.get("ip_address", "Unknown"),
                 filename="wifi_setup_success.png",
-                auto_display=True
+                auto_display=True,
             )
             self.logger.info("Success screen displayed on e-ink")
         except Exception as e:
@@ -259,28 +298,34 @@ class WiFiSetupService:
     async def start_mdns_service(self):
         """Start mDNS service for post-connection access"""
         try:
-            self.logger.info(f"Starting mDNS service: {self.mdns_hostname}.local:{self.mdns_port}")
-            
+            self.logger.info(
+                f"Starting mDNS service: {self.mdns_hostname}.local:{self.mdns_port}"
+            )
+
             self.mdns_service = MDNSService(
                 hostname=self.mdns_hostname,
                 service_name="Pamir AI Device",
-                port=self.mdns_port
+                port=self.mdns_port,
             )
-            
+
             # Start the mDNS web server
             mdns_server_task = await self.mdns_service.start_web_server()
-            
-            self.logger.info(f"mDNS service active: http://{self.mdns_hostname}.local:{self.mdns_port}")
+
+            self.logger.info(
+                f"mDNS service active: http://{self.mdns_hostname}.local:{self.mdns_port}"
+            )
             print(f"\nSetup Complete!")
             print(f"Device accessible at:")
             print(f"   * mDNS: http://{self.mdns_hostname}.local:{self.mdns_port}")
-            print(f"   * Direct IP: http://{self.mdns_service.get_local_ip()}:{self.mdns_port}")
+            print(
+                f"   * Direct IP: http://{self.mdns_service.get_local_ip()}:{self.mdns_port}"
+            )
             print(f"\nNow you can use Cursor to play with MCP!")
             print(f"Note: If .local doesn't work, use the direct IP address")
             # print(f"To enable mDNS on Linux: sudo systemctl enable --now avahi-daemon\n")
-            
+
             return mdns_server_task
-            
+
         except Exception as e:
             self.logger.error(f"Failed to start mDNS service: {e}")
             return None
@@ -288,73 +333,93 @@ class WiFiSetupService:
     async def wait_for_network(self, max_wait=30):
         """Wait for network connectivity before proceeding"""
         self.logger.info("Waiting for network connectivity...")
-        
+
         import subprocess
-        
+
         for attempt in range(max_wait):
             try:
                 # Check if we have any network connectivity
-                result = subprocess.run(['ip', 'route', 'get', '8.8.8.8'], 
-                                      capture_output=True, text=True, timeout=5)
+                result = subprocess.run(
+                    ["ip", "route", "get", "8.8.8.8"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
                 if result.returncode == 0:
-                    self.logger.info(f"Network connectivity detected after {attempt + 1} seconds")
+                    self.logger.info(
+                        f"Network connectivity detected after {attempt + 1} seconds"
+                    )
                     # Give WiFi a bit more time to fully establish
                     await asyncio.sleep(3)
                     return True
-            except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
+            except (
+                subprocess.TimeoutExpired,
+                subprocess.CalledProcessError,
+                FileNotFoundError,
+            ):
                 pass
-            
+
             await asyncio.sleep(1)
-        
-        self.logger.warning(f"No network connectivity after {max_wait} seconds, proceeding anyway")
+
+        self.logger.warning(
+            f"No network connectivity after {max_wait} seconds, proceeding anyway"
+        )
         return False
 
     async def run_startup_check(self):
         """Run startup check for button hold and display WiFi info if not in setup mode"""
         self.logger.info("=== WiFi Setup Startup Check ===")
-        
+
         # Wait a moment for system to stabilize
         self.logger.info("Waiting for system to stabilize...")
         await asyncio.sleep(1)
-        
+
         # Wait for network connectivity (but don't fail if it doesn't come)
         await self.wait_for_network(max_wait=20)
-        
+
         # Find the input device if button checking is enabled
         if self.check_button:
             if not self.find_device():
                 self.logger.error("Could not find input device - skipping button check")
                 self.check_button = False
-        
+
         # Check if button is held during startup
         if self.check_button and self.check_button_during_startup():
             # Button was held - start WiFi setup
             self.logger.info("Button held - starting WiFi setup mode")
             return True
-        
+
         # Check if there's any WiFi connection (auto-setup mode)
         try:
             self.logger.info("Checking current WiFi connection status...")
             status = await self.wifi_manager.get_connection_status()
-            
+
             if not status.connected:
-                self.logger.info("No WiFi connection detected - automatically starting WiFi setup mode")
+                self.logger.info(
+                    "No WiFi connection detected - automatically starting WiFi setup mode"
+                )
                 return True
             elif status.ssid and not status.ssid.startswith("SetupWiFi"):
                 # Connected to a real WiFi network
                 self.logger.info(f"Already connected to WiFi network: {status.ssid}")
-                self.logger.info("No WiFi setup trigger detected - displaying WiFi info")
+                self.logger.info(
+                    "No WiFi setup trigger detected - displaying WiFi info"
+                )
                 self.display_wifi_info()
                 return False
             else:
                 # Connected to our own setup hotspot or similar - start setup
-                self.logger.info(f"Connected to setup/hotspot network ({status.ssid}) - starting WiFi setup mode")
+                self.logger.info(
+                    f"Connected to setup/hotspot network ({status.ssid}) - starting WiFi setup mode"
+                )
                 return True
-                
+
         except Exception as e:
             self.logger.error(f"Error checking WiFi status: {e}")
             # If we can't check status, assume we need setup
-            self.logger.info("Unable to determine WiFi status - starting WiFi setup mode as fallback")
+            self.logger.info(
+                "Unable to determine WiFi status - starting WiFi setup mode as fallback"
+            )
             return True
 
     async def start_hotspot(self) -> bool:
@@ -411,17 +476,19 @@ class WiFiSetupService:
         while self.running and (time.time() - start_time) < connection_timeout:
             try:
                 status = await self.wifi_manager.get_connection_status()
-                
+
                 # Add debug logging to understand connection status
-                self.logger.debug(f"Connection status: connected={status.connected}, ssid={status.ssid}, hotspot_ssid={self.hotspot_ssid}")
+                self.logger.debug(
+                    f"Connection status: connected={status.connected}, ssid={status.ssid}, hotspot_ssid={self.hotspot_ssid}"
+                )
 
                 if status.connected and status.ssid != self.hotspot_ssid:
                     self.logger.info(f"Connected to: {status.ssid}")
 
                     # Display success screen
                     connection_info = {
-                        'ssid': status.ssid,
-                        'ip_address': getattr(status, 'ip_address', 'Unknown')
+                        "ssid": status.ssid,
+                        "ip_address": getattr(status, "ip_address", "Unknown"),
                     }
                     self.display_success_screen(connection_info)
 
@@ -429,22 +496,29 @@ class WiFiSetupService:
                     if self.wifi_manager._hotspot_active:
                         await self.wifi_manager.stop_hotspot()
 
-                    # Start mDNS service for post-connection access
-                    # mdns_server_task = await self.start_mdns_service()
-                    
-                    # if mdns_server_task:
-                    #     # Keep the mDNS service running - don't wait for it to complete
-                    #     # It will run in the background to serve the "Cursor MCP" page
-                    #     pass
+                    # =======================================================
+                    # !! THIS IS THE FIX !!
+                    # Uncomment the following lines to start the mDNS service
+                    # =======================================================
+                    mdns_server_task = await self.start_mdns_service()
+
+                    if mdns_server_task:
+                        # Keep the mDNS service running in the background
+                        pass
+                    # =======================================================
 
                     # Keep server running for 2 minutes to allow status page to reconnect via WiFi
-                    self.logger.info("WiFi connection successful - keeping server running for 2 minutes to allow status page reconnection")
+                    self.logger.info(
+                        "WiFi connection successful - keeping server running for 2 minutes to allow status page reconnection"
+                    )
                     await asyncio.sleep(120)
                     self.logger.info("2-minute grace period completed")
 
                     return True
                 elif status.connected:
-                    self.logger.debug(f"Connected but to hotspot ({status.ssid}), continuing to monitor")
+                    self.logger.debug(
+                        f"Connected but to hotspot ({status.ssid}), continuing to monitor"
+                    )
                 else:
                     self.logger.debug("Not connected, continuing to monitor")
 
@@ -601,13 +675,14 @@ def main():
     parser.add_argument(
         "--no-eink",
         action="store_true",
-        default=os.getenv("WIFI_SETUP_NO_EINK", "false").lower() in ("true", "1", "yes"),
+        default=os.getenv("WIFI_SETUP_NO_EINK", "false").lower()
+        in ("true", "1", "yes"),
         help="Disable e-ink display functionality (useful for testing without hardware). Can also be set via WIFI_SETUP_NO_EINK=true",
     )
     parser.add_argument(
         "--mdns-hostname",
-        default="distiller",
-        help="mDNS hostname for post-connection access (default: distiller)",
+        default=None,
+        help="mDNS hostname for post-connection access (default: auto-detect system hostname)",
     )
     parser.add_argument(
         "--mdns-port",
@@ -635,13 +710,13 @@ def main():
 
     # Create and run service
     service = WiFiSetupService(
-        args.ssid, 
-        args.password, 
+        args.ssid,
+        args.password,
         args.device_name,
         check_button=not args.no_button_check,
         enable_eink=not args.no_eink,
         mdns_hostname=args.mdns_hostname,
-        mdns_port=args.mdns_port
+        mdns_port=args.mdns_port,
     )
 
     try:

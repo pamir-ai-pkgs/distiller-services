@@ -6,11 +6,8 @@ using NetworkManager via nmcli commands.
 """
 
 import asyncio
-import json
 import logging
-import subprocess
-import time
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 from dataclasses import dataclass
 
 
@@ -69,7 +66,7 @@ class WiFiManager:
             )
 
             stdout, stderr = await process.communicate()
-            
+
             self.logger.debug(f"nmcli active connections output: {stdout.decode()}")
 
             if process.returncode != 0:
@@ -83,7 +80,7 @@ class WiFiManager:
 
                 parts = line.split(":")
                 self.logger.debug(f"Connection line parts: {parts}")
-                
+
                 if len(parts) >= 4 and parts[0] == "802-11-wireless":
                     device = parts[1]
                     state = parts[2]
@@ -95,7 +92,9 @@ class WiFiManager:
                         # Get IP address
                         ip_address = await self._get_device_ip(device)
 
-                        self.logger.debug(f"Found activated WiFi: device={device}, connection={connection}, actual_ssid={actual_ssid}, ip={ip_address}")
+                        self.logger.debug(
+                            f"Found activated WiFi: device={device}, connection={connection}, actual_ssid={actual_ssid}, ip={ip_address}"
+                        )
 
                         return ConnectionStatus(
                             connected=True,
@@ -110,60 +109,72 @@ class WiFiManager:
             self.logger.error(f"Status check error: {e}")
             return ConnectionStatus(connected=False)
 
-    async def connect_to_network(self, ssid: str, password: str = "", max_retries: int = 3) -> bool:
+    async def connect_to_network(
+        self, ssid: str, password: str = "", max_retries: int = 3
+    ) -> bool:
         """Connect to a WiFi network with optional password
 
         For single-band devices, checks network availability before hotspot disruption,
         then performs connection with hotspot management and proper error handling.
-        
+
         Args:
             ssid: Network SSID to connect to
             password: Network password (empty for open networks)
             max_retries: Maximum number of connection attempts (default: 3)
-        
+
         Returns:
             bool: True if connection successful, False otherwise
         """
         last_exception = None
-        
+
         # If hotspot is active, first check if network exists before stopping hotspot
         if self._hotspot_active:
-            self.logger.info(f"Checking network availability for {ssid} before stopping hotspot")
-            
+            self.logger.info(
+                f"Checking network availability for {ssid} before stopping hotspot"
+            )
+
             # Quick check if network exists without disrupting hotspot
-            if not await self._network_exists(ssid):
-                raise WiFiManagerError(f"Network '{ssid}' not found. Please check the network name and ensure it's available.")
-            
-            self.logger.info(f"Network {ssid} found, proceeding with connection attempt")
+            # if not await self._network_exists(ssid):
+            #     raise WiFiManagerError(f"Network '{ssid}' not found. Please check the network name and ensure it's available.")
+            #
+            # self.logger.info(f"Network {ssid} found, proceeding with connection attempt")
             return await self._connect_with_hotspot_management(ssid, password)
         else:
             # No hotspot active, use normal retry logic
             for attempt in range(1, max_retries + 1):
                 try:
-                    self.logger.info(f"Attempting to connect to network: {ssid} (attempt {attempt}/{max_retries})")
+                    self.logger.info(
+                        f"Attempting to connect to network: {ssid} (attempt {attempt}/{max_retries})"
+                    )
                     success = await self._perform_network_connection(ssid, password)
-                    
+
                     if success:
-                        self.logger.info(f"Successfully connected to {ssid} on attempt {attempt}")
+                        self.logger.info(
+                            f"Successfully connected to {ssid} on attempt {attempt}"
+                        )
                         return True
                     else:
-                        self.logger.warning(f"Connection attempt {attempt} failed for {ssid}")
-                        
+                        self.logger.warning(
+                            f"Connection attempt {attempt} failed for {ssid}"
+                        )
+
                 except Exception as e:
                     last_exception = e
-                    self.logger.warning(f"Connection attempt {attempt} failed with error: {e}")
-                
+                    self.logger.warning(
+                        f"Connection attempt {attempt} failed with error: {e}"
+                    )
+
                 # Add delay between retries (except for the last attempt)
                 if attempt < max_retries:
                     retry_delay = 2 + attempt  # Progressive delay: 3s, 4s, 5s
                     self.logger.info(f"Waiting {retry_delay} seconds before retry...")
                     await asyncio.sleep(retry_delay)
-            
+
             # All attempts exhausted
             error_msg = f"Failed to connect to {ssid} after {max_retries} attempts"
             if last_exception:
                 error_msg += f". Last error: {last_exception}"
-            
+
             self.logger.error(error_msg)
             raise WiFiManagerError(error_msg)
 
@@ -199,7 +210,7 @@ class WiFiManager:
         except WiFiManagerError as e:
             # These are our custom errors with user-friendly messages
             self.logger.error(f"WiFi connection error: {e}")
-            
+
             # Restore hotspot
             if hotspot_ssid and hotspot_password:
                 try:
@@ -207,7 +218,7 @@ class WiFiManager:
                     self.logger.info("Hotspot restored")
                 except Exception as restore_error:
                     self.logger.error(f"Failed to restore hotspot: {restore_error}")
-            
+
             # Re-raise the user-friendly error
             raise e
 
@@ -502,19 +513,19 @@ class WiFiManager:
         """Check if a network with the given SSID exists"""
         try:
             cmd = ["nmcli", "-t", "-f", "SSID", "dev", "wifi"]
-            
+
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
-            
+
             stdout, _ = await process.communicate()
-            
+
             if process.returncode == 0:
-                available_networks = stdout.decode().strip().split('\n')
+                available_networks = stdout.decode().strip().split("\n")
                 return ssid in available_networks
-            
+
             return False
-            
+
         except Exception as e:
             self.logger.error(f"Error checking network existence: {e}")
             return False
