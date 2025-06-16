@@ -71,6 +71,7 @@ class WiFiServer:
 
         # API Routes
         app.get("/api/status")(self.get_status)
+        app.get("/health")(self.health_check)
         app.post("/api/connect")(self.connect_network)
         app.post("/api/forget")(self.forget_network)
         app.post("/api/hotspot/start")(self.start_hotspot)
@@ -237,12 +238,20 @@ class WiFiServer:
         self.logger.info("Setup marked as complete")
         return {"success": True, "message": "Setup completed successfully"}
 
+    async def health_check(self) -> Dict:
+        """GET /health - Health check endpoint for service monitoring"""
+        return {
+            "status": "healthy",
+            "service": "wifi-setup",
+            "timestamp": int(time.time())
+        }
+
     async def get_index(self, request: Request) -> HTMLResponse:
         """GET / - Main web interface"""
         return self.templates.TemplateResponse("index.html", {"request": request})
 
     async def get_wifi_status(self, request: Request) -> HTMLResponse:
-        """GET /wifi_status - WiFi connection status page"""
+        """GET /wifi_status - Device status page with WiFi and MCP services"""
         try:
             status = await self.wifi_manager.get_connection_status()
 
@@ -262,12 +271,12 @@ class WiFiServer:
             ):
                 # Successfully connected to a WiFi network
                 return self.templates.TemplateResponse(
-                    "wifi_status.html",
+                    "status.html",
                     {
                         "request": request,
-                        "success": True,
-                        "connection_in_progress": False,
-                        "status": {
+                        "wifi_success": True,
+                        "wifi_connection_in_progress": False,
+                        "wifi_status": {
                             "ssid": status.ssid,
                             "ip_address": status.ip_address,
                             "interface": status.interface,
@@ -277,35 +286,35 @@ class WiFiServer:
             elif connection_in_progress:
                 # Connection attempt is in progress
                 return self.templates.TemplateResponse(
-                    "wifi_status.html",
+                    "status.html",
                     {
                         "request": request,
-                        "success": False,
-                        "connection_in_progress": True,
-                        "message": "Connection attempt in progress... Please wait.",
+                        "wifi_success": False,
+                        "wifi_connection_in_progress": True,
+                        "wifi_message": "Connection attempt in progress... Please wait.",
                     },
                 )
             else:
                 # Connection failed or back on hotspot
                 return self.templates.TemplateResponse(
-                    "wifi_status.html",
+                    "status.html",
                     {
                         "request": request,
-                        "success": False,
-                        "connection_in_progress": False,
-                        "message": "Connection failed. Please try again.",
+                        "wifi_success": False,
+                        "wifi_connection_in_progress": False,
+                        "wifi_message": "Connection failed. Please try again.",
                     },
                 )
 
         except Exception as e:
             self.logger.error(f"WiFi status check failed: {e}")
             return self.templates.TemplateResponse(
-                "wifi_status.html",
+                "status.html",
                 {
                     "request": request,
-                    "success": False,
-                    "connection_in_progress": False,
-                    "message": "Unable to check connection status. Please try again.",
+                    "wifi_success": False,
+                    "wifi_connection_in_progress": False,
+                    "wifi_message": "Unable to check connection status. Please try again.",
                 },
             )
 
