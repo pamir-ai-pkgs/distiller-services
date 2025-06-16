@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiFi Status - Distiller</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
+            background: #fafafa; color: #1a1a1a; min-height: 100vh; padding: 24px; line-height: 1.6;
+        }
+        .container { 
+            max-width: 640px; margin: 0 auto; background: #ffffff;
+            border: 2px solid #1a1a1a; box-shadow: 8px 8px 0px #1a1a1a;
+        }
+        .header { 
+            background: #1a1a1a; color: #ffffff; padding: 24px; text-align: center;
+        }
+        .header h1 { font-size: 1.75rem; margin-bottom: 8px; text-transform: uppercase; }
+        .content { padding: 32px; }
+        .status-card { 
+            background: #f8f8f8; border: 2px solid #1a1a1a; padding: 20px; 
+            margin-bottom: 24px; text-align: center;
+        }
+        .status-card.success::before {
+            content: ''; position: absolute; top: -2px; left: -2px; right: -2px;
+            height: 4px; background: #28a745;
+        }
+        .status-title { 
+            font-weight: bold; margin-bottom: 12px; text-transform: uppercase;
+            font-size: 0.85rem; letter-spacing: 0.05em;
+        }
+        .btn { 
+            background: #1a1a1a; color: #ffffff; border: none; padding: 12px 24px;
+            font-family: inherit; cursor: pointer; text-decoration: none;
+            display: inline-block; margin: 5px; text-transform: uppercase;
+            font-size: 0.9rem; letter-spacing: 0.05em;
+        }
+        .btn:hover { background: #333; }
+        .btn-secondary { background: #666; }
+        .alert { 
+            padding: 16px; margin: 16px 0; border: 2px solid #1a1a1a;
+            background: #e7f3ff; text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WiFi Connection Status</h1>
+            <p>Distiller Network Information</p>
+        </div>
+        
+        <div class="content">
+            <div class="status-card success" style="position: relative;">
+                <div class="status-title">✅ WiFi Connection Successful</div>
+                <div class="status-info">
+                    Your device is now connected to the WiFi network and accessible via mDNS.
+                </div>
+            </div>
+            
+            <div class="alert">
+                <strong>Note:</strong> The WiFi setup server runs on port 8080 for 2 minutes after connection, 
+                then switches to this permanent service on port {{ port }}.
+            </div>
+            
+            <div style="text-align: center; margin-top: 24px;">
+                <p style="margin-bottom: 16px;">Try accessing the setup server while it's still active:</p>
+                <a href="http://{{ hostname }}.local:8080/wifi_status" class="btn">
+                    Check Setup Server (Port 8080)
+                </a>
+                <a href="/" class="btn btn-secondary">
+                    Return to Device Home
+                </a>
+            </div>
+            
+            <div style="margin-top: 32px; padding: 20px; background: #f8f8f8; border: 2px solid #1a1a1a;">
+                <h3 style="margin-bottom: 12px; text-transform: uppercase; font-size: 0.9rem;">Device Access Information:</h3>
+                <div style="font-size: 0.9rem;">
+                    <div><strong>Hostname:</strong> {{ hostname }}.local</div>
+                    <div><strong>Setup Server:</strong> Port 8080 (temporary, 2 minutes)</div>
+                    <div><strong>Device Service:</strong> Port {{ port }} (permanent)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Auto-refresh every 10 seconds to update status
+        setTimeout(() => window.location.reload(), 10000);
+    </script>
+</body>
+</html> 
