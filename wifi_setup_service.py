@@ -304,7 +304,7 @@ class WiFiSetupService:
 
             self.mdns_service = MDNSService(
                 hostname=self.mdns_hostname,
-                service_name="Pamir AI Device",
+                service_name="Distiller mDNS Service",
                 port=self.mdns_port,
             )
 
