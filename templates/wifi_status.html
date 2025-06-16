@@ -9,13 +9,14 @@
 <body>
     <div class="container">
         <div class="header">
+            <img src="/static/images/pamir-logo-01.svg" alt="Pamir AI" class="logo">
             <h1>WiFi Connection Status</h1>
         </div>
         
         <div class="content">
             {% if success %}
                 <div class="status-card">
-                    <div class="status-title">✅ Successfully Connected!</div>
+                    <div class="status-title">Successfully Connected!</div>
                     <div class="status-info">
                         <strong>Network:</strong> {{ status.ssid }}<br>
                         <strong>IP Address:</strong> {{ status.ip_address or 'N/A' }}<br>
@@ -33,7 +34,7 @@
                 </div>
             {% elif connection_in_progress %}
                 <div class="status-card" style="border-color: #ffa500;">
-                    <div class="status-title">🔄 Connection In Progress</div>
+                    <div class="status-title">Connection In Progress</div>
                     <div class="status-info">
                         {{ message or 'Attempting to connect to WiFi network...' }}
                     </div>
@@ -49,7 +50,7 @@
                 </div>
             {% else %}
                 <div class="status-card disconnected">
-                    <div class="status-title">❌ Connection Failed</div>
+                    <div class="status-title">Connection Failed</div>
                     <div class="status-info">
                         {{ message or 'Unable to connect to the WiFi network.' }}
                     </div>

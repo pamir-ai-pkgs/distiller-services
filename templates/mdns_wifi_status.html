@@ -18,6 +18,12 @@
             background: #1a1a1a; color: #ffffff; padding: 24px; text-align: center;
         }
         .header h1 { font-size: 1.75rem; margin-bottom: 8px; text-transform: uppercase; }
+        .logo {
+            height: 60px;
+            width: auto;
+            margin-bottom: 16px;
+            filter: brightness(0) invert(1);
+        }
         .content { padding: 32px; }
         .status-card { 
             background: #f8f8f8; border: 2px solid #1a1a1a; padding: 20px; 
@@ -48,13 +54,14 @@
 <body>
     <div class="container">
         <div class="header">
+            <img src="/static/images/pamir-logo-01.svg" alt="Pamir AI" class="logo">
             <h1>WiFi Connection Status</h1>
             <p>Distiller Network Information</p>
         </div>
         
         <div class="content">
             <div class="status-card success" style="position: relative;">
-                <div class="status-title">✅ WiFi Connection Successful</div>
+                <div class="status-title">WiFi Connection Successful</div>
                 <div class="status-info">
                     Your device is now connected to the WiFi network and accessible via mDNS.
                 </div>
