@@ -8,6 +8,7 @@ Provides a simple web interface accessible via hostname.local
 import asyncio
 import logging
 import socket
+import time
 from typing import Optional
 
 import uvicorn
@@ -69,15 +70,31 @@ class MDNSService:
                 "mdns_active": self.zeroconf is not None,
             }
 
+        @self.app.get("/health")
+        async def health():
+            """Health check endpoint for service monitoring"""
+            return {
+                "status": "healthy",
+                "service": "mdns-service",
+                "timestamp": int(time.time())
+            }
+
         @self.app.get("/wifi_status", response_class=HTMLResponse)
         async def wifi_status(request: Request):
-            """WiFi status page with helpful information"""
+            """Device status page with WiFi and MCP services information"""
             return self.templates.TemplateResponse(
-                "mdns_wifi_status.html",
+                "status.html",
                 {
                     "request": request,
                     "hostname": self.hostname,
                     "port": self.port,
+                    "wifi_success": True,  # Assume connected if mDNS is running
+                    "wifi_connection_in_progress": False,
+                    "wifi_status": {
+                        "ssid": "Connected Network",
+                        "ip_address": "Available via mDNS",
+                        "interface": "wlan0"
+                    }
                 },
             )
 
