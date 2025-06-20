@@ -8,6 +8,7 @@ Provides a simple web interface accessible via hostname.local
 import asyncio
 import logging
 import socket
+import time
 from typing import Optional
 
 import uvicorn
@@ -34,6 +35,7 @@ class MDNSService:
         self.service_info: Optional[ServiceInfo] = None
         self.app = FastAPI(title="Distiller")
         self.server: Optional[uvicorn.Server] = None
+        self.templates = Jinja2Templates(directory="templates")
 
         # Setup logging
         self.logger = logging.getLogger(__name__)
@@ -47,235 +49,15 @@ class MDNSService:
         @self.app.get("/", response_class=HTMLResponse)
         async def home(request: Request):
             """Main page showing Cursor MCP message"""
-            html_content = (
-                """
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Distiller - Ready</title>
-                <style>
-                    * {
-                        margin: 0;
-                        padding: 0;
-                        box-sizing: border-box;
-                    }
-
-                    body {
-                        font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
-                        background: #fafafa;
-                        color: #1a1a1a;
-                        min-height: 100vh;
-                        padding: 24px;
-                        line-height: 1.6;
-                    }
-
-                    .container {
-                        max-width: 640px;
-                        margin: 0 auto;
-                        background: #ffffff;
-                        border: 2px solid #1a1a1a;
-                        box-shadow: 8px 8px 0px #1a1a1a;
-                    }
-
-                    .header {
-                        background: #1a1a1a;
-                        color: #ffffff;
-                        padding: 24px;
-                        border-bottom: 2px solid #1a1a1a;
-                        text-align: center;
-                    }
-
-                    .header h1 {
-                        font-size: 1.75rem;
-                        font-weight: bold;
-                        letter-spacing: -0.02em;
-                        margin-bottom: 8px;
-                        text-transform: uppercase;
-                    }
-
-                    .header p {
-                        font-size: 0.95rem;
-                        opacity: 0.8;
-                    }
-
-                    .content {
-                        padding: 32px;
-                    }
-
-                    .status-card {
-                        background: #f8f8f8;
-                        border: 2px solid #1a1a1a;
-                        padding: 20px;
-                        margin-bottom: 24px;
-                        position: relative;
-                        text-align: center;
-                    }
-
-                    .status-card::before {
-                        content: '';
-                        position: absolute;
-                        top: -2px;
-                        left: -2px;
-                        right: -2px;
-                        height: 4px;
-                        background: #28a745;
-                    }
-
-                    .status-title {
-                        font-weight: bold;
-                        color: #1a1a1a;
-                        margin-bottom: 12px;
-                        text-transform: uppercase;
-                        font-size: 0.85rem;
-                        letter-spacing: 0.05em;
-                    }
-
-                    .status-info {
-                        color: #4a4a4a;
-                        font-size: 0.9rem;
-                    }
-
-                    .info-section {
-                        margin-bottom: 24px;
-                        text-align: center;
-                    }
-
-                    .main-message {
-                        font-size: 1.1rem;
-                        margin-bottom: 16px;
-                        padding: 16px;
-                        background: #f8f8f8;
-                        border: 2px solid #1a1a1a;
-                        font-weight: bold;
-                        text-transform: uppercase;
-                        letter-spacing: 0.02em;
-                    }
-
-                    .highlight {
-                        background: #1a1a1a;
-                        color: #ffffff;
-                        padding: 2px 8px;
-                        font-weight: bold;
-                    }
-
-                    .instructions {
-                        background: #f8f8f8;
-                        border: 2px solid #1a1a1a;
-                        padding: 20px;
-                        margin-bottom: 24px;
-                        position: relative;
-                    }
-
-                    .instructions::before {
-                        content: '';
-                        position: absolute;
-                        top: -2px;
-                        left: -2px;
-                        right: -2px;
-                        height: 4px;
-                        background: #1a1a1a;
-                    }
-
-                    .instructions h3 {
-                        font-weight: bold;
-                        color: #1a1a1a;
-                        margin-bottom: 12px;
-                        text-transform: uppercase;
-                        font-size: 0.9rem;
-                        letter-spacing: 0.05em;
-                    }
-
-                    .network-info {
-                        background: #1a1a1a;
-                        color: #ffffff;
-                        padding: 20px;
-                        border: 2px solid #1a1a1a;
-                        margin-bottom: 24px;
-                        font-size: 0.9rem;
-                    }
-
-                    .network-info div {
-                        margin-bottom: 8px;
-                    }
-
-                    .network-info strong {
-                        text-transform: uppercase;
-                        letter-spacing: 0.05em;
-                        font-size: 0.8rem;
-                    }
-
-                    .footer {
-                        text-align: center;
-                        color: #4a4a4a;
-                        font-size: 0.8rem;
-                        text-transform: uppercase;
-                        letter-spacing: 0.05em;
-                        padding-top: 16px;
-                        border-top: 2px solid #f8f8f8;
-                    }
-
-                    .icon {
-                        font-size: 2rem;
-                        margin-bottom: 16px;
-                        display: block;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>Device Ready</h1>
-                        <p>Connection Established Successfully</p>
-                    </div>
-                    
-                    <div class="content">
-                        <div class="status-card">
-                            <div class="status-title">Connection Status</div>
-                            <div class="status-info">WiFi Connected Successfully</div>
-                        </div>
-                        
-                        <div class="info-section">
-                            <div class="main-message">
-                                <span class="highlight">Now you can use Cursor to play with MCP!</span>
-                            </div>
-                            <p style="color: #4a4a4a; font-size: 0.9rem;">
-                                Your device is connected to the network and ready for development.
-                            </p>
-                        </div>
-                        
-                        <div class="instructions">
-                            <h3>What's Next?</h3>
-                            <p style="color: #4a4a4a; font-size: 0.9rem;">
-                                Open <strong>Cursor IDE</strong> and start experimenting with 
-                                <strong>Model Context Protocol (MCP)</strong> integrations.
-                                Your Distiller is now accessible on the local network.
-                            </p>
-                        </div>
-                        
-                        <div class="network-info">
-                            <div><strong>Device:</strong> """
-                + self.hostname
-                + """.local</div>
-                            <div><strong>Service:</strong> """
-                + self.service_name
-                + """</div>
-                            <div><strong>Port:</strong> """
-                + str(self.port)
-                + """</div>
-                        </div>
-                        
-                        <div class="footer">
-                            <p>Distiller • mDNS Service Active</p>
-                        </div>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
+            return self.templates.TemplateResponse(
+                "mdns_home.html",
+                {
+                    "request": request,
+                    "hostname": self.hostname,
+                    "service_name": self.service_name,
+                    "port": self.port,
+                },
             )
-            return HTMLResponse(content=html_content)
 
         @self.app.get("/api/status")
         async def status():
@@ -288,116 +70,33 @@ class MDNSService:
                 "mdns_active": self.zeroconf is not None,
             }
 
+        @self.app.get("/health")
+        async def health():
+            """Health check endpoint for service monitoring"""
+            return {
+                "status": "healthy",
+                "service": "mdns-service",
+                "timestamp": int(time.time())
+            }
+
         @self.app.get("/wifi_status", response_class=HTMLResponse)
         async def wifi_status(request: Request):
-            """WiFi status page with helpful information"""
-            html_content = (
-                """
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>WiFi Status - Distiller</title>
-                <style>
-                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body { 
-                        font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
-                        background: #fafafa; color: #1a1a1a; min-height: 100vh; padding: 24px; line-height: 1.6;
+            """Device status page with WiFi and MCP services information"""
+            return self.templates.TemplateResponse(
+                "status.html",
+                {
+                    "request": request,
+                    "hostname": self.hostname,
+                    "port": self.port,
+                    "wifi_success": True,  # Assume connected if mDNS is running
+                    "wifi_connection_in_progress": False,
+                    "wifi_status": {
+                        "ssid": "Connected Network",
+                        "ip_address": "Available via mDNS",
+                        "interface": "wlan0"
                     }
-                    .container { 
-                        max-width: 640px; margin: 0 auto; background: #ffffff;
-                        border: 2px solid #1a1a1a; box-shadow: 8px 8px 0px #1a1a1a;
-                    }
-                    .header { 
-                        background: #1a1a1a; color: #ffffff; padding: 24px; text-align: center;
-                    }
-                    .header h1 { font-size: 1.75rem; margin-bottom: 8px; text-transform: uppercase; }
-                    .content { padding: 32px; }
-                    .status-card { 
-                        background: #f8f8f8; border: 2px solid #1a1a1a; padding: 20px; 
-                        margin-bottom: 24px; text-align: center;
-                    }
-                    .status-card.success::before {
-                        content: ''; position: absolute; top: -2px; left: -2px; right: -2px;
-                        height: 4px; background: #28a745;
-                    }
-                    .status-title { 
-                        font-weight: bold; margin-bottom: 12px; text-transform: uppercase;
-                        font-size: 0.85rem; letter-spacing: 0.05em;
-                    }
-                    .btn { 
-                        background: #1a1a1a; color: #ffffff; border: none; padding: 12px 24px;
-                        font-family: inherit; cursor: pointer; text-decoration: none;
-                        display: inline-block; margin: 5px; text-transform: uppercase;
-                        font-size: 0.9rem; letter-spacing: 0.05em;
-                    }
-                    .btn:hover { background: #333; }
-                    .btn-secondary { background: #666; }
-                    .alert { 
-                        padding: 16px; margin: 16px 0; border: 2px solid #1a1a1a;
-                        background: #e7f3ff; text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>WiFi Connection Status</h1>
-                        <p>Distiller Network Information</p>
-                    </div>
-                    
-                    <div class="content">
-                        <div class="status-card success" style="position: relative;">
-                            <div class="status-title">✅ WiFi Connection Successful</div>
-                            <div class="status-info">
-                                Your device is now connected to the WiFi network and accessible via mDNS.
-                            </div>
-                        </div>
-                        
-                        <div class="alert">
-                            <strong>Note:</strong> The WiFi setup server runs on port 8080 for 2 minutes after connection, 
-                            then switches to this permanent service on port """
-                + str(self.port)
-                + """.
-                        </div>
-                        
-                        <div style="text-align: center; margin-top: 24px;">
-                            <p style="margin-bottom: 16px;">Try accessing the setup server while it's still active:</p>
-                            <a href="http://"""
-                + self.hostname
-                + """.local:8080/wifi_status" class="btn">
-                                Check Setup Server (Port 8080)
-                            </a>
-                            <a href="/" class="btn btn-secondary">
-                                Return to Device Home
-                            </a>
-                        </div>
-                        
-                        <div style="margin-top: 32px; padding: 20px; background: #f8f8f8; border: 2px solid #1a1a1a;">
-                            <h3 style="margin-bottom: 12px; text-transform: uppercase; font-size: 0.9rem;">Device Access Information:</h3>
-                            <div style="font-size: 0.9rem;">
-                                <div><strong>Hostname:</strong> """
-                + self.hostname
-                + """.local</div>
-                                <div><strong>Setup Server:</strong> Port 8080 (temporary, 2 minutes)</div>
-                                <div><strong>Device Service:</strong> Port """
-                + str(self.port)
-                + """ (permanent)</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <script>
-                    // Auto-refresh every 10 seconds to update status
-                    setTimeout(() => window.location.reload(), 10000);
-                </script>
-            </body>
-            </html>
-            """
+                },
             )
-            return HTMLResponse(content=html_content)
 
     def get_local_ip(self) -> str:
         """Get the local IP address"""

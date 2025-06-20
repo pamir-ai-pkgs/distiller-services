@@ -101,61 +101,22 @@ class WiFiSetup {
   }
 
   showConnectionProgress(ssid, hostname, port) {
-    const steps = [
-      { message: `Initiating connection to ${ssid}...`, duration: 1000 },
-      { message: "Stopping WiFi hotspot...", duration: 1000 },
-      { message: "Connecting to network...", duration: 1500 },
-      { message: "Establishing network connection...", duration: 1000 },
-      { message: "Starting mDNS service...", duration: 500 },
-      { message: "Preparing redirect...", duration: 500 },
-    ];
-
-    let currentStep = 0;
-    let spinnerInterval;
-
-    const showStep = () => {
-      if (currentStep < steps.length) {
-        const step = steps[currentStep];
-
-        // Start animating spinner for this step
-        const updateSpinner = () => {
-          const spinner = this.getSpinner();
-          this.showAlert(`${spinner} ${step.message}`, "info");
-        };
-
-        // Show initial message
-        updateSpinner();
-
-        // Update spinner every 100ms for animation
-        spinnerInterval = setInterval(updateSpinner, 100);
-
-        // Move to next step after duration
-        setTimeout(() => {
-          clearInterval(spinnerInterval);
-          currentStep++;
-          showStep();
-        }, step.duration);
-      } else {
-        // All steps shown, perform redirect
-        const redirectUrl = `http://${hostname}.local:${port}/wifi_status`;
-        this.showAlert(`🔄 Redirecting to ${redirectUrl}...`, "info");
-        
-        // Redirect after a brief delay to allow the connection to stabilize
-        setTimeout(() => {
-          window.location.href = redirectUrl;
-        }, 2000);
-      }
-    };
-
-    showStep();
+    // Show static connection message
+    this.showAlert(`Connecting to ${ssid}... Please wait while we establish the connection.`, "info");
+    
+    // Redirect after a delay to allow the connection to complete
+    const redirectUrl = `http://${hostname}.local:${port}/wifi_status`;
+    setTimeout(() => {
+      this.showAlert(`Redirecting to ${redirectUrl}...`, "info");
+      
+      // Redirect after a brief additional delay
+      setTimeout(() => {
+        window.location.href = redirectUrl;
+      }, 2000);
+    }, 8000); // Wait 8 seconds total before starting redirect process
   }
 
-  getSpinner() {
-    // Simple CSS spinner using Unicode characters
-    const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-    const frameIndex = Math.floor(Date.now() / 100) % frames.length;
-    return `<span style="color: #007bff; font-weight: bold;">${frames[frameIndex]}</span>`;
-  }
+
 
   // Commented out complete setup functionality
   /*

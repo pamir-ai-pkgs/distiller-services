@@ -40,6 +40,13 @@ body {
     opacity: 0.8;
 }
 
+.logo {
+    height: 60px;
+    width: auto;
+    margin-bottom: 16px;
+    filter: brightness(0) invert(1);
+}
+
 .content {
     padding: 32px;
 }

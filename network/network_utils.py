@@ -101,32 +101,9 @@ class NetworkUtils:
                     check=True,
                 )
 
-                # Parse output looking for wifi interface (wlan0, wlp2s0, etc.)
+                # Use smart IP prioritization logic instead of just finding WiFi
                 output = result.stdout
-                wifi_regex = r"(wl\w+)"
-                wifi_interfaces = re.findall(wifi_regex, output)
-
-                if wifi_interfaces:
-                    wifi_interface = wifi_interfaces[0]
-                    # Look for inet address on this interface
-                    interface_section = False
-                    for line in output.split("\n"):
-                        if wifi_interface in line:
-                            interface_section = True
-                        elif interface_section and "inet " in line:
-                            # Extract IP
-                            ip_match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", line)
-                            if ip_match:
-                                return ip_match.group(1)
-                        elif interface_section and len(line.strip()) == 0:
-                            interface_section = False
-
-                # If no WiFi, find any non-loopback IP
-                for line in output.split("\n"):
-                    if "inet " in line and "127.0.0.1" not in line:
-                        ip_match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", line)
-                        if ip_match:
-                            return ip_match.group(1)
+                return self._find_best_ip_from_output(output)
 
             except FileNotFoundError:
                 # Fall back to ifconfig
@@ -134,34 +111,167 @@ class NetworkUtils:
                     ["ifconfig"], capture_output=True, text=True, check=True
                 )
 
+                # Use smart IP prioritization logic for ifconfig output too
                 output = result.stdout
-                wifi_regex = r"(wl\w+)"
-                wifi_interfaces = re.findall(wifi_regex, output)
-
-                if wifi_interfaces:
-                    wifi_interface = wifi_interfaces[0]
-                    interface_section = False
-                    for line in output.split("\n"):
-                        if wifi_interface in line:
-                            interface_section = True
-                        elif interface_section and "inet " in line:
-                            ip_match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", line)
-                            if ip_match:
-                                return ip_match.group(1)
-                        elif interface_section and len(line.strip()) == 0:
-                            interface_section = False
-
-                # If no WiFi, find any non-loopback IP
-                for line in output.split("\n"):
-                    if "inet " in line and "127.0.0.1" not in line:
-                        ip_match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", line)
-                        if ip_match:
-                            return ip_match.group(1)
+                return self._find_best_ip_from_ifconfig_output(output)
 
             return "No network IP found"
         except Exception as e:
             logger.error(f"Error getting Linux IP address: {e}")
             return "Error getting IP address"
+
+    def _find_best_ip_from_output(self, output):
+        """Find the best IP address from ip command output, avoiding virtual interfaces.
+        
+        Args:
+            output: Output from 'ip -4 addr show' command
+            
+        Returns:
+            Best IP address or "No network IP found"
+        """
+        # Virtual/bridge interfaces to avoid
+        virtual_interfaces = ["docker", "br-", "veth", "lxc", "virbr", "vmnet", "tun", "tap"]
+        
+        # Collect all potential IPs with their interfaces
+        candidate_ips = []
+        current_interface = None
+        
+        for line in output.split("\n"):
+            line = line.strip()
+            # Check if this is an interface line
+            if ":" in line and not line.startswith("inet"):
+                interface_match = re.search(r"\d+:\s*([^:]+):", line)
+                if interface_match:
+                    current_interface = interface_match.group(1).strip()
+            elif "inet " in line and current_interface:
+                ip_match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", line)
+                if ip_match:
+                    ip = ip_match.group(1)
+                    if ip != "127.0.0.1":  # Skip loopback
+                        # Check if it's a virtual interface
+                        is_virtual = any(vif in current_interface.lower() for vif in virtual_interfaces)
+                        candidate_ips.append({
+                            'ip': ip,
+                            'interface': current_interface,
+                            'is_virtual': is_virtual,
+                            'is_ethernet': current_interface.startswith(('eth', 'en')),
+                            'is_wifi': current_interface.startswith(('wlan', 'wl')),
+                            'is_private': self._is_private_network_ip(ip)
+                        })
+        
+        # Prioritize IPs: WiFi > Ethernet > Private Network > Non-virtual
+        def ip_priority(ip_info):
+            priority = 0
+            if ip_info['is_wifi']:
+                priority += 1000
+            elif ip_info['is_ethernet']:
+                priority += 800
+            if ip_info['is_private']:
+                priority += 100
+            if not ip_info['is_virtual']:
+                priority += 50
+            # Prefer 192.168.x.x and 10.x.x.x over 172.x.x.x (which Docker often uses)
+            if ip_info['ip'].startswith('192.168.') or ip_info['ip'].startswith('10.'):
+                priority += 20
+            return priority
+        
+        if candidate_ips:
+            # Sort by priority and return the best one
+            candidate_ips.sort(key=ip_priority, reverse=True)
+            return candidate_ips[0]['ip']
+        
+        return "No network IP found"
+
+    def _find_best_ip_from_ifconfig_output(self, output):
+        """Find the best IP address from ifconfig output, avoiding virtual interfaces.
+        
+        Args:
+            output: Output from 'ifconfig' command
+            
+        Returns:
+            Best IP address or "No network IP found"
+        """
+        # Virtual/bridge interfaces to avoid
+        virtual_interfaces = ["docker", "br-", "veth", "lxc", "virbr", "vmnet", "tun", "tap"]
+        
+        # Collect all potential IPs with their interfaces
+        candidate_ips = []
+        current_interface = None
+        
+        for line in output.split("\n"):
+            line = line.strip()
+            # Check if this is a new interface (starts at beginning of line)
+            if line and not line.startswith(" ") and ":" in line:
+                current_interface = line.split(":")[0].strip()
+            elif "inet " in line and current_interface:
+                ip_match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", line)
+                if ip_match:
+                    ip = ip_match.group(1)
+                    if ip != "127.0.0.1":  # Skip loopback
+                        # Check if it's a virtual interface
+                        is_virtual = any(vif in current_interface.lower() for vif in virtual_interfaces)
+                        candidate_ips.append({
+                            'ip': ip,
+                            'interface': current_interface,
+                            'is_virtual': is_virtual,
+                            'is_ethernet': current_interface.startswith(('eth', 'en')),
+                            'is_wifi': current_interface.startswith(('wlan', 'wl')),
+                            'is_private': self._is_private_network_ip(ip)
+                        })
+        
+        # Use same prioritization logic
+        def ip_priority(ip_info):
+            priority = 0
+            if ip_info['is_wifi']:
+                priority += 1000
+            elif ip_info['is_ethernet']:
+                priority += 800
+            if ip_info['is_private']:
+                priority += 100
+            if not ip_info['is_virtual']:
+                priority += 50
+            # Prefer 192.168.x.x and 10.x.x.x over 172.x.x.x (which Docker often uses)
+            if ip_info['ip'].startswith('192.168.') or ip_info['ip'].startswith('10.'):
+                priority += 20
+            return priority
+        
+        if candidate_ips:
+            # Sort by priority and return the best one
+            candidate_ips.sort(key=ip_priority, reverse=True)
+            return candidate_ips[0]['ip']
+        
+        return "No network IP found"
+
+    def _is_private_network_ip(self, ip):
+        """Check if an IP address is in a private network range.
+        
+        Args:
+            ip: IP address string
+            
+        Returns:
+            True if IP is in private network range, False otherwise
+        """
+        try:
+            parts = ip.split('.')
+            if len(parts) != 4:
+                return False
+            
+            first = int(parts[0])
+            second = int(parts[1])
+            
+            # 10.0.0.0/8
+            if first == 10:
+                return True
+            # 172.16.0.0/12
+            elif first == 172 and 16 <= second <= 31:
+                return True
+            # 192.168.0.0/16
+            elif first == 192 and second == 168:
+                return True
+                
+            return False
+        except (ValueError, IndexError):
+            return False
 
     def _get_linux_mac(self):
         """Get the MAC address for Linux systems.
