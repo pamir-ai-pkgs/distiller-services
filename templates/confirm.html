@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Connection Status</title>
+    <title>Connect to {{ ssid }}</title>
     <link rel="icon" href="{{ url_for('static', filename='images/pamir-logo-01.svg') }}">
     <!-- Allow insecure HTTP requests for local IoT device operation -->
     <meta http-equiv="Content-Security-Policy" content="
@@ -63,75 +63,133 @@
         
         .content {
             padding: 30px 20px;
-            text-align: center;
         }
         
-        .status-icon {
-            font-size: 48px;
-            margin-bottom: 20px;
-            font-family: 'MartianMono', monospace;
-            color: #000000;
-        }
-        
-        .status-code {
-            font-size: 16px;
-            font-weight: bold;
-            color: #000000;
-            margin-bottom: 15px;
-            font-family: 'MartianMono', monospace;
-            letter-spacing: 1px;
-        }
-        
-        .status-title {
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 15px;
-            color: #000000;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .status-message {
-            font-size: 14px;
-            color: #000000;
-            margin-bottom: 25px;
-            line-height: 1.5;
-        }
-        
-        .connection-details {
+        .network-info {
             background: #f8f8f8;
             padding: 20px;
             border: 2px solid #000000;
-            margin: 20px 0;
-            text-align: left;
+            margin-bottom: 25px;
+            text-align: center;
         }
         
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #cccccc;
-            font-size: 12px;
-        }
-        
-        .detail-row:last-child {
-            margin-bottom: 0;
-            padding-bottom: 0;
-            border-bottom: none;
-        }
-        
-        .detail-label {
+        .network-name {
+            font-size: 16px;
             font-weight: bold;
             color: #000000;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: 'MartianMono', monospace;
+        }
+        
+        .network-security {
+            color: #000000;
+            font-size: 12px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
         
-        .detail-value {
+        .network-security::before {
+            content: "[";
+            font-weight: bold;
+        }
+        
+        .network-security::after {
+            content: "]";
+            font-weight: bold;
+        }
+        
+        .password-form {
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
             color: #000000;
-            text-align: right;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 12px 45px 12px 12px;
+            border: 2px solid #000000;
+            background: #ffffff;
+            color: #000000;
+            font-size: 14px;
             font-family: 'MartianMono', monospace;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            background: #f8f8f8;
+        }
+        
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            font-family: 'MartianMono', monospace;
+            font-size: 12px;
+            cursor: pointer;
+            color: #666666;
+            padding: 4px;
+            margin-top: 14px;
+        }
+        
+        .password-toggle:hover {
+            color: #000000;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 12px 20px;
+            border: 2px solid #000000;
+            background: #ffffff;
+            color: #000000;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.2s ease;
+            display: inline-block;
+            font-family: 'MartianMono', monospace;
+        }
+        
+        .btn-primary {
+            background: #000000;
+            color: #ffffff;
+        }
+        
+        .btn-primary:hover {
+            background: #333333;
+        }
+        
+        .btn-secondary:hover {
+            background: #f0f0f0;
+            text-decoration: none;
+            color: #000000;
         }
         
         .footer {
@@ -203,8 +261,9 @@
                 padding: 20px 15px;
             }
             
-            .status-icon {
-                font-size: 40px;
+            .button-group {
+                flex-direction: column;
+                gap: 10px;
             }
             
             .footer-content {
@@ -214,102 +273,76 @@
             
             .footer-logo {
                 height: 40px;
-                }
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Connection Status</h1>
+            <h1>Connect to Network</h1>
         </div>
         
         <div class="content">
-            {% if status.connected and status.ssid %}
-            <div class="status-code">[OK]</div>
-            <div class="status-title">Connected</div>
-            <div class="status-message">Successfully connected to network.</div>
-            
-            <div class="connection-details">
-                <div class="detail-row">
-                    <span class="detail-label">Network</span>
-                    <span class="detail-value">{{ status.ssid }}</span>
+            <div class="network-info">
+                <div class="network-name">{{ ssid }}</div>
+                <div class="network-security">
+                    {% if encrypted == 'encrypted' %}
+                        SECURED
+                    {% else %}
+                        OPEN
+                    {% endif %}
                 </div>
-                {% if status.ip_address %}
-                <div class="detail-row">
-                    <span class="detail-label">IP Address</span>
-                    <span class="detail-value">{{ status.ip_address }}</span>
-                </div>
-                {% endif %}
             </div>
             
+            {% if encrypted == 'encrypted' %}
+            <form action="{{ url_for('connect') }}" method="post" class="password-form">
+                <input type="hidden" name="ssid" value="{{ ssid }}">
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" id="password" name="password" class="form-input" required>
+                    <button type="button" class="password-toggle" onclick="togglePassword()">[show]</button>
+                </div>
+                
+                <div class="button-group">
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">← Back</a>
+                    <button type="submit" class="btn btn-primary">Connect</button>
+                </div>
+            </form>
             {% else %}
-            <div class="status-code">[DISCONNECTED]</div>
-            <div class="status-title">Not Connected</div>
-            <div class="status-message">Device is not connected to a network.</div>
+            <form action="{{ url_for('connect') }}" method="post" class="password-form">
+                <input type="hidden" name="ssid" value="{{ ssid }}">
+                <input type="hidden" name="password" value="">
+                
+                <div class="button-group">
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">← Back</a>
+                    <button type="submit" class="btn btn-primary">Connect</button>
+                </div>
+            </form>
             {% endif %}
         </div>
         
         <div class="footer">
             <div class="footer-content">
                 <img src="{{ url_for('static', filename='images/pamir-logo-01.svg') }}" alt="Pamir AI" class="footer-logo">
-                <span class="footer-text">{{ device_name }} Network Status</span>
+                <span class="footer-text">{{ device_name }} Network Setup</span>
             </div>
         </div>
     </div>
 
     <script>
-        // Handle automatic redirection when connected to target network
-        function handleRedirection() {
-            // Check if we're connected to target network and have a redirect URL
-            {% if status.connected_to_target and status.redirect_url %}
-                // Extract current host from window.location
-                const currentHost = window.location.host;
-                const redirectUrl = "{{ status.redirect_url }}";
-                const targetUrl = new URL(redirectUrl);
-                const targetHost = targetUrl.host;
-                
-                // Only redirect if we're not already on the target IP
-                if (currentHost !== targetHost) {
-                    console.log('Redirecting from', currentHost, 'to', targetHost);
-                    // Give user a moment to see the success message, then redirect
-                    setTimeout(() => {
-                        window.location.href = redirectUrl + '/status';
-                    }, 2000);
-                } else {
-                    console.log('Already on target network:', currentHost);
-                }
-            {% elif status.connected_to_target and status.mdns_url %}
-                // Fallback to mDNS URL if available
-                const currentHost = window.location.host;
-                const mdnsUrl = "{{ status.mdns_url }}";
-                const targetUrl = new URL(mdnsUrl);
-                const targetHost = targetUrl.host;
-                
-                if (currentHost !== targetHost) {
-                    console.log('Redirecting via mDNS from', currentHost, 'to', targetHost);
-                    setTimeout(() => {
-                        window.location.href = mdnsUrl + '/status';
-                    }, 2000);
-                }
-            {% endif %}
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleBtn = document.querySelector('.password-toggle');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleBtn.textContent = '[hide]';
+            } else {
+                passwordInput.type = 'password';
+                toggleBtn.textContent = '[show]';
+            }
         }
-
-        // Auto-refresh status if we're still connecting or not on target network
-        function autoRefresh() {
-            {% if status.connecting or (status.connected_to_hotspot and not status.connected_to_target) %}
-                setTimeout(() => {
-                    console.log('Auto-refreshing status...');
-                    window.location.reload();
-                }, 3000);
-            {% endif %}
-        }
-
-        // Initialize when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            handleRedirection();
-            autoRefresh();
-        });
     </script>
 </body>
 </html> 
