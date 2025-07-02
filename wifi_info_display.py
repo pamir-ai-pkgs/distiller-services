@@ -2,6 +2,14 @@
 """
 WiFi Information Display for E-Ink
 Generates and displays WiFi network information on e-ink display
+
+Updated to use distiller-cm5-sdk for improved e-ink display support:
+- Display resolution: 128x250 pixels (corrected from 240x416)
+- Uses distiller_cm5_sdk.hardware.eink for display operations
+- Fallback to original eink_display_flush implementation if SDK unavailable
+- Optimized fonts and layout for smaller display size
+
+The distiller-cm5-sdk provides a cleaner API and better hardware abstraction.
 """
 
 import sys
@@ -10,6 +18,9 @@ from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import argparse
 import logging
+import time
+
+logger = logging.getLogger(__name__)
 
 # QR code generation
 try:
@@ -23,8 +34,15 @@ except ImportError:
 # Add the distiller project path to import NetworkUtils
 from network.network_utils import NetworkUtils
 
-# Import our simple e-ink display functions
-from eink_display_flush import SimpleEinkDriver, load_and_convert_image
+# Import the distiller-cm5-sdk e-ink display functions
+# try:
+from distiller_cm5_sdk.hardware.eink import display_png, clear_display, DisplayMode
+DISTILLER_SDK_AVAILABLE = True
+logger.info("Using distiller-cm5-sdk for e-ink display")
+# except ImportError:
+#     logger.warning("distiller-cm5-sdk not available, falling back to eink_display_flush")
+#     from eink_display_flush import SimpleEinkDriver, load_and_convert_image
+#     DISTILLER_SDK_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(
@@ -34,20 +52,21 @@ logger = logging.getLogger(__name__)
 
 
 def create_wifi_info_image(
-    width=240, height=416, filename="wifi_info.png", auto_display=False
+    filename="wifi_info.png", auto_display=False, tunnel_url=None
 ):
     """
     Create an image with WiFi information for e-ink display
 
     Args:
-        width: Image width in pixels
-        height: Image height in pixels
         filename: Output filename
         auto_display: If True, automatically display on e-ink after creating
+        tunnel_url: Optional tunnel URL to display with QR code
 
     Returns:
         Filename of created image
     """
+    width = 128
+    height = 250
 
     # Get network information
     logger.info("Gathering network information...")
@@ -66,45 +85,45 @@ def create_wifi_info_image(
     img = Image.new("L", (width, height), 255)  # White background
     draw = ImageDraw.Draw(img)
 
-    # Try to load fonts - prioritize MartianMono
+    # Try to load fonts - prioritize MartianMono (reduced sizes for 128x250 display)
     try:
         # Use MartianMono font from local directory
         martian_font_path = (
             "/home/distiller/fonts/MartianMonoNerdFont-CondensedBold.ttf"
         )
-        font_title = ImageFont.truetype(martian_font_path, 24)
-        font_large = ImageFont.truetype(martian_font_path, 20)
-        font_medium = ImageFont.truetype(martian_font_path, 16)
-        font_small = ImageFont.truetype(martian_font_path, 14)
-        font_tiny = ImageFont.truetype(martian_font_path, 12)
+        font_title = ImageFont.truetype(martian_font_path, 14)
+        font_large = ImageFont.truetype(martian_font_path, 12)
+        font_medium = ImageFont.truetype(martian_font_path, 10)
+        font_small = ImageFont.truetype(martian_font_path, 9)
+        font_tiny = ImageFont.truetype(martian_font_path, 8)
         logger.info("Using MartianMono font for better readability")
     except Exception as e:
         logger.warning(f"Could not load MartianMono font: {e}")
         try:
-            # Fallback to Liberation fonts with larger sizes
+            # Fallback to Liberation fonts with smaller sizes
             font_title = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 22
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 13
             )
             font_large = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 18
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 11
             )
             font_medium = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 16
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 10
             )
             font_small = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 14
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 9
             )
             font_tiny = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 12
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 8
             )
         except:
             try:
-                # Fallback fonts with larger sizes
-                font_title = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 22)
-                font_large = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 18)
-                font_medium = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 16)
-                font_small = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 14)
-                font_tiny = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 12)
+                # Fallback fonts with smaller sizes
+                font_title = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 13)
+                font_large = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 11)
+                font_medium = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 10)
+                font_small = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 9)
+                font_tiny = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 8)
             except:
                 # Use default font
                 font_title = ImageFont.load_default()
@@ -114,9 +133,9 @@ def create_wifi_info_image(
                 font_tiny = ImageFont.load_default()
 
     # Border
-    draw.rectangle([0, 0, width - 1, height - 1], outline=0, width=2)
+    draw.rectangle([0, 0, width - 1, height - 1], outline=0, width=1)
 
-    y_pos = 15
+    y_pos = 8
 
     # Title with WiFi icon (simple representation)
     title = "WIFI INFO"
@@ -124,29 +143,29 @@ def create_wifi_info_image(
     title_width = bbox[2] - bbox[0]
 
     # Check if title still overflows and use smaller font if needed
-    if title_width > (width - 80):  # Leave space for WiFi icon and margins
+    if title_width > (width - 40):  # Leave space for WiFi icon and margins
         bbox = draw.textbbox((0, 0), title, font=font_large)
         title_width = bbox[2] - bbox[0]
         draw.text(((width - title_width) // 2, y_pos), title, fill=0, font=font_large)
     else:
         draw.text(((width - title_width) // 2, y_pos), title, fill=0, font=font_title)
 
-    # Draw simple WiFi icon
-    icon_x = (width - title_width) // 2 - 30
-    icon_y = y_pos + 5
+    # Draw simple WiFi icon (smaller for smaller display)
+    icon_x = (width - title_width) // 2 - 18
+    icon_y = y_pos + 3
     # Simple WiFi symbol using arcs
     for i in range(3):
-        radius = 8 + i * 4
+        radius = 4 + i * 2
         draw.arc(
             [icon_x - radius, icon_y - radius, icon_x + radius, icon_y + radius],
             start=225,
             end=315,
             fill=0,
-            width=2,
+            width=1,
         )
-    draw.ellipse([icon_x - 2, icon_y - 2, icon_x + 2, icon_y + 2], fill=0)
+    draw.ellipse([icon_x - 1, icon_y - 1, icon_x + 1, icon_y + 1], fill=0)
 
-    y_pos += 35
+    y_pos += 20
     
     # Timestamp with timezone
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S %Z")
@@ -154,75 +173,146 @@ def create_wifi_info_image(
         import time
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S") + f" {time.tzname[0]}"
     
-    draw.text((10, y_pos), f"Updated: {timestamp}", fill=0, font=font_tiny)
-    y_pos += 25
-
-    # Horizontal separator
-    draw.line([10, y_pos, width - 10, y_pos], fill=0, width=1)
+    draw.text((5, y_pos), f"Updated: {timestamp}", fill=0, font=font_tiny)
     y_pos += 15
 
-    # WiFi Network Name (SSID)
-    draw.text((10, y_pos), "NETWORK NAME:", fill=0, font=font_medium)
-    y_pos += 20
+    # Horizontal separator
+    draw.line([5, y_pos, width - 5, y_pos], fill=0, width=1)
+    y_pos += 10
 
-    # Display SSID with larger font, handle long names
-    ssid_display = wifi_name if len(wifi_name) <= 20 else wifi_name[:17] + "..."
-    draw.text((10, y_pos), ssid_display, fill=0, font=font_large)
-    y_pos += 30
+    # WiFi Network Name (SSID)
+    draw.text((5, y_pos), "NETWORK NAME:", fill=0, font=font_medium)
+    y_pos += 12
+
+    # Display SSID with larger font, handle long names for smaller display
+    ssid_display = wifi_name if len(wifi_name) <= 14 else wifi_name[:11] + "..."
+    draw.text((5, y_pos), ssid_display, fill=0, font=font_large)
+    y_pos += 18
 
     # IP Address
-    draw.text((10, y_pos), "IP ADDRESS:", fill=0, font=font_medium)
-    y_pos += 20
-    draw.text((10, y_pos), ip_address, fill=0, font=font_large)
-    y_pos += 30
+    draw.text((5, y_pos), "IP ADDRESS:", fill=0, font=font_medium)
+    y_pos += 12
+    draw.text((5, y_pos), ip_address, fill=0, font=font_large)
+    y_pos += 18
 
-    # Signal Strength with visual indicator
-    draw.text((10, y_pos), "SIGNAL STRENGTH:", fill=0, font=font_medium)
-    y_pos += 20
-    draw.text((10, y_pos), signal_strength, fill=0, font=font_large)
-
-    # Draw signal strength bars
-    signal_x = 10
-    signal_y = y_pos + 25
-
-    # Extract percentage from signal strength if available
-    signal_percent = 0
-    if "%" in signal_strength:
-        try:
-            signal_percent = int(signal_strength.split("%")[0])
-        except:
-            signal_percent = 50  # Default
-    else:
-        signal_percent = 50  # Default if no percentage
-
-    # Draw 5 signal bars
-    for i in range(5):
-        bar_height = 5 + i * 3
-        bar_x = signal_x + i * 15
-        bar_y = signal_y + (15 - bar_height)
-
-        # Fill bar if signal is strong enough
-        if signal_percent > (i * 20):
-            draw.rectangle([bar_x, bar_y, bar_x + 10, signal_y + 15], fill=0)
+    # If tunnel URL is provided, show compact layout with QR code
+    if tunnel_url:
+        # Horizontal separator
+        draw.line([5, y_pos, width - 5, y_pos], fill=0, width=1)
+        y_pos += 8
+        
+        # Terminal Access title
+        draw.text((5, y_pos), "TERMINAL ACCESS:", fill=0, font=font_medium)
+        y_pos += 15
+        
+        # Generate QR code if qrcode is available
+        if qrcode:
+            try:
+                qr = qrcode.QRCode(
+                    version=1,
+                    error_correction=qrcode.constants.ERROR_CORRECT_L,
+                    box_size=2,
+                    border=1,
+                )
+                qr.add_data(tunnel_url)
+                qr.make(fit=True)
+                
+                # Create QR code image
+                qr_img = qr.make_image(fill_color="black", back_color="white")
+                
+                # Resize to fit (target size: 80x80)
+                qr_size = 80
+                qr_img = qr_img.resize((qr_size, qr_size), Image.Resampling.NEAREST)
+                
+                # Center the QR code
+                qr_x = (width - qr_size) // 2
+                qr_y = y_pos
+                
+                # Convert to grayscale and paste
+                qr_img = qr_img.convert('L')
+                img.paste(qr_img, (qr_x, qr_y))
+                
+                y_pos = qr_y + qr_size + 5
+                
+                # URL text (break into lines)
+                # Remove https:// prefix for space
+                display_url = tunnel_url.replace("https://", "")
+                if len(display_url) > 20:
+                    # Split at the dot before "free"
+                    parts = display_url.split(".free")
+                    if len(parts) == 2:
+                        draw.text((5, y_pos), parts[0], fill=0, font=font_tiny)
+                        y_pos += 10
+                        draw.text((5, y_pos), ".free" + parts[1], fill=0, font=font_tiny)
+                    else:
+                        draw.text((5, y_pos), display_url[:20] + "...", fill=0, font=font_tiny)
+                else:
+                    draw.text((5, y_pos), display_url, fill=0, font=font_tiny)
+                y_pos += 12
+                
+                # Port info
+                draw.text((5, y_pos), "Port: 3000", fill=0, font=font_small)
+                
+            except Exception as e:
+                logger.error(f"Error generating QR code: {e}")
+                # Fallback: just show URL
+                draw.text((5, y_pos), "Tunnel URL:", fill=0, font=font_small)
+                y_pos += 12
+                draw.text((5, y_pos), tunnel_url[:25] + "...", fill=0, font=font_tiny)
         else:
-            draw.rectangle(
-                [bar_x, bar_y, bar_x + 10, signal_y + 15], outline=0, width=1
-            )
+            # No QR code library, just show URL
+            draw.text((5, y_pos), "Tunnel URL:", fill=0, font=font_small)
+            y_pos += 12
+            draw.text((5, y_pos), tunnel_url[:25] + "...", fill=0, font=font_tiny)
+    else:
+        # Original layout when no tunnel URL
+        # Signal Strength with visual indicator
+        draw.text((5, y_pos), "SIGNAL STRENGTH:", fill=0, font=font_medium)
+        y_pos += 12
+        draw.text((5, y_pos), signal_strength or "Unknown", fill=0, font=font_large)
 
-    y_pos += 50
-    
-    # SSH Connection Instructions
-    draw.text((10, y_pos), "SSH CONNECTION:", fill=0, font=font_medium)
-    y_pos += 20
-    ssh_command = f"distiller@{ip_address}"
-    draw.text((10, y_pos), ssh_command, fill=0, font=font_medium)
-    y_pos += 30
-    
-    # Default Password
-    draw.text((10, y_pos), "PASSWORD:", fill=0, font=font_medium)
-    y_pos += 20
-    draw.text((10, y_pos), "one", fill=0, font=font_large)
-    y_pos += 30
+        # Draw signal strength bars (smaller for smaller display)
+        signal_x = 5
+        signal_y = y_pos + 15
+
+        # Extract percentage from signal strength if available
+        signal_percent = 0
+        if signal_strength and "%" in signal_strength:
+            try:
+                signal_percent = int(signal_strength.split("%")[0])
+            except:
+                signal_percent = 50  # Default
+        else:
+            signal_percent = 50  # Default if no percentage
+
+        # Draw 5 signal bars (smaller)
+        for i in range(5):
+            bar_height = 3 + i * 2
+            bar_x = signal_x + i * 8
+            bar_y = signal_y + (10 - bar_height)
+
+            # Fill bar if signal is strong enough
+            if signal_percent > (i * 20):
+                draw.rectangle([bar_x, bar_y, bar_x + 6, signal_y + 10], fill=0)
+            else:
+                draw.rectangle(
+                    [bar_x, bar_y, bar_x + 6, signal_y + 10], outline=0, width=1
+                )
+
+        y_pos += 30
+        
+        # SSH Connection Instructions
+        draw.text((5, y_pos), "SSH CONNECTION:", fill=0, font=font_medium)
+        y_pos += 12
+        ssh_command = f"distiller@{ip_address}"
+        draw.text((5, y_pos), ssh_command, fill=0, font=font_small)
+        y_pos += 18
+        
+        # Default Password
+        draw.text((5, y_pos), "PASSWORD:", fill=0, font=font_medium)
+        y_pos += 12
+        draw.text((5, y_pos), "one", fill=0, font=font_large)
+        y_pos += 18
     
     # MAC Address
     # draw.text((10, y_pos), "MAC ADDRESS:", fill=0, font=font_medium)
@@ -297,6 +387,7 @@ def create_wifi_info_image(
     # draw.text(((width - footer_width) // 2, footer_y), footer_text, fill=0, font=font_tiny)
 
     # Save the image
+    img = img.transpose(Image.FLIP_LEFT_RIGHT)
     img.save(filename)
     logger.info(f"WiFi info image saved as: {filename}")
 
@@ -312,29 +403,35 @@ def display_on_eink(image_path):
     logger.info("Displaying image on e-ink screen...")
 
     try:
-        # Initialize e-ink display
-        display = SimpleEinkDriver()
-
-        if not display.initialize():
-            logger.error("Failed to initialize e-ink display")
-            return False
-
-        # Convert and display image
-        image_data = load_and_convert_image(image_path, threshold=128, dither=True)
-
-        if image_data is None:
-            logger.error("Failed to convert image")
-            return False
-
-        success = display.display_image(image_data)
-        display.cleanup()
-
-        if success:
-            logger.info("WiFi info displayed successfully on e-ink")
+        if DISTILLER_SDK_AVAILABLE:
+            # Use the distiller-cm5-sdk
+            display_png(image_path, DisplayMode.FULL)
+            logger.info("WiFi info displayed successfully on e-ink using distiller-cm5-sdk")
+            return True
         else:
-            logger.error("Failed to display image on e-ink")
+            # Fallback to original implementation
+            display = SimpleEinkDriver()
 
-        return success
+            if not display.initialize():
+                logger.error("Failed to initialize e-ink display")
+                return False
+
+            # Convert and display image
+            image_data = load_and_convert_image(image_path, threshold=128, dither=True)
+
+            if image_data is None:
+                logger.error("Failed to convert image")
+                return False
+
+            success = display.display_image(image_data)
+            display.cleanup()
+
+            if success:
+                logger.info("WiFi info displayed successfully on e-ink")
+            else:
+                logger.error("Failed to display image on e-ink")
+
+            return success
 
     except Exception as e:
         logger.error(f"Error displaying on e-ink: {e}")
@@ -346,8 +443,8 @@ def create_wifi_setup_image(
     password,
     ip_address,
     port=8080,
-    width=240,
-    height=416,
+    width=128,
+    height=250,
     filename="wifi_setup.png",
     auto_display=False,
 ):
@@ -372,36 +469,36 @@ def create_wifi_setup_image(
     img = Image.new("L", (width, height), 255)  # White background
     draw = ImageDraw.Draw(img)
 
-    # Try to load fonts
+    # Try to load fonts (reduced sizes for 128x250 display)
     try:
         martian_font_path = (
             "/home/distiller/fonts/MartianMonoNerdFont-CondensedBold.ttf"
         )
-        font_title = ImageFont.truetype(martian_font_path, 22)
-        font_large = ImageFont.truetype(martian_font_path, 18)
-        font_medium = ImageFont.truetype(martian_font_path, 14)
-        font_small = ImageFont.truetype(martian_font_path, 12)
+        font_title = ImageFont.truetype(martian_font_path, 13)
+        font_large = ImageFont.truetype(martian_font_path, 11)
+        font_medium = ImageFont.truetype(martian_font_path, 9)
+        font_small = ImageFont.truetype(martian_font_path, 8)
         font_tiny = ImageFont.truetype(
-            martian_font_path, 11
+            martian_font_path, 7
         )  # For long text that might overflow
         logger.info("Using MartianMono font for setup instructions")
     except Exception as e:
         logger.warning(f"Could not load MartianMono font: {e}")
         try:
             font_title = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 20
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 12
             )
             font_large = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 16
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 10
             )
             font_medium = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 14
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 9
             )
             font_small = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 12
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 8
             )
             font_tiny = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 11
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 7
             )
         except:
             font_title = ImageFont.load_default()
@@ -487,11 +584,11 @@ def create_wifi_setup_image(
     # QR Code section
     if qrcode:
         try:
-            # Generate QR code
+            # Generate QR code with higher resolution
             qr = qrcode.QRCode(
                 version=1,
                 error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=2,
+                box_size=4,  # Increased from 2 to 4 for better resolution
                 border=1,
             )
             qr.add_data(url)
@@ -501,9 +598,9 @@ def create_wifi_setup_image(
             qr_img = qr.make_image(fill_color="black", back_color="white")
             qr_img = qr_img.convert("L")  # Convert to grayscale
 
-            # Resize QR code to fit
-            qr_size = min(width - 20, height - y_pos - 40)
-            qr_size = min(qr_size, 120)  # Max size
+            # Resize QR code to fit - make it larger
+            qr_size = min(width - 10, height - y_pos - 20)  # Reduced margins for more space
+            qr_size = min(qr_size, 150)  # Increased max size from 120 to 150
             qr_img = qr_img.resize((qr_size, qr_size), Image.Resampling.NEAREST)
 
             # Position QR code
@@ -515,12 +612,12 @@ def create_wifi_setup_image(
 
             # QR code label
             y_pos = qr_y + qr_size + 10
-            label = "Scan QR code or type URL above"
-            bbox = draw.textbbox((0, 0), label, font=font_small)
-            label_width = bbox[2] - bbox[0]
-            draw.text(
-                ((width - label_width) // 2, y_pos), label, fill=0, font=font_small
-            )
+            # label = "Scan QR code or type URL above"
+            # bbox = draw.textbbox((0, 0), label, font=font_small)
+            # label_width = bbox[2] - bbox[0]
+            # draw.text(
+            #     ((width - label_width) // 2, y_pos), label, fill=0, font=font_small
+            # )
 
         except Exception as e:
             logger.error(f"Failed to generate QR code: {e}")
@@ -533,15 +630,16 @@ def create_wifi_setup_image(
         draw.text((10, y_pos + 15), "in your browser", fill=0, font=font_medium)
 
     # Footer
-    footer_y = height - 15
-    footer_text = "Configure WiFi Settings"
-    bbox = draw.textbbox((0, 0), footer_text, font=font_small)
-    footer_width = bbox[2] - bbox[0]
-    draw.text(
-        ((width - footer_width) // 2, footer_y), footer_text, fill=0, font=font_small
-    )
+    # footer_y = height - 15
+    # footer_text = "Configure WiFi Settings"
+    # bbox = draw.textbbox((0, 0), footer_text, font=font_small)
+    # footer_width = bbox[2] - bbox[0]
+    # draw.text(
+    #     ((width - footer_width) // 2, footer_y), footer_text, fill=0, font=font_small
+    # )
 
     # Save the image
+    img = img.transpose(Image.FLIP_LEFT_RIGHT)
     img.save(filename)
     logger.info(f"WiFi setup image saved as: {filename}")
 
@@ -555,8 +653,8 @@ def create_wifi_setup_image(
 def create_wifi_success_image(
     ssid,
     ip_address,
-    width=240,
-    height=416,
+    width=128,
+    height=250,
     filename="wifi_success.png",
     auto_display=False,
 ):
@@ -579,30 +677,30 @@ def create_wifi_success_image(
     img = Image.new("L", (width, height), 255)  # White background
     draw = ImageDraw.Draw(img)
 
-    # Try to load fonts
+    # Try to load fonts (reduced sizes for 128x250 display)
     try:
         martian_font_path = (
             "/home/distiller/fonts/MartianMonoNerdFont-CondensedBold.ttf"
         )
-        font_title = ImageFont.truetype(martian_font_path, 24)
-        font_large = ImageFont.truetype(martian_font_path, 18)
-        font_medium = ImageFont.truetype(martian_font_path, 14)
-        font_small = ImageFont.truetype(martian_font_path, 12)
+        font_title = ImageFont.truetype(martian_font_path, 14)
+        font_large = ImageFont.truetype(martian_font_path, 11)
+        font_medium = ImageFont.truetype(martian_font_path, 9)
+        font_small = ImageFont.truetype(martian_font_path, 8)
         logger.info("Using MartianMono font for success screen")
     except Exception as e:
         logger.warning(f"Could not load MartianMono font: {e}")
         try:
             font_title = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 22
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 13
             )
             font_large = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 18
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 11
             )
             font_medium = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 14
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 9
             )
             font_small = ImageFont.truetype(
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 12
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 8
             )
         except:
             font_title = ImageFont.load_default()
@@ -689,6 +787,7 @@ def create_wifi_success_image(
     )
 
     # Save the image
+    img = img.transpose(Image.FLIP_LEFT_RIGHT)
     img.save(filename)
     logger.info(f"WiFi success image saved as: {filename}")
 
@@ -716,8 +815,8 @@ def main():
         action="store_true",
         help="Only display on e-ink, do not save image file",
     )
-    parser.add_argument("--width", type=int, default=240, help="Image width")
-    parser.add_argument("--height", type=int, default=416, help="Image height")
+    parser.add_argument("--width", type=int, default=128, help="Image width")
+    parser.add_argument("--height", type=int, default=250, help="Image height")
     parser.add_argument(
         "--setup",
         action="store_true",
@@ -792,7 +891,7 @@ def main():
             # Create temporary image and display directly
             temp_filename = "/tmp/wifi_info_temp.png"
             create_wifi_info_image(
-                args.width, args.height, temp_filename, auto_display=True
+                temp_filename, auto_display=True
             )
             # Clean up temp file
             try:
@@ -802,7 +901,7 @@ def main():
         else:
             # Create image file
             filename = create_wifi_info_image(
-                args.width, args.height, args.output, auto_display=args.display
+                args.output, auto_display=args.display
             )
 
             print(f"WiFi information image created: {filename}")

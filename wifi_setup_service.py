@@ -33,7 +33,7 @@ except ImportError:
 
 # Import eink display functionality
 try:
-    from eink_display_flush import SimpleEinkDriver, load_and_convert_image
+    # from eink_display_flush import SimpleEinkDriver, load_and_convert_image
     from wifi_info_display import (
         create_wifi_info_image,
         create_wifi_setup_image,
@@ -241,9 +241,7 @@ class WiFiSetupService:
             self.logger.info("Displaying WiFi information on eink display...")
 
             # Create and automatically display WiFi info image on eink
-            create_wifi_info_image(
-                width=240, height=416, filename="wifi_info.png", auto_display=True
-            )
+            create_wifi_info_image(filename="wifi_info.png", auto_display=True)
 
             self.logger.info("WiFi information displayed successfully on eink")
 

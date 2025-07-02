@@ -10,3 +10,4 @@ spidev>=3.7
 lgpio>=0.2.2.0
 qrcode[pil]>=8.2
 zeroconf>=0.147.0
+aiohttp>=3.8.0
