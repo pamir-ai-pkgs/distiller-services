@@ -5,7 +5,6 @@ class WiFiSetup {
     this.ssidInput = document.getElementById("ssid-input");
     this.passwordInput = document.getElementById("password-input");
     this.connectBtn = document.getElementById("connect-btn");
-    // this.completeBtn = document.getElementById('complete-btn'); // Commented out
     this.alertContainer = document.getElementById("alert-container");
 
     this.init();
@@ -13,17 +12,12 @@ class WiFiSetup {
 
   init() {
     this.connectBtn.addEventListener("click", () => this.connectToNetwork());
-    // this.completeBtn.addEventListener('click', () => this.completeSetup()); // Commented out
-
-    // Remove automatic status checking since we'll redirect to status page
-    // this.checkStatus();
-    // setInterval(() => this.checkStatus(), 5000);
-
+    
     // Show initial disconnected state
     this.updateStatusDisplay({ connected: false });
   }
 
-  // Keep this method but don't use it automatically
+  // Keep status checking method for manual use
   async checkStatus() {
     try {
       const response = await fetch("/api/status");
@@ -42,11 +36,9 @@ class WiFiSetup {
                 <strong>IP Address:</strong> ${status.ip_address || "N/A"}<br>
                 <strong>Interface:</strong> ${status.interface || "N/A"}
             `;
-      // this.completeBtn.style.display = 'inline-block'; // Commented out
     } else {
       this.statusCard.className = "status-card disconnected";
       this.statusInfo.textContent = "Ready to connect to WiFi network";
-      // this.completeBtn.style.display = 'none'; // Commented out
     }
   }
 
@@ -76,8 +68,8 @@ class WiFiSetup {
         throw new Error("Failed to initiate connection");
       }
 
-      // Show connection progress and redirect to status page
-      this.showConnectionProgress(ssid);
+      // Show connection status information instead of redirecting
+      this.showConnectionStatus(ssid);
       
     } catch (error) {
       console.error("Connection process failed:", error);
@@ -87,38 +79,24 @@ class WiFiSetup {
     }
   }
 
-  showConnectionProgress(ssid) {
-    // Show static connection message
-    this.showAlert(`Connecting to ${ssid}... Please wait while we establish the connection.`, "info");
+  showConnectionStatus(ssid) {
+    // Show informative message about the connection process
+    this.showAlert(`
+      <strong>Connection initiated to ${ssid}</strong><br><br>
+      The device is now connecting to your WiFi network. This process may take a few moments.<br><br>
+      <strong>What happens next:</strong><br>
+      • The device will connect to your network<br>
+      • You can check the connection status at any time<br>
+      • If successful, access your device using its new IP address<br><br>
+      <strong>To check status:</strong> Visit the <a href="/status" style="color: #000; text-decoration: underline;">Status Page</a>
+    `, "info");
     
-    // Redirect to status page after a delay
+    // Reset button after showing the message
     setTimeout(() => {
-      this.showAlert("Redirecting to status page...", "info");
-      
-      // Redirect to status page
-      setTimeout(() => {
-        window.location.href = "/status";
-      }, 2000);
-    }, 3000); // Wait 3 seconds before redirecting
+      this.connectBtn.textContent = "Connect";
+      this.connectBtn.disabled = false;
+    }, 2000);
   }
-
-  // Commented out complete setup functionality
-  /*
-    async completeSetup() {
-        try {
-            const response = await fetch('/api/complete-setup', {
-                method: 'POST'
-            });
-            
-            const result = await response.json();
-            if (result.success) {
-                this.showAlert('Setup completed successfully!', 'success');
-            }
-        } catch (error) {
-            console.error('Complete setup failed:', error);
-        }
-    }
-    */
 
   showAlert(message, type) {
     const alertClass = `alert-${type}`;
@@ -130,9 +108,11 @@ class WiFiSetup {
 
     this.alertContainer.innerHTML = alertHtml;
 
+    // Keep info alerts visible longer, others shorter
+    const timeout = type === "info" ? 15000 : 5000;
     setTimeout(() => {
       this.alertContainer.innerHTML = "";
-    }, 5000);
+    }, timeout);
   }
 }
 

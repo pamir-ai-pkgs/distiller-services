@@ -401,8 +401,7 @@ class DistillerWiFiServiceFixed:
             self.logger.info(f"API Status response: connected_to_target={status_info.get('connected_to_target')}, "
                             f"current_state={status_info.get('current_state')}, "
                             f"ssid={status_info.get('ssid')}, "
-                            f"ip={status_info.get('ip_address')}, "
-                            f"redirect_url={status_info.get('redirect_url')}")
+                            f"ip={status_info.get('ip_address')}")
             
             return jsonify({"success": True, **status_info})
         except Exception as e:
@@ -503,7 +502,7 @@ class DistillerWiFiServiceFixed:
                         "current_state": self.current_state.value,
                         "target_ssid": self.target_ssid,
                         "elapsed": 0,
-                        "redirect_url": f"http://{connection_ip}:{self.web_port}",
+
                         "timestamp": int(time.time()),
                         "device_id": self.device_config.get_device_id(),
                         "mdns_url": self.device_config.get_device_mdns_url(),
@@ -545,17 +544,7 @@ class DistillerWiFiServiceFixed:
 
             connected = connected_to_target or connected_to_hotspot
 
-            # Handle redirection after successful connection to TARGET network (not hotspot)
-            redirect_url = None
-            if connected_to_target:
-                if wifi_status.ip_address:
-                    redirect_url = f"http://{wifi_status.ip_address}:{self.web_port}"
-                elif self._successful_connection_ip:
-                    # Use stored connection IP
-                    redirect_url = f"http://{self._successful_connection_ip}:{self.web_port}"
-                else:
-                    # Fallback: Use mDNS if available
-                    redirect_url = self.device_config.get_device_mdns_url()
+
 
             return {
                 "connected": connected,
@@ -572,7 +561,7 @@ class DistillerWiFiServiceFixed:
                     if self.connection_start_time
                     else 0
                 ),
-                "redirect_url": redirect_url,
+
                 "timestamp": int(time.time()),
                 "device_id": self.device_config.get_device_id(),
                 "mdns_url": self.device_config.get_device_mdns_url(),
@@ -598,7 +587,6 @@ class DistillerWiFiServiceFixed:
                 "current_state": self.current_state.value,
                 "target_ssid": self.target_ssid,
                 "elapsed": 0,
-                "redirect_url": None,
                 "timestamp": int(time.time()),
                 "message": "Hotspot mode active",
                 "device_id": self.device_config.get_device_id(),
@@ -611,7 +599,7 @@ class DistillerWiFiServiceFixed:
                 "connected_to_target": False,
                 "connected_to_hotspot": False,
                 "connecting": True,
-                "ssid": None,
+                "ssid": self.target_ssid,
                 "ip_address": None,
                 "interface": None,
                 "current_state": self.current_state.value,
@@ -621,13 +609,14 @@ class DistillerWiFiServiceFixed:
                     if self.connection_start_time
                     else 0
                 ),
-                "redirect_url": None,
                 "timestamp": int(time.time()),
+                "message": "Connection in progress",
                 "device_id": self.device_config.get_device_id(),
                 "mdns_url": self.device_config.get_device_mdns_url(),
                 "hostname": self.device_config.get_hostname(),
             }
-        elif self.current_state == ServiceState.INITIALIZING:
+        else:
+            # Default disconnected state
             return {
                 "connected": False,
                 "connected_to_target": False,
@@ -637,21 +626,13 @@ class DistillerWiFiServiceFixed:
                 "ip_address": None,
                 "interface": None,
                 "current_state": self.current_state.value,
-                "target_ssid": None,
+                "target_ssid": self.target_ssid,
                 "elapsed": 0,
-                "redirect_url": None,
                 "timestamp": int(time.time()),
-                "message": "Changing network configuration...",
-            }
-        else:
-            return {
-                "connected": False,
-                "connected_to_target": False,
-                "connected_to_hotspot": False,
-                "connecting": False,
-                "error": "Status check failed - service transitioning",
-                "current_state": self.current_state.value,
-                "timestamp": int(time.time()),
+                "message": "Disconnected",
+                "device_id": self.device_config.get_device_id(),
+                "mdns_url": self.device_config.get_device_mdns_url(),
+                "hostname": self.device_config.get_hostname(),
             }
 
     def _start_connection_background(self):
