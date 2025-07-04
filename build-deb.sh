@@ -140,32 +140,37 @@ clean_build() {
     print_status "Cleaning build artifacts..."
     
     # Remove build directories
-    rm -rf "$BUILD_DIR"
-    rm -rf debian/tmp
-    rm -rf debian/.debhelper
-    rm -rf debian/files
-    rm -rf debian/debhelper-build-stamp
-    rm -rf debian/${PACKAGE_NAME}
+    sudo rm -rf "$BUILD_DIR"
+    sudo rm -rf debian/tmp
+    sudo rm -rf debian/.debhelper
+    sudo rm -rf debian/files
+    sudo rm -rf debian/debhelper-build-stamp
+    sudo rm -rf debian/${PACKAGE_NAME}
     
     # Remove generated files
-    rm -f debian/${PACKAGE_NAME}.*.debhelper
-    rm -f debian/${PACKAGE_NAME}.*.log
-    rm -f debian/${PACKAGE_NAME}.debhelper.log
-    rm -f debian/${PACKAGE_NAME}.postinst.debhelper
-    rm -f debian/${PACKAGE_NAME}.postrm.debhelper
-    rm -f debian/${PACKAGE_NAME}.prerm.debhelper
-    rm -f debian/${PACKAGE_NAME}.substvars
+    sudo rm -f debian/${PACKAGE_NAME}.*.debhelper
+    sudo rm -f debian/${PACKAGE_NAME}.*.log
+    sudo rm -f debian/${PACKAGE_NAME}.debhelper.log
+    sudo rm -f debian/${PACKAGE_NAME}.postinst.debhelper
+    sudo rm -f debian/${PACKAGE_NAME}.postrm.debhelper
+    sudo rm -f debian/${PACKAGE_NAME}.prerm.debhelper
+    sudo rm -f debian/${PACKAGE_NAME}.substvars
     
     # Remove any .pyc files
-    find . -name "*.pyc" -delete
-    find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+    sudo find . -name "*.pyc" -delete
+    sudo find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
     
     # Remove any existing build artifacts
-    rm -f ../${PACKAGE_NAME}_*.deb
-    rm -f ../${PACKAGE_NAME}_*.dsc
-    rm -f ../${PACKAGE_NAME}_*.changes
-    rm -f ../${PACKAGE_NAME}_*.buildinfo
-    rm -f ../${PACKAGE_NAME}_*.tar.*
+    sudo rm -f ../${PACKAGE_NAME}_*.deb
+    sudo rm -f ../${PACKAGE_NAME}_*.dsc
+    sudo rm -f ../${PACKAGE_NAME}_*.changes
+    sudo rm -f ../${PACKAGE_NAME}_*.buildinfo
+    sudo rm -f ../${PACKAGE_NAME}_*.tar.*
+
+    # Remove dist directory if it exists
+    if [ -d "$DIST_DIR" ]; then
+		sudo rm -rf "$DIST_DIR"
+	fi
     
     print_success "Build artifacts cleaned"
 }
@@ -209,39 +214,15 @@ build_source() {
     print_status "Building source package..."
     
     # Create source package
-    dpkg-buildpackage -S -us -uc
+    CC="aarch64-linux-gnu-gcc" dpkg-buildpackage -S -us -uc -aarm64
     
     print_success "Source package built"
 }
 
 # Function to build binary package for specific architecture
 build_binary_for_arch() {
-    local arch="$1"
-    print_status "Building binary package for architecture: $arch"
-    
-    # Set environment for cross-compilation if needed
-    local current_arch=$(get_current_arch)
-    if [[ "$arch" != "$current_arch" ]] && [[ "$arch" != "all" ]]; then
-        print_status "Cross-compiling for $arch from $current_arch"
-        export DEB_BUILD_ARCH="$arch"
-        export DEB_HOST_ARCH="$arch"
-    fi
-    
     # Try with dpkg-buildpackage first
-    if dpkg-buildpackage -b -us -uc -a"$arch" 2>/dev/null; then
-        print_success "Binary package for $arch built with dpkg-buildpackage"
-    elif command_exists sudo && sudo -n true 2>/dev/null; then
-        print_warning "dpkg-buildpackage failed for $arch, trying with sudo..."
-        # Clean first
-        debian/rules clean >/dev/null 2>&1 || true
-        # Build with sudo
-        debian/rules build && sudo debian/rules binary
-        print_success "Binary package for $arch built with sudo"
-    else
-        print_error "Failed to build package for $arch. Fakeroot issues detected."
-        print_status "Please try running with sudo privileges or fix fakeroot configuration"
-        return 1
-    fi
+    CC="aarch64-linux-gnu-gcc" dpkg-buildpackage -b -us -uc -aarm64
 }
 
 # Function to build binary package for all target architectures
