@@ -20,6 +20,11 @@ import argparse
 import logging
 import time
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 logger = logging.getLogger(__name__)
 
 # QR code generation
@@ -34,21 +39,27 @@ except ImportError:
 # Add the distiller project path to import NetworkUtils
 from network.network_utils import NetworkUtils
 
-# Import the distiller-cm5-sdk e-ink display functions
-# try:
-from distiller_cm5_sdk.hardware.eink import display_png, clear_display, DisplayMode
-DISTILLER_SDK_AVAILABLE = True
-logger.info("Using distiller-cm5-sdk for e-ink display")
-# except ImportError:
-#     logger.warning("distiller-cm5-sdk not available, falling back to eink_display_flush")
-#     from eink_display_flush import SimpleEinkDriver, load_and_convert_image
-#     DISTILLER_SDK_AVAILABLE = False
+# Add the installed SDK path to Python path
+SDK_PATH = "/opt/distiller-cm5-sdk"
+if os.path.exists(SDK_PATH):
+    # Add the SDK path to sys.path if it's not already there
+    if SDK_PATH not in sys.path:
+        sys.path.insert(0, SDK_PATH)
+    
+    # Also add the src directory if it exists
+    src_path = os.path.join(SDK_PATH, "src")
+    if os.path.exists(src_path) and src_path not in sys.path:
+        sys.path.insert(0, src_path)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# Import the distiller-cm5-sdk e-ink display functions
+try:
+    from distiller_cm5_sdk.hardware.eink import display_png, clear_display, DisplayMode
+    DISTILLER_SDK_AVAILABLE = True
+    logger.info("Using distiller-cm5-sdk for e-ink display")
+except ImportError:
+    logger.warning("distiller-cm5-sdk not available, falling back to eink_display_flush")
+    from eink_display_flush import SimpleEinkDriver, load_and_convert_image
+    DISTILLER_SDK_AVAILABLE = False
 
 
 def create_wifi_info_image(
