@@ -17,10 +17,10 @@ sudo python3 wifi_setup_service.py
 ### Testing & Validation
 ```bash
 # Check service status
-sudo systemctl status wifi-setup
+sudo systemctl status distiller-wifi
 
 # View logs
-sudo journalctl -u wifi-setup -f
+sudo journalctl -u distiller-wifi -f
 
 # Test NetworkManager connection
 nmcli dev wifi

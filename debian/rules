@@ -1,0 +1,45 @@
+#!/usr/bin/make -f
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+%:
+	dh $@ --with python3
+
+override_dh_auto_install:
+	# Install Python modules and scripts
+	mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services
+	cp -r *.py network/ static/ templates/ debian/distiller-cm5-services/opt/distiller-cm5-services/
+	
+	# Install systemd service files
+	mkdir -p debian/distiller-cm5-services/lib/systemd/system
+	cp distiller-wifi.service debian/distiller-cm5-services/lib/systemd/system/
+	cp pinggy-tunnel.service debian/distiller-cm5-services/lib/systemd/system/
+	
+	# Install documentation
+	mkdir -p debian/distiller-cm5-services/usr/share/doc/distiller-cm5-services
+	cp README.md debian/distiller-cm5-services/usr/share/doc/distiller-cm5-services/
+	
+	# Install lintian overrides (if they exist)
+	-mkdir -p debian/distiller-cm5-services/usr/share/lintian/overrides
+	-cp debian/distiller-cm5-services.lintian-overrides debian/distiller-cm5-services/usr/share/lintian/overrides/distiller-cm5-services
+	
+	# Create fonts directory (will be populated by user or package)
+	mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services/fonts
+	
+	# Install requirements file for reference
+	cp requirements.txt debian/distiller-cm5-services/opt/distiller-cm5-services/
+
+override_dh_installinit:
+	# Skip traditional init scripts, we use systemd
+
+override_dh_installsystemd:
+	dh_installsystemd --name=distiller-wifi
+	dh_installsystemd --name=pinggy-tunnel
+
+override_dh_fixperms:
+	dh_fixperms
+	# Make Python scripts executable
+	chmod +x debian/distiller-cm5-services/opt/distiller-cm5-services/*.py
+	chmod +x debian/distiller-cm5-services/opt/distiller-cm5-services/network/*.py
+	chmod -x debian/distiller-cm5-services/opt/distiller-cm5-services/network/__init__.py

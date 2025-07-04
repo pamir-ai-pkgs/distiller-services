@@ -1,6 +1,6 @@
 [Unit]
 Description=Pinggy SSH Tunnel Service
-After=network-online.target wifi-setup.service
+After=network-online.target distiller-wifi.service
 Wants=network-online.target
 # Only start if network is actually connected
 ConditionPathExists=/sys/class/net/wlan0/carrier
@@ -8,8 +8,8 @@ ConditionPathExists=/sys/class/net/wlan0/carrier
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/home/distiller/distiller-cm5-services
-ExecStart=/usr/bin/python3 /home/distiller/distiller-cm5-services/pinggy_tunnel_service.py --port 3000
+WorkingDirectory=/opt/distiller-cm5-services
+ExecStart=/usr/local/bin/distiller-tunnel --port 3000
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -17,7 +17,6 @@ StandardError=journal
 
 # Environment variables
 Environment="PYTHONUNBUFFERED=1"
-Environment="PYTHONPATH=/home/distiller/distiller-cm5-services"
 
 # Give WiFi setup time to complete
 ExecStartPre=/bin/sleep 30

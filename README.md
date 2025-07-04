@@ -35,23 +35,78 @@ A comprehensive WiFi setup and management service designed for embedded Linux de
 - Root privileges (for network management)
 - E-ink display hardware (optional)
 
-### Installation
+### Debian Package Installation (Recommended)
 
-1. **Clone the repository:**
+The easiest way to install is using the Debian package:
+
+1. **Build the package:**
+   ```bash
+   git clone https://github.com/Pamir-AI/distiller-cm5-services
+   cd distiller-cm5-services
+   ./build-deb.sh
+   ```
+
+2. **Install the package:**
+   ```bash
+   sudo dpkg -i dist/distiller-cm5-services_*.deb
+   sudo apt-get install -f  # Fix any dependency issues
+   ```
+
+3. **Start services:**
+   ```bash
+   sudo systemctl start distiller-wifi
+   sudo systemctl start pinggy-tunnel
+   ```
+
+**Package Benefits:**
+- Installs to `/opt/distiller-cm5-services` (proper system location)
+- Handles dependencies intelligently via apt and pip
+- Creates convenient command symlinks (`distiller-wifi-setup`, `distiller-tunnel`, etc.)
+- Includes systemd service integration
+- Proper cleanup on removal
+
+### Manual Installation (Alternative)
+
+If you prefer manual installation:
+
+1. **Install system dependencies:**
+   ```bash
+   sudo apt update
+   sudo apt install python3-fastapi python3-uvicorn python3-pydantic python3-jinja2 \
+                    python3-multipart python3-pil python3-numpy python3-qrcode \
+                    python3-zeroconf python3-aiohttp network-manager systemd
+   ```
+
+2. **Install optional dependencies:**
+   ```bash
+   sudo apt install python3-evdev python3-spidev python3-lgpio fonts-liberation
+   ```
+
+3. **Clone and install:**
+   ```bash
+   git clone https://github.com/Pamir-AI/distiller-cm5-services
+   sudo cp -r distiller-cm5-services /opt/
+   cd /opt/distiller-cm5-services
+   
+   # Install Python dependencies not available via apt
+   pip install -r requirements.txt
+   
+   # Install systemd services
+   sudo cp distiller-wifi.service /etc/systemd/system/
+   sudo cp pinggy-tunnel.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable distiller-wifi pinggy-tunnel
+   ```
+
+### Legacy Installation
+
+For systems using the old `/home/distiller` path:
+
 ```bash
-git clone <repository-url>
-cd distiller-cm5-services
+sudo bash install-service.sh
 ```
 
-2. **Install dependencies:**
-```bash
-pip install -r requirements.txt
-```
-
-3. **Run the service:**
-```bash
-sudo python3 distiller_wifi_service.py
-```
+**Note:** The new Debian package uses `/opt/distiller-cm5-services` which is the proper system location for applications.
 
 ### Basic Usage
 
@@ -373,9 +428,53 @@ curl http://localhost:8080/api/status
 | RST | GPIO17 | GPIO1_B1 |
 | BUSY | GPIO24 | GPIO0_D3 |
 
+## Building and Packaging
+
+### Debian Package Building
+
+The project includes modern Debian packaging with intelligent dependency handling:
+
+```bash
+# Build full package
+./build-deb.sh
+
+# Build with specific version
+./build-deb.sh -v 1.0.1-1
+
+# Install build dependencies
+./build-deb.sh deps
+
+# Clean build artifacts
+./build-deb.sh clean
+```
+
+**Package Features:**
+- Modern debhelper-based packaging
+- Automatic dependency resolution (apt + pip fallback)
+- Systemd service integration
+- Proper installation to `/opt/distiller-cm5-services`
+- Lintian quality checks
+- Graceful handling of optional dependencies
+
+### Build Requirements
+
+```bash
+sudo apt install debhelper dh-python dpkg-dev lintian devscripts
+```
+
+### Package Management
+
+After installation:
+- Use `distiller-wifi-setup`, `distiller-tunnel`, `distiller-mdns` commands
+- Services are available in systemd
+- Configuration in `/opt/distiller-cm5-services/`
+- Logs via `journalctl -u distiller-wifi` or `journalctl -u pinggy-tunnel`
+
+See [DEBIAN_PACKAGING.md](DEBIAN_PACKAGING.md) for detailed packaging documentation.
+
 ## License
 
-This project is licensed under the MIT License. See LICENSE file for details.
+This project is part of the Pamir AI Distiller ecosystem. Please refer to the project license for usage terms and conditions.
 
 ## Contributing
 

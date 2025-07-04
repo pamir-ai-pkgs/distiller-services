@@ -1,0 +1,97 @@
+#!/bin/bash
+
+set -e
+
+# Log function for better debugging
+log() {
+    echo "[postinst] $1" >&2
+}
+
+case "$1" in
+    configure)
+        log "Starting configuration..."
+        
+        # Create virtual environment for Python dependencies
+        VENV_DIR="/opt/distiller-cm5-services/venv"
+        log "Creating virtual environment at $VENV_DIR..."
+        
+        if [ ! -d "$VENV_DIR" ]; then
+            python3 -m venv "$VENV_DIR"
+            log "Virtual environment created successfully"
+        else
+            log "Virtual environment already exists"
+        fi
+        
+        # Install Python dependencies in virtual environment
+        if [ -f /opt/distiller-cm5-services/requirements.txt ]; then
+            log "Installing Python dependencies in virtual environment..."
+            "$VENV_DIR/bin/pip" install --upgrade pip
+            
+            # Try to install requirements, but continue even if some fail
+            if ! "$VENV_DIR/bin/pip" install -r /opt/distiller-cm5-services/requirements.txt; then
+                log "Warning: Some Python dependencies failed to install, but continuing..."
+                log "System python3-dbus package will be used instead of pip-installed dbus-python"
+            else
+                log "Python dependencies installed successfully"
+            fi
+        else
+            log "No requirements.txt found, skipping Python dependency installation"
+        fi
+        
+        # Create wrapper scripts that use the virtual environment
+        log "Creating wrapper scripts..."
+        
+        # Create distiller-wifi-setup wrapper
+        cat > /usr/local/bin/distiller-wifi-setup <<EOF
+#!/bin/bash
+cd /opt/distiller-cm5-services
+exec /opt/distiller-cm5-services/venv/bin/python distiller_wifi_service.py "\$@"
+EOF
+        chmod 755 /usr/local/bin/distiller-wifi-setup
+        
+        # Create tunnel wrapper
+        cat > /usr/local/bin/distiller-tunnel <<EOF
+#!/bin/bash
+cd /opt/distiller-cm5-services
+exec /opt/distiller-cm5-services/venv/bin/python pinggy_tunnel_service.py "\$@"
+EOF
+        chmod 755 /usr/local/bin/distiller-tunnel
+        
+        # Create mdns wrapper
+        cat > /usr/local/bin/distiller-mdns <<EOF
+#!/bin/bash
+cd /opt/distiller-cm5-services
+exec /opt/distiller-cm5-services/venv/bin/python mdns_service.py "\$@"
+EOF
+        chmod 755 /usr/local/bin/distiller-mdns
+        
+        # Set proper permissions (non-recursive to avoid lintian warnings)
+        log "Setting file permissions..."
+        chown -R root:root /opt/distiller-cm5-services
+        find /opt/distiller-cm5-services -type f -exec chmod 644 {} \;
+        find /opt/distiller-cm5-services -type d -exec chmod 755 {} \;
+        chmod 755 /opt/distiller-cm5-services/*.py
+        
+        # Set proper permissions for virtual environment
+        if [ -d "$VENV_DIR" ]; then
+            find "$VENV_DIR" -type f -name "python*" -exec chmod 755 {} \;
+            find "$VENV_DIR" -type f -name "pip*" -exec chmod 755 {} \;
+        fi
+        
+        log "Configuration completed successfully"
+        ;;
+    
+    abort-upgrade|abort-remove|abort-deconfigure)
+        log "Called with argument: $1"
+        ;;
+    
+    *)
+        log "Called with unknown argument: $1"
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0 

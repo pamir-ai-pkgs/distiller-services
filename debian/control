@@ -1,0 +1,52 @@
+Source: distiller-cm5-services
+Section: utils
+Priority: optional
+Maintainer: PamirAI Incorporated <support@pamir.ai>
+Build-Depends: debhelper-compat (= 13), dh-python, python3-all, python3-setuptools
+Standards-Version: 4.6.2
+Homepage: https://github.com/Pamir-AI/distiller-cm5-services
+Vcs-Git: https://github.com/Pamir-AI/distiller-cm5-services.git
+Vcs-Browser: https://github.com/Pamir-AI/distiller-cm5-services
+
+Package: distiller-cm5-services
+Architecture: all
+Depends: ${misc:Depends},
+ systemd,
+ network-manager,
+ python3 (>= 3.8),
+ python3-pip,
+ python3-venv,
+ python3-jinja2,
+ python3-pil,
+ python3-numpy,
+ python3-dbus,
+ python3-evdev,
+ python3-spidev,
+ python3-lgpio,
+ libdbus-1-dev,
+ libglib2.0-dev,
+ pkg-config,
+ build-essential,
+Recommends:
+ fonts-liberation
+Suggests: avahi-daemon
+Description: WiFi setup and network management for Raspberry Pi CM5 Distiller devices
+ This package provides automated WiFi configuration services for Raspberry Pi
+ CM5-based Distiller devices. It includes:
+ .
+  * WiFi hotspot creation for initial device setup
+  * Web-based interface for network configuration
+  * E-ink display integration for visual feedback
+  * mDNS service discovery for permanent device access
+  * SSH tunnel management through Pinggy
+ .
+ The service creates a seamless WiFi setup experience by automatically creating
+ a temporary WiFi hotspot, providing a web interface for network selection and
+ authentication, and transitioning to permanent network access after successful
+ connection.
+ .
+ This package is designed for Raspberry Pi CM5 devices running on arm64
+ architecture, but is compatible with all architectures.
+ .
+ Python dependencies are installed via pip in a virtual environment during
+ package installation to ensure compatibility across different Debian versions. 

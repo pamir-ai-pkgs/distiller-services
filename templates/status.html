@@ -1,315 +1,327 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Connection Status</title>
-    <link rel="icon" href="{{ url_for('static', filename='images/pamir-logo-01.svg') }}">
+    <link
+      rel="icon"
+      href="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
+    />
     <!-- Allow insecure HTTP requests for local IoT device operation -->
-    <meta http-equiv="Content-Security-Policy" content="
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
         default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:;
         connect-src 'self' http: https: ws: wss:;
         img-src 'self' data: blob: http: https:;
         font-src 'self' data: http: https:;
         frame-src 'none';
         object-src 'none'
-    ">
+    "
+    />
     <style>
-        @font-face {
-            font-family: 'MartianMono';
-            src: url('{{ url_for("static", filename="fonts/MartianMonoNerdFont-CondensedBold.ttf") }}') format('truetype');
-            font-weight: bold;
-            font-style: normal;
-        }
-        
-        * {
-            box-sizing: border-box;
-        }
-        
+      @font-face {
+        font-family: "MartianMono";
+        src: url('{{ url_for("static", filename="fonts/MartianMonoNerdFont-CondensedBold.ttf") }}')
+          format("truetype");
+        font-weight: bold;
+        font-style: normal;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "MartianMono", "Courier New", "Monaco", "Menlo", monospace;
+        background: #ffffff;
+        color: #000000;
+        min-height: 100vh;
+        margin: 0;
+        padding: 20px;
+        line-height: 1.4;
+      }
+
+      .container {
+        max-width: 500px;
+        margin: 0 auto;
+        background: #ffffff;
+        border: 3px solid #000000;
+        border-radius: 0;
+        overflow: hidden;
+      }
+
+      .header {
+        background: #000000;
+        color: #ffffff;
+        padding: 20px;
+        text-align: center;
+        border-bottom: 3px solid #000000;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .content {
+        padding: 30px 20px;
+        text-align: center;
+      }
+
+      .status-icon {
+        font-size: 48px;
+        margin-bottom: 20px;
+        font-family: "MartianMono", monospace;
+        color: #000000;
+      }
+
+      .status-code {
+        font-size: 16px;
+        font-weight: bold;
+        color: #000000;
+        margin-bottom: 15px;
+        font-family: "MartianMono", monospace;
+        letter-spacing: 1px;
+      }
+
+      .status-title {
+        font-size: 20px;
+        font-weight: bold;
+        margin-bottom: 15px;
+        color: #000000;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .status-message {
+        font-size: 14px;
+        color: #000000;
+        margin-bottom: 25px;
+        line-height: 1.5;
+      }
+
+      .connection-details {
+        background: #f8f8f8;
+        padding: 20px;
+        border: 2px solid #000000;
+        margin: 20px 0;
+        text-align: left;
+      }
+
+      .detail-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #cccccc;
+        font-size: 12px;
+      }
+
+      .detail-row:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+      }
+
+      .detail-label {
+        font-weight: bold;
+        color: #000000;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .detail-value {
+        color: #000000;
+        text-align: right;
+        font-family: "MartianMono", monospace;
+      }
+
+      .footer {
+        text-align: center;
+        padding: 20px;
+        color: #ffffff;
+        font-size: 10px;
+        border-top: 3px solid #000000;
+        background: #000000;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        position: relative;
+      }
+
+      .footer::before {
+        content: "";
+        position: absolute;
+        top: -3px;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: repeating-linear-gradient(
+          90deg,
+          #000000,
+          #000000 8px,
+          #ffffff 8px,
+          #ffffff 16px
+        );
+      }
+
+      .footer-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .footer-logo {
+        height: 48px;
+        width: auto;
+        filter: brightness(0) invert(1);
+      }
+
+      .footer-text {
+        font-size: 10px;
+        letter-spacing: 0.3px;
+      }
+
+      /* Mobile responsiveness */
+      @media (max-width: 600px) {
         body {
-            font-family: 'MartianMono', 'Courier New', 'Monaco', 'Menlo', monospace;
-            background: #ffffff;
-            color: #000000;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-            line-height: 1.4;
+          padding: 10px;
         }
-        
+
         .container {
-            max-width: 500px;
-            margin: 0 auto;
-            background: #ffffff;
-            border: 3px solid #000000;
-            border-radius: 0;
-            overflow: hidden;
+          max-width: 100%;
+          border-width: 2px;
         }
-        
+
         .header {
-            background: #000000;
-            color: #ffffff;
-            padding: 20px;
-            text-align: center;
-            border-bottom: 3px solid #000000;
+          padding: 15px;
         }
-        
+
         .header h1 {
-            margin: 0;
-            font-size: 18px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+          font-size: 16px;
         }
-        
+
         .content {
-            padding: 30px 20px;
-            text-align: center;
+          padding: 20px 15px;
         }
-        
+
         .status-icon {
-            font-size: 48px;
-            margin-bottom: 20px;
-            font-family: 'MartianMono', monospace;
-            color: #000000;
+          font-size: 40px;
         }
-        
-        .status-code {
-            font-size: 16px;
-            font-weight: bold;
-            color: #000000;
-            margin-bottom: 15px;
-            font-family: 'MartianMono', monospace;
-            letter-spacing: 1px;
-        }
-        
-        .status-title {
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 15px;
-            color: #000000;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .status-message {
-            font-size: 14px;
-            color: #000000;
-            margin-bottom: 25px;
-            line-height: 1.5;
-        }
-        
-        .connection-details {
-            background: #f8f8f8;
-            padding: 20px;
-            border: 2px solid #000000;
-            margin: 20px 0;
-            text-align: left;
-        }
-        
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #cccccc;
-            font-size: 12px;
-        }
-        
-        .detail-row:last-child {
-            margin-bottom: 0;
-            padding-bottom: 0;
-            border-bottom: none;
-        }
-        
-        .detail-label {
-            font-weight: bold;
-            color: #000000;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .detail-value {
-            color: #000000;
-            text-align: right;
-            font-family: 'MartianMono', monospace;
-        }
-        
-        .footer {
-            text-align: center;
-            padding: 20px;
-            color: #ffffff;
-            font-size: 10px;
-            border-top: 3px solid #000000;
-            background: #000000;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            position: relative;
-        }
-        
-        .footer::before {
-            content: '';
-            position: absolute;
-            top: -3px;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: repeating-linear-gradient(
-                90deg,
-                #000000,
-                #000000 8px,
-                #ffffff 8px,
-                #ffffff 16px
-            );
-        }
-        
+
         .footer-content {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
+          flex-direction: column;
+          gap: 8px;
         }
-        
+
         .footer-logo {
-            height: 48px;
-            width: auto;
-            filter: brightness(0) invert(1);
+          height: 40px;
         }
-        
-        .footer-text {
-            font-size: 10px;
-            letter-spacing: 0.3px;
-        }
-        
-        /* Mobile responsiveness */
-        @media (max-width: 600px) {
-            body {
-                padding: 10px;
-            }
-            
-            .container {
-                max-width: 100%;
-                border-width: 2px;
-            }
-            
-            .header {
-                padding: 15px;
-            }
-            
-            .header h1 {
-                font-size: 16px;
-            }
-            
-            .content {
-                padding: 20px 15px;
-            }
-            
-            .status-icon {
-                font-size: 40px;
-            }
-            
-            .footer-content {
-                flex-direction: column;
-                gap: 8px;
-            }
-            
-            .footer-logo {
-                height: 40px;
-                }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+
+  <body>
     <div class="container">
-        <div class="header">
-            <h1>Connection Status</h1>
+      <div class="header">
+        <h1>Connection Status</h1>
+      </div>
+
+      <div class="content">
+        {% if status.connected and status.ssid %}
+        <div class="status-code">[OK]</div>
+        <div class="status-title">Connected</div>
+        <div class="status-message">Successfully connected to network.</div>
+
+        <div class="connection-details">
+          <div class="detail-row">
+            <span class="detail-label">Network</span>
+            <span class="detail-value">{{ status.ssid }}</span>
+          </div>
+          {% if status.ip_address %}
+          <div class="detail-row">
+            <span class="detail-label">IP Address</span>
+            <span class="detail-value">{{ status.ip_address }}</span>
+          </div>
+          {% endif %}
         </div>
-        
-        <div class="content">
-            {% if status.connected and status.ssid %}
-            <div class="status-code">[OK]</div>
-            <div class="status-title">Connected</div>
-            <div class="status-message">Successfully connected to network.</div>
-            
-            <div class="connection-details">
-                <div class="detail-row">
-                    <span class="detail-label">Network</span>
-                    <span class="detail-value">{{ status.ssid }}</span>
-                </div>
-                {% if status.ip_address %}
-                <div class="detail-row">
-                    <span class="detail-label">IP Address</span>
-                    <span class="detail-value">{{ status.ip_address }}</span>
-                </div>
-                {% endif %}
-            </div>
-            
-            {% else %}
-            <div class="status-code">[DISCONNECTED]</div>
-            <div class="status-title">Not Connected</div>
-            <div class="status-message">Device is not connected to a network.</div>
-            {% endif %}
+
+        {% else %}
+        <div class="status-code">[DISCONNECTED]</div>
+        <div class="status-title">Not Connected</div>
+        <div class="status-message">Device is not connected to a network.</div>
+        {% endif %}
+      </div>
+
+      <div class="footer">
+        <div class="footer-content">
+          <img
+            src="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
+            alt="Pamir AI"
+            class="footer-logo"
+          />
+          <span class="footer-text">{{ device_name }} Network Status</span>
         </div>
-        
-        <div class="footer">
-            <div class="footer-content">
-                <img src="{{ url_for('static', filename='images/pamir-logo-01.svg') }}" alt="Pamir AI" class="footer-logo">
-                <span class="footer-text">{{ device_name }} Network Status</span>
-            </div>
-        </div>
+      </div>
     </div>
 
     <script>
-        // Handle automatic redirection when connected to target network
-        function handleRedirection() {
-            // Check if we're connected to target network and have a redirect URL
-            {% if status.connected_to_target and status.redirect_url %}
-                // Extract current host from window.location
-                const currentHost = window.location.host;
-                const redirectUrl = "{{ status.redirect_url }}";
-                const targetUrl = new URL(redirectUrl);
-                const targetHost = targetUrl.host;
-                
-                // Only redirect if we're not already on the target IP
-                if (currentHost !== targetHost) {
-                    console.log('Redirecting from', currentHost, 'to', targetHost);
-                    // Give user a moment to see the success message, then redirect
-                    setTimeout(() => {
-                        window.location.href = redirectUrl + '/status';
-                    }, 2000);
-                } else {
-                    console.log('Already on target network:', currentHost);
-                }
-            {% elif status.connected_to_target and status.mdns_url %}
-                // Fallback to mDNS URL if available
-                const currentHost = window.location.host;
-                const mdnsUrl = "{{ status.mdns_url }}";
-                const targetUrl = new URL(mdnsUrl);
-                const targetHost = targetUrl.host;
-                
-                if (currentHost !== targetHost) {
-                    console.log('Redirecting via mDNS from', currentHost, 'to', targetHost);
-                    setTimeout(() => {
-                        window.location.href = mdnsUrl + '/status';
-                    }, 2000);
-                }
-            {% endif %}
-        }
+      // Handle automatic redirection when connected to target network
+      function handleRedirection() {
+      	// Check if we're connected to target network and have a redirect URL
+      	{% if status.connected_to_target and status.redirect_url %}
+      	// Extract current host from window.location
+      	const currentHost = window.location.host;
+      	const redirectUrl = "{{ status.redirect_url }}";
+      	const targetUrl = new URL(redirectUrl);
+      	const targetHost = targetUrl.host;
 
-        // Auto-refresh status if we're still connecting or not on target network
-        function autoRefresh() {
-            {% if status.connecting or (status.connected_to_hotspot and not status.connected_to_target) %}
-                setTimeout(() => {
-                    console.log('Auto-refreshing status...');
-                    window.location.reload();
-                }, 3000);
-            {% endif %}
-        }
+      	// Only redirect if we're not already on the target IP
+      	if (currentHost !== targetHost) {
+      		console.log('Redirecting from', currentHost, 'to', targetHost);
+      		// Give user a moment to see the success message, then redirect
+      		setTimeout(() => {
+      			window.location.href = redirectUrl + '/status';
+      		}, 2000);
+      	} else {
+      		console.log('Already on target network:', currentHost);
+      	}
+      	{% elif status.connected_to_target and status.mdns_url %}
+      	// Fallback to mDNS URL if available
+      	const currentHost = window.location.host;
+      	const mdnsUrl = "{{ status.mdns_url }}";
+      	const targetUrl = new URL(mdnsUrl);
+      	const targetHost = targetUrl.host;
 
-        // Initialize when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            handleRedirection();
-            autoRefresh();
-        });
+      	if (currentHost !== targetHost) {
+      		console.log('Redirecting via mDNS from', currentHost, 'to', targetHost);
+      		setTimeout(() => {
+      			window.location.href = mdnsUrl + '/status';
+      		}, 2000);
+      	}
+      	{% endif %}
+      }
+
+      // Auto-refresh status if we're still connecting or not on target network
+      function autoRefresh() {
+      	{% if status.connecting or(status.connected_to_hotspot and not status.connected_to_target) %}
+      	setTimeout(() => {
+      		console.log('Auto-refreshing status...');
+      		window.location.reload();
+      	}, 3000);
+      	{% endif %}
+      }
+
+      // Initialize when page loads
+      document.addEventListener('DOMContentLoaded', function () {
+      	handleRedirection();
+      	autoRefresh();
+      });
     </script>
-</body>
-</html> 
+  </body>
+</html>

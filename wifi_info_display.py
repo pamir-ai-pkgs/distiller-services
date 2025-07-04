@@ -89,7 +89,7 @@ def create_wifi_info_image(
     try:
         # Use MartianMono font from local directory
         martian_font_path = (
-            "/opt/fonts/MartianMonoNerdFont-CondensedBold.ttf"
+            "/opt/distiller-cm5-services/fonts/MartianMonoNerdFont-CondensedBold.ttf"
         )
         font_title = ImageFont.truetype(martian_font_path, 14)
         font_large = ImageFont.truetype(martian_font_path, 12)
@@ -472,7 +472,7 @@ def create_wifi_setup_image(
     # Try to load fonts (reduced sizes for 128x250 display)
     try:
         martian_font_path = (
-            "/opt/fonts/MartianMonoNerdFont-CondensedBold.ttf"
+            "/opt/distiller-cm5-services/fonts/MartianMonoNerdFont-CondensedBold.ttf"
         )
         font_title = ImageFont.truetype(martian_font_path, 13)
         font_large = ImageFont.truetype(martian_font_path, 11)
@@ -680,7 +680,7 @@ def create_wifi_success_image(
     # Try to load fonts (reduced sizes for 128x250 display)
     try:
         martian_font_path = (
-            "/opt/fonts/MartianMonoNerdFont-CondensedBold.ttf"
+            "/opt/distiller-cm5-services/fonts/MartianMonoNerdFont-CondensedBold.ttf"
         )
         font_title = ImageFont.truetype(martian_font_path, 14)
         font_large = ImageFont.truetype(martian_font_path, 11)

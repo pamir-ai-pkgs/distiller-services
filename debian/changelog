@@ -1,0 +1,21 @@
+distiller-cm5-services (1.2.0-2) unstable; urgency=medium
+
+  * Fix Debian Bookworm compatibility issues
+  * Remove unavailable Python packages from system dependencies
+  * Use virtual environment for Python dependencies installation
+  * Create wrapper scripts for better dependency management
+  * Update systemd service files to use wrapper scripts
+  * Improve package removal cleanup for virtual environment
+
+ -- PamirAI Incorporated <support@pamir.ai>  Thu, 03 Jul 2025 00:00:00 +0000
+
+distiller-cm5-services (0.0.1-1) unstable; urgency=medium
+
+  * Initial release
+  * WiFi setup service with web interface
+  * E-ink display integration
+  * mDNS service discovery
+  * SSH tunnel management via Pinggy
+  * Systemd service integration
+
+ -- PamirAI Incorporated <support@pamir.ai>  Thu, 03 Jun 2025 00:00:00 +0000 

@@ -267,3 +267,51 @@ final_review_gate.py
 .roomodes
 .taskmaster/
 .windsurfrules
+
+# Build artifacts
+build/
+dist/
+debian/tmp/
+debian/.debhelper/
+debian/files
+debian/debhelper-build-stamp
+debian/distiller-cm5-services/
+debian/distiller-cm5-services.*
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.venv/
+
+# Generated images
+*.png
+*.jpg
+*.jpeg
+
+# Logs
+*.log
+distiller-wifi.log
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+*~
+
+# IDE artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+
+# Final review gate (if not needed in repo)
+# final_review_gate.py
