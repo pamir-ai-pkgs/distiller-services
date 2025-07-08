@@ -1,448 +1,462 @@
+/* Updated WiFi Setup Interface Styles */
+/* Now using common CSS patterns from templates - this file is kept for compatibility */
+
+@font-face {
+  font-family: "MartianMono";
+  src: url("../fonts/MartianMonoNerdFont-CondensedBold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+}
+
+/* Global reset and base styles */
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 body {
-    font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
-    background: #fafafa;
-    color: #1a1a1a;
-    min-height: 100vh;
-    padding: 24px;
-    line-height: 1.6;
+  font-family: "MartianMono", "Courier New", "Monaco", "Menlo", monospace;
+  background: #ffffff;
+  color: #000000;
+  min-height: 100vh;
+  padding: 20px;
+  line-height: 1.4;
 }
 
+/* Modern container with clean borders */
 .container {
-    max-width: 640px;
-    margin: 0 auto;
-    background: #ffffff;
-    border: 2px solid #1a1a1a;
-    box-shadow: 8px 8px 0px #1a1a1a;
+  max-width: 500px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 3px solid #000000;
+  border-radius: 0;
+  overflow: hidden;
 }
 
+/* Header styling to match template design */
 .header {
-    background: #1a1a1a;
-    color: #ffffff;
-    padding: 24px;
-    border-bottom: 2px solid #1a1a1a;
+  background: #000000;
+  color: #ffffff;
+  padding: 20px;
+  border-bottom: 3px solid #000000;
+  text-align: center;
 }
 
 .header h1 {
-    font-size: 1.75rem;
-    font-weight: bold;
-    letter-spacing: -0.02em;
-    margin-bottom: 8px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .header p {
-    font-size: 0.95rem;
-    opacity: 0.8;
+  font-size: 12px;
+  opacity: 0.8;
+  margin-top: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .logo {
-    height: 48px;
-    width: auto;
-    margin-bottom: 16px;
-    filter: brightness(0) invert(1);
+  height: 48px;
+  width: auto;
+  margin-bottom: 16px;
+  filter: brightness(0) invert(1);
 }
 
+/* Content area */
 .content {
-    padding: 32px;
+  padding: 30px 20px;
 }
 
+/* Status cards with updated styling */
 .status-card {
-    background: #f8f8f8;
-    border: 2px solid #1a1a1a;
-    padding: 20px;
-    margin-bottom: 24px;
-    position: relative;
+  background: #f8f8f8;
+  border: 2px solid #000000;
+  padding: 20px;
+  margin-bottom: 20px;
+  position: relative;
 }
 
 .status-card::before {
-    content: '';
-    position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    height: 4px;
-    background: #28a745;
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  height: 3px;
+  background: #28a745;
 }
 
 .status-card.disconnected::before {
-    background: #dc3545;
+  background: #dc3545;
 }
 
+/* Consistent status styling */
 .status-title {
-    font-weight: bold;
-    color: #1a1a1a;
-    margin-bottom: 12px;
-    text-transform: uppercase;
-    font-size: 0.85rem;
-    letter-spacing: 0.05em;
+  font-weight: bold;
+  color: #000000;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  font-size: 14px;
+  letter-spacing: 0.5px;
 }
 
 .status-info {
-    color: #4a4a4a;
-    font-size: 0.9rem;
+  color: #000000;
+  font-size: 12px;
+  font-family: "MartianMono", monospace;
 }
 
+/* Form styling to match templates */
 .form-group {
-    margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: bold;
-    color: #1a1a1a;
-    text-transform: uppercase;
-    font-size: 0.8rem;
-    letter-spacing: 0.05em;
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+  color: #000000;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
 }
 
-input[type="text"], input[type="password"] {
-    width: 100%;
-    padding: 12px 16px;
-    border: 2px solid #1a1a1a;
-    background: #ffffff;
-    font-family: inherit;
-    font-size: 0.95rem;
-    color: #1a1a1a;
-    transition: all 0.2s ease;
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #000000;
+  background: #ffffff;
+  font-family: "MartianMono", monospace;
+  font-size: 14px;
+  color: #000000;
+  transition: all 0.2s ease;
 }
 
-input[type="text"]:focus, input[type="password"]:focus {
-    outline: none;
-    box-shadow: 4px 4px 0px #1a1a1a;
-    transform: translate(-2px, -2px);
+input[type="text"]:focus,
+input[type="password"]:focus {
+  outline: none;
+  background: #f8f8f8;
 }
 
+/* Button styling to match templates */
 .btn {
-    padding: 12px 24px;
-    border: 2px solid #1a1a1a;
-    background: #ffffff;
-    font-family: inherit;
-    font-size: 0.9rem;
-    font-weight: bold;
-    color: #1a1a1a;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin-right: 12px;
-    margin-bottom: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+  padding: 12px 20px;
+  border: 2px solid #000000;
+  background: #ffffff;
+  font-family: "MartianMono", monospace;
+  font-size: 12px;
+  font-weight: bold;
+  color: #000000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 12px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
 }
 
 .btn:hover {
-    box-shadow: 4px 4px 0px #1a1a1a;
-    transform: translate(-2px, -2px);
+  background: #f0f0f0;
+  text-decoration: none;
+  color: #000000;
 }
 
 .btn-primary {
-    background: #1a1a1a;
-    color: #ffffff;
+  background: #000000;
+  color: #ffffff;
 }
 
 .btn-primary:hover {
-    background: #333333;
+  background: #333333;
 }
 
 .btn-success {
-    background: #28a745;
-    color: #ffffff;
-    border-color: #28a745;
+  background: #28a745;
+  color: #ffffff;
+  border-color: #28a745;
 }
 
 .btn-success:hover {
-    background: #218838;
-    border-color: #218838;
+  background: #218838;
+  border-color: #218838;
 }
 
 .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .btn:disabled:hover {
-    transform: none;
-    box-shadow: none;
-    background: #ffffff;
+  transform: none;
+  box-shadow: none;
+  background: #ffffff;
 }
 
+/* Loading states */
 .loading {
-    text-align: center;
-    padding: 24px;
-    color: #4a4a4a;
-    font-style: italic;
+  text-align: center;
+  padding: 24px;
+  color: #666666;
+  font-style: italic;
+  font-size: 12px;
 }
 
+/* Alert styling to match template design */
 .alert {
-    padding: 16px;
-    border: 2px solid #1a1a1a;
-    margin-bottom: 20px;
-    font-size: 0.9rem;
-    position: relative;
+  padding: 15px;
+  border: 2px solid #000000;
+  margin-bottom: 20px;
+  font-size: 12px;
+  position: relative;
+  background: #f8f8f8;
+  color: #000000;
 }
 
 .alert::before {
-    content: '';
-    position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    height: 4px;
-}
-
-.alert-success {
-    background-color: #f8f8f8;
-    color: #1a1a1a;
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  height: 3px;
 }
 
 .alert-success::before {
-    background: #28a745;
-}
-
-.alert-error {
-    background-color: #f8f8f8;
-    color: #1a1a1a;
+  background: #28a745;
 }
 
 .alert-error::before {
-    background: #dc3545;
-}
-
-.alert-info {
-    background-color: #f8f8f8;
-    color: #1a1a1a;
+  background: #dc3545;
 }
 
 .alert-info::before {
-    background: #007bff;
+  background: #007bff;
 }
 
-/* Progress bar styles for connecting page */
-.progress-container {
-    margin: 24px 0;
+.alert-warning::before {
+  background: #ffc107;
 }
 
-.progress-bar {
-    width: 100%;
-    height: 20px;
-    background: #f8f8f8;
-    border: 2px solid #1a1a1a;
-    position: relative;
-    overflow: hidden;
-}
-
-.progress-fill {
-    height: 100%;
-    background: #28a745;
-    width: 0%;
-    transition: width 0.3s ease;
-    position: relative;
-}
-
-.progress-fill::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    right: 0;
-    background-image: repeating-linear-gradient(
-        45deg,
-        transparent,
-        transparent 10px,
-        rgba(255,255,255,0.2) 10px,
-        rgba(255,255,255,0.2) 20px
-    );
-    animation: progress-animation 1s linear infinite;
-}
-
-@keyframes progress-animation {
-    0% {
-        background-position: 0 0;
-    }
-    100% {
-        background-position: 20px 0;
-    }
-}
-
-.progress-text {
-    text-align: center;
-    margin-top: 8px;
-    font-size: 0.85rem;
-    color: #4a4a4a;
-}
-
-/* Status icons */
-.status-icon {
-    font-size: 3rem;
-    font-weight: bold;
-    text-align: center;
-    margin-bottom: 16px;
-    display: block;
-    line-height: 1;
-}
-
-.status-connected {
-    color: #28a745;
-}
-
-.status-connecting {
-    color: #007bff;
-}
-
-.status-error {
-    color: #dc3545;
-}
-
-/* Spinner animation */
-.spinner {
-    width: 40px;
-    height: 40px;
-    margin: 16px auto;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #007bff;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.status-title {
-    text-align: center;
-    font-size: 1.5rem;
-    font-weight: bold;
-    margin-bottom: 16px;
-    color: #1a1a1a;
-}
-
-.status-message {
-    text-align: center;
-    margin-bottom: 24px;
-    color: #4a4a4a;
-    line-height: 1.6;
-}
-
+/* Connection details */
 .connection-details {
-    background: #f8f8f8;
-    border: 2px solid #1a1a1a;
-    padding: 16px;
-    margin: 24px 0;
+  background: #f8f8f8;
+  border: 2px solid #000000;
+  padding: 20px;
+  margin: 20px 0;
 }
 
 .detail-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #cccccc;
+  font-size: 12px;
 }
 
 .detail-row:last-child {
-    border-bottom: none;
+  border-bottom: none;
 }
 
 .detail-label {
-    font-weight: bold;
-    color: #1a1a1a;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+  font-weight: bold;
+  color: #000000;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .detail-value {
-    color: #4a4a4a;
-    font-size: 0.9rem;
-    font-family: 'Courier New', monospace;
+  color: #000000;
+  font-family: "MartianMono", monospace;
 }
 
+/* Button groups */
 .button-group {
-    text-align: center;
-    margin-top: 24px;
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
 }
 
+.button-group .btn {
+  flex: 1;
+  margin-right: 0;
+  margin-bottom: 0;
+}
+
+/* Status indicators */
+.status-icon {
+  font-size: 48px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 16px;
+  display: block;
+  line-height: 1;
+  font-family: "MartianMono", monospace;
+}
+
+.status-connected {
+  color: #28a745;
+}
+
+.status-connecting {
+  color: #007bff;
+  animation: pulse 2s infinite;
+}
+
+.status-error {
+  color: #dc3545;
+}
+
+/* Animations */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  margin: 16px auto;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #000000;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Footer styling to match templates */
 .footer {
-    background: #f8f8f8;
-    border-top: 2px solid #1a1a1a;
-    padding: 16px 24px;
-    text-align: center;
-    font-size: 0.8rem;
-    color: #4a4a4a;
+  background: #000000;
+  border-top: 3px solid #000000;
+  padding: 20px;
+  text-align: center;
+  font-size: 10px;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: relative;
+}
+
+.footer::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: repeating-linear-gradient(
+    90deg,
+    #000000,
+    #000000 8px,
+    #ffffff 8px,
+    #ffffff 16px
+  );
 }
 
 .footer p {
-    margin: 4px 0;
+  margin: 4px 0;
 }
 
 .footer a {
-    color: #007bff;
-    text-decoration: none;
+  color: #ffffff;
+  text-decoration: underline;
 }
 
 .footer a:hover {
-    text-decoration: underline;
+  text-decoration: none;
 }
 
 /* Mobile responsiveness */
-@media (max-width: 768px) {
-    body {
-        padding: 12px;
-    }
-    
-    .container {
-        max-width: 100%;
-        box-shadow: 4px 4px 0px #1a1a1a;
-    }
-    
-    .header {
-        padding: 16px;
-    }
-    
-    .header h1 {
-        font-size: 1.5rem;
-    }
-    
-    .content {
-        padding: 20px;
-    }
-    
-    .logo {
-        height: 40px;
-    }
-    
-    .btn {
-        width: 100%;
-        margin-right: 0;
-        margin-bottom: 8px;
-    }
-    
-    input[type="text"], input[type="password"] {
-        font-size: 16px; /* Prevents zoom on iOS */
-    }
+@media (max-width: 600px) {
+  body {
+    padding: 10px;
+  }
+
+  .container {
+    max-width: 100%;
+    border-width: 2px;
+  }
+
+  .header {
+    padding: 15px;
+  }
+
+  .header h1 {
+    font-size: 16px;
+  }
+
+  .content {
+    padding: 20px 15px;
+  }
+
+  .logo {
+    height: 40px;
+  }
+
+  .btn {
+    width: 100%;
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+
+  .button-group {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .button-group .btn {
+    width: 100%;
+  }
+
+  input[type="text"],
+  input[type="password"] {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  .status-icon {
+    font-size: 40px;
+  }
 }
 
 @media (max-width: 480px) {
-    body {
-        padding: 8px;
-    }
-    
-    .header h1 {
-        font-size: 1.25rem;
-    }
-    
-    .content {
-        padding: 16px;
-    }
-    
-    .logo {
-        height: 36px;
-    }
-} 
+  body {
+    padding: 8px;
+  }
+
+  .header h1 {
+    font-size: 14px;
+  }
+
+  .content {
+    padding: 16px;
+  }
+
+  .logo {
+    height: 36px;
+  }
+}

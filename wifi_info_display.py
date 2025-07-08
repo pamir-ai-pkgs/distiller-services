@@ -18,7 +18,6 @@ from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import argparse
 import logging
-import time
 
 # Configure logging
 logging.basicConfig(
@@ -45,7 +44,7 @@ if os.path.exists(SDK_PATH):
     # Add the SDK path to sys.path if it's not already there
     if SDK_PATH not in sys.path:
         sys.path.insert(0, SDK_PATH)
-    
+
     # Also add the src directory if it exists
     src_path = os.path.join(SDK_PATH, "src")
     if os.path.exists(src_path) and src_path not in sys.path:
@@ -53,12 +52,16 @@ if os.path.exists(SDK_PATH):
 
 # Import the distiller-cm5-sdk e-ink display functions
 try:
-    from distiller_cm5_sdk.hardware.eink import display_png, clear_display, DisplayMode
+    from distiller_cm5_sdk.hardware.eink import display_png, DisplayMode
+
     DISTILLER_SDK_AVAILABLE = True
     logger.info("Using distiller-cm5-sdk for e-ink display")
 except ImportError:
-    logger.warning("distiller-cm5-sdk not available, falling back to eink_display_flush")
+    logger.warning(
+        "distiller-cm5-sdk not available, falling back to eink_display_flush"
+    )
     from eink_display_flush import SimpleEinkDriver, load_and_convert_image
+
     DISTILLER_SDK_AVAILABLE = False
 
 
@@ -86,9 +89,9 @@ def create_wifi_info_image(
     # Collect all network data
     wifi_name = network_utils.get_wifi_name()
     ip_address = network_utils.get_wifi_ip_address()
-    mac_address = network_utils.get_wifi_mac_address()
+    # mac_address = network_utils.get_wifi_mac_address()
     signal_strength = network_utils.get_wifi_signal_strength()
-    network_details = network_utils.get_network_details()
+    # network_details = network_utils.get_network_details()
 
     logger.info(f"WiFi: {wifi_name}, IP: {ip_address}")
 
@@ -177,13 +180,16 @@ def create_wifi_info_image(
     draw.ellipse([icon_x - 1, icon_y - 1, icon_x + 1, icon_y + 1], fill=0)
 
     y_pos += 20
-    
+
     # Timestamp with timezone
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S %Z")
-    if not timestamp.endswith(' Z') and not timestamp.split()[-1]:  # If no timezone info
+    if (
+        not timestamp.endswith(" Z") and not timestamp.split()[-1]
+    ):  # If no timezone info
         import time
+
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S") + f" {time.tzname[0]}"
-    
+
     draw.text((5, y_pos), f"Updated: {timestamp}", fill=0, font=font_tiny)
     y_pos += 15
 
@@ -211,11 +217,11 @@ def create_wifi_info_image(
         # Horizontal separator
         draw.line([5, y_pos, width - 5, y_pos], fill=0, width=1)
         y_pos += 8
-        
+
         # Terminal Access title
         draw.text((5, y_pos), "TERMINAL ACCESS:", fill=0, font=font_medium)
         y_pos += 15
-        
+
         # Generate QR code if qrcode is available
         if qrcode:
             try:
@@ -227,24 +233,24 @@ def create_wifi_info_image(
                 )
                 qr.add_data(tunnel_url)
                 qr.make(fit=True)
-                
+
                 # Create QR code image
                 qr_img = qr.make_image(fill_color="black", back_color="white")
-                
+
                 # Resize to fit (target size: 80x80)
                 qr_size = 80
                 qr_img = qr_img.resize((qr_size, qr_size), Image.Resampling.NEAREST)
-                
+
                 # Center the QR code
                 qr_x = (width - qr_size) // 2
                 qr_y = y_pos
-                
+
                 # Convert to grayscale and paste
-                qr_img = qr_img.convert('L')
+                qr_img = qr_img.convert("L")
                 img.paste(qr_img, (qr_x, qr_y))
-                
+
                 y_pos = qr_y + qr_size + 5
-                
+
                 # URL text (break into lines)
                 # Remove https:// prefix for space
                 display_url = tunnel_url.replace("https://", "")
@@ -254,16 +260,20 @@ def create_wifi_info_image(
                     if len(parts) == 2:
                         draw.text((5, y_pos), parts[0], fill=0, font=font_tiny)
                         y_pos += 10
-                        draw.text((5, y_pos), ".free" + parts[1], fill=0, font=font_tiny)
+                        draw.text(
+                            (5, y_pos), ".free" + parts[1], fill=0, font=font_tiny
+                        )
                     else:
-                        draw.text((5, y_pos), display_url[:20] + "...", fill=0, font=font_tiny)
+                        draw.text(
+                            (5, y_pos), display_url[:20] + "...", fill=0, font=font_tiny
+                        )
                 else:
                     draw.text((5, y_pos), display_url, fill=0, font=font_tiny)
                 y_pos += 12
-                
+
                 # Port info
                 draw.text((5, y_pos), "Port: 3000", fill=0, font=font_small)
-                
+
             except Exception as e:
                 logger.error(f"Error generating QR code: {e}")
                 # Fallback: just show URL
@@ -311,20 +321,20 @@ def create_wifi_info_image(
                 )
 
         y_pos += 30
-        
+
         # SSH Connection Instructions
         draw.text((5, y_pos), "SSH CONNECTION:", fill=0, font=font_medium)
         y_pos += 12
         ssh_command = f"distiller@{ip_address}"
         draw.text((5, y_pos), ssh_command, fill=0, font=font_small)
         y_pos += 18
-        
+
         # Default Password
         draw.text((5, y_pos), "PASSWORD:", fill=0, font=font_medium)
         y_pos += 12
         draw.text((5, y_pos), "one", fill=0, font=font_large)
         y_pos += 18
-    
+
     # MAC Address
     # draw.text((10, y_pos), "MAC ADDRESS:", fill=0, font=font_medium)
     # y_pos += 20
@@ -417,7 +427,9 @@ def display_on_eink(image_path):
         if DISTILLER_SDK_AVAILABLE:
             # Use the distiller-cm5-sdk
             display_png(image_path, DisplayMode.FULL)
-            logger.info("WiFi info displayed successfully on e-ink using distiller-cm5-sdk")
+            logger.info(
+                "WiFi info displayed successfully on e-ink using distiller-cm5-sdk"
+            )
             return True
         else:
             # Fallback to original implementation
@@ -486,7 +498,7 @@ def create_wifi_setup_image(
             "/opt/distiller-cm5-services/fonts/MartianMonoNerdFont-CondensedBold.ttf"
         )
         font_title = ImageFont.truetype(martian_font_path, 13)
-        font_large = ImageFont.truetype(martian_font_path, 11)
+        # font_large = ImageFont.truetype(martian_font_path, 11)
         font_medium = ImageFont.truetype(martian_font_path, 9)
         font_small = ImageFont.truetype(martian_font_path, 8)
         font_tiny = ImageFont.truetype(
@@ -513,7 +525,7 @@ def create_wifi_setup_image(
             )
         except:
             font_title = ImageFont.load_default()
-            font_large = ImageFont.load_default()
+            # font_large = ImageFont.load_default()
             font_medium = ImageFont.load_default()
             font_small = ImageFont.load_default()
             font_tiny = ImageFont.load_default()
@@ -610,7 +622,9 @@ def create_wifi_setup_image(
             qr_img = qr_img.convert("L")  # Convert to grayscale
 
             # Resize QR code to fit - make it larger
-            qr_size = min(width - 10, height - y_pos - 20)  # Reduced margins for more space
+            qr_size = min(
+                width - 10, height - y_pos - 20
+            )  # Reduced margins for more space
             qr_size = min(qr_size, 150)  # Increased max size from 120 to 150
             qr_img = qr_img.resize((qr_size, qr_size), Image.Resampling.NEAREST)
 
@@ -901,9 +915,7 @@ def main():
         elif args.no_image:
             # Create temporary image and display directly
             temp_filename = "/tmp/wifi_info_temp.png"
-            create_wifi_info_image(
-                temp_filename, auto_display=True
-            )
+            create_wifi_info_image(temp_filename, auto_display=True)
             # Clean up temp file
             try:
                 os.remove(temp_filename)
@@ -911,9 +923,7 @@ def main():
                 pass
         else:
             # Create image file
-            filename = create_wifi_info_image(
-                args.output, auto_display=args.display
-            )
+            filename = create_wifi_info_image(args.output, auto_display=args.display)
 
             print(f"WiFi information image created: {filename}")
 

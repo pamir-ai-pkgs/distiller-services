@@ -8,8 +8,8 @@ import asyncio
 import subprocess
 import socket
 import logging
-from typing import Optional, Dict, List, Any
-from .wifi_manager import WiFiManager, ConnectionStatus
+from typing import Dict, List, Any
+from .wifi_manager import WiFiManager
 
 logger = logging.getLogger(__name__)
 

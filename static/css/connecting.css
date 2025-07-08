@@ -1,0 +1,67 @@
+/* Styles specific to connecting.html - Connection progress page */
+
+.connection-info {
+  background: #f8f8f8;
+  padding: 20px;
+  border: 2px solid #000000;
+  margin-bottom: 25px;
+  text-align: center;
+}
+
+.network-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #000000;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: "MartianMono", monospace;
+}
+
+.content {
+  text-align: center;
+}
+
+/* Pulsing animation for connecting status */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.status-code {
+  animation: pulse 2s infinite;
+}
+
+/* Progress indication styling */
+.progress-dots {
+  font-family: "MartianMono", monospace;
+  font-size: 20px;
+  color: #000000;
+  margin: 20px 0;
+}
+
+.progress-dots::after {
+  content: "...";
+  animation: dots 1.5s infinite;
+}
+
+@keyframes dots {
+  0%,
+  20% {
+    content: ".";
+  }
+  40% {
+    content: "..";
+  }
+  60%,
+  100% {
+    content: "...";
+  }
+}

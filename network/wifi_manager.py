@@ -295,7 +295,7 @@ class WiFiManager:
         try:
             if not self._hotspot_active:
                 return None
-            
+
             # Get active connections to find the hotspot interface
             cmd = [
                 "nmcli",
@@ -306,43 +306,47 @@ class WiFiManager:
                 "show",
                 "--active",
             ]
-            
+
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
-            
+
             stdout, _ = await process.communicate()
-            
+
             if process.returncode != 0:
                 return None
-            
+
             # Find the hotspot connection and get its device
             for line in stdout.decode().strip().split("\n"):
                 if not line:
                     continue
-                
+
                 parts = line.split(":")
                 if len(parts) >= 4:
                     conn_type = parts[0]
                     device = parts[1]
                     state = parts[2]
                     name = parts[3]
-                    
-                    if (conn_type == "802-11-wireless" and 
-                        state == "activated" and 
-                        name == self._hotspot_connection_name):
+
+                    if (
+                        conn_type == "802-11-wireless"
+                        and state == "activated"
+                        and name == self._hotspot_connection_name
+                    ):
                         # Found the hotspot connection, get its IP
                         return await self._get_device_ip(device)
-            
+
             return None
-            
+
         except Exception as e:
             self.logger.error(f"Error getting hotspot IP: {e}")
             return None
 
-    async def start_hotspot(self, ssid: str, password: str) -> tuple[bool, Optional[str]]:
+    async def start_hotspot(
+        self, ssid: str, password: str
+    ) -> tuple[bool, Optional[str]]:
         """Start WiFi hotspot with proper state management
-        
+
         Returns:
             tuple: (success: bool, ip_address: Optional[str])
         """
@@ -370,14 +374,18 @@ class WiFiManager:
 
             if success:
                 self._hotspot_active = True
-                
+
                 # Get the actual IP address
                 ip_address = await self.get_hotspot_ip()
                 if ip_address:
-                    self.logger.info(f"Hotspot '{ssid}' started successfully at {ip_address}")
+                    self.logger.info(
+                        f"Hotspot '{ssid}' started successfully at {ip_address}"
+                    )
                     return True, ip_address
                 else:
-                    self.logger.warning(f"Hotspot '{ssid}' started but could not determine IP address")
+                    self.logger.warning(
+                        f"Hotspot '{ssid}' started but could not determine IP address"
+                    )
                     return True, "localhost"  # Fallback to standard IP
             else:
                 await self._cleanup_hotspot_connection()

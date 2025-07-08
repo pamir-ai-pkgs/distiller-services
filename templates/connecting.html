@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -20,259 +20,16 @@
         object-src 'none'
     "
     />
-    <style>
-      @font-face {
-        font-family: "MartianMono";
-        src: url('{{ url_for("static", filename="fonts/MartianMonoNerdFont-CondensedBold.ttf") }}')
-          format("truetype");
-        font-weight: bold;
-        font-style: normal;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        font-family: "MartianMono", "Courier New", "Monaco", "Menlo", monospace;
-        background: #ffffff;
-        color: #000000;
-        min-height: 100vh;
-        margin: 0;
-        padding: 20px;
-        line-height: 1.4;
-      }
-
-      .container {
-        max-width: 500px;
-        margin: 0 auto;
-        background: #ffffff;
-        border: 3px solid #000000;
-        border-radius: 0;
-        overflow: hidden;
-      }
-
-      .header {
-        background: #000000;
-        color: #ffffff;
-        padding: 20px;
-        text-align: center;
-        border-bottom: 3px solid #000000;
-      }
-
-      .header h1 {
-        margin: 0;
-        font-size: 18px;
-        font-weight: bold;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-      }
-
-      .content {
-        padding: 30px 20px;
-        text-align: center;
-      }
-
-      .connection-info {
-        background: #f8f8f8;
-        padding: 20px;
-        border: 2px solid #000000;
-        margin-bottom: 25px;
-        text-align: center;
-      }
-
-      .network-name {
-        font-size: 16px;
-        font-weight: bold;
-        color: #000000;
-        margin-bottom: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        font-family: "MartianMono", monospace;
-      }
-
-      .status-code {
-        font-size: 16px;
-        font-weight: bold;
-        color: #000000;
-        margin-bottom: 15px;
-        font-family: "MartianMono", monospace;
-        letter-spacing: 1px;
-      }
-
-      .status-title {
-        font-size: 20px;
-        font-weight: bold;
-        margin-bottom: 15px;
-        color: #000000;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
-
-      .status-message {
-        font-size: 14px;
-        color: #000000;
-        margin-bottom: 25px;
-        line-height: 1.5;
-      }
-
-      .instructions {
-        background: #f0f0f0;
-        padding: 20px;
-        border: 2px solid #000000;
-        margin: 20px 0;
-        text-align: left;
-      }
-
-      .instruction-item {
-        margin-bottom: 10px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid #cccccc;
-        font-size: 12px;
-      }
-
-      .instruction-item:last-child {
-        margin-bottom: 0;
-        padding-bottom: 0;
-        border-bottom: none;
-      }
-
-      .instruction-title {
-        font-weight: bold;
-        color: #000000;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 5px;
-      }
-
-      .instruction-detail {
-        color: #000000;
-        font-family: "MartianMono", monospace;
-      }
-
-      .button-group {
-        display: flex;
-        gap: 15px;
-        margin-top: 25px;
-      }
-
-      .btn {
-        flex: 1;
-        padding: 12px 20px;
-        border: 2px solid #000000;
-        background: #ffffff;
-        color: #000000;
-        font-size: 12px;
-        font-weight: bold;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        cursor: pointer;
-        text-decoration: none;
-        text-align: center;
-        transition: all 0.2s ease;
-        display: inline-block;
-        font-family: "MartianMono", monospace;
-      }
-
-      .btn-primary {
-        background: #000000;
-        color: #ffffff;
-      }
-
-      .btn-primary:hover {
-        background: #333333;
-      }
-
-      .btn-secondary:hover {
-        background: #f0f0f0;
-        text-decoration: none;
-        color: #000000;
-      }
-
-      .footer {
-        text-align: center;
-        padding: 20px;
-        color: #ffffff;
-        font-size: 10px;
-        border-top: 3px solid #000000;
-        background: #000000;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        position: relative;
-      }
-
-      .footer::before {
-        content: "";
-        position: absolute;
-        top: -3px;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: repeating-linear-gradient(
-          90deg,
-          #000000,
-          #000000 8px,
-          #ffffff 8px,
-          #ffffff 16px
-        );
-      }
-
-      .footer-content {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-      }
-
-      .footer-logo {
-        height: 48px;
-        width: auto;
-        filter: brightness(0) invert(1);
-      }
-
-      .footer-text {
-        font-size: 10px;
-        letter-spacing: 0.3px;
-      }
-
-      /* Mobile responsiveness */
-      @media (max-width: 600px) {
-        body {
-          padding: 10px;
-        }
-
-        .container {
-          max-width: 100%;
-          border-width: 2px;
-        }
-
-        .header {
-          padding: 15px;
-        }
-
-        .header h1 {
-          font-size: 16px;
-        }
-
-        .content {
-          padding: 20px 15px;
-        }
-
-        .button-group {
-          flex-direction: column;
-          gap: 10px;
-        }
-
-        .footer-content {
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .footer-logo {
-          height: 40px;
-        }
-      }
-    </style>
+    <!-- Common styles -->
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/common.css') }}"
+    />
+    <!-- Page-specific styles -->
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/connecting.css') }}"
+    />
   </head>
 
   <body>
@@ -285,28 +42,44 @@
         <div class="connection-info">
           <div class="network-name">{{ ssid }}</div>
           <div class="status-code" id="status-code">[CONNECTING]</div>
-          <div class="status-title" id="status-title">Connection in Progress</div>
+          <div class="status-title" id="status-title">
+            [Connection in Progress]
+          </div>
           <div class="status-message" id="status-message">
-            Your device is connecting to the WiFi network. This process may take a few moments.
+            Your device is connecting to the WiFi network. This process may take
+            a few moments.
           </div>
         </div>
 
         <div class="instructions">
           <div class="instruction-item">
             <div class="instruction-title">What's happening:</div>
-            <div class="instruction-detail">The device is switching from setup mode to your WiFi network</div>
+            <div class="instruction-detail">
+              The device is switching from setup mode to your WiFi network
+            </div>
           </div>
           <div class="instruction-item">
             <div class="instruction-title">Check connection status:</div>
-            <div class="instruction-detail">Visit the <a href="/status" style="color: #000; text-decoration: underline;">Status Page</a> to see current connection details</div>
+            <div class="instruction-detail">
+              Visit the
+              <a href="/status" style="color: #000; text-decoration: underline"
+                >Status Page</a
+              >
+              to see current connection details
+            </div>
           </div>
           <div class="instruction-item">
             <div class="instruction-title">If successful:</div>
-            <div class="instruction-detail">Access your device using its new IP address (shown on status page)</div>
+            <div class="instruction-detail">
+              Access your device using its new IP address (shown on status page)
+            </div>
           </div>
           <div class="instruction-item">
             <div class="instruction-title">If connection fails:</div>
-            <div class="instruction-detail">The device will return to setup mode - refresh this page or go back to try again</div>
+            <div class="instruction-detail">
+              The device will return to setup mode - refresh this page or go
+              back to try again
+            </div>
           </div>
         </div>
 
@@ -328,6 +101,8 @@
       </div>
     </div>
 
+    <!-- Common JavaScript -->
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
     <script>
       // Simple status checking without redirection
       let statusCheckInterval;
@@ -336,37 +111,47 @@
 
       function checkConnectionStatus() {
         if (checkCount >= maxChecks) {
-          showStatusMessage('Connection timeout - please check status manually or try again');
+          showStatusMessage(
+            "Connection timeout - please check status manually or try again"
+          );
           clearInterval(statusCheckInterval);
           return;
         }
 
         checkCount++;
-        
-        fetch('/api/status')
-          .then(response => response.json())
-          .then(data => {
+
+        CommonUtils.apiRequest("/api/status")
+          .then((data) => {
             if (data.connected_to_target) {
               showSuccess(data);
               clearInterval(statusCheckInterval);
-            } else if (data.connected_to_hotspot && data.current_state === 'hotspot_mode') {
+            } else if (
+              data.connected_to_hotspot &&
+              data.current_state === "hotspot_mode"
+            ) {
               showFailure();
               clearInterval(statusCheckInterval);
             }
           })
-          .catch(error => {
-            console.log('Status check failed:', error);
+          .catch((error) => {
+            console.log("Status check failed:", error);
             // Continue checking - this is expected during network transitions
           });
       }
 
       function showSuccess(data) {
-        document.getElementById('status-code').textContent = '[CONNECTED]';
-        document.getElementById('status-title').textContent = 'Connection Successful!';
-        document.getElementById('status-message').innerHTML = 
-          `Successfully connected to {{ ssid }}!<br><br>
+        document.getElementById("status-code").textContent = "[CONNECTED]";
+        document.getElementById("status-title").textContent =
+          "Connection Successful!";
+        document.getElementById(
+          "status-message"
+        ).innerHTML = `Successfully connected to {{ ssid }}!<br><br>
           <strong>Your device is now available at:</strong><br>
-          ${data.ip_address ? `IP Address: ${data.ip_address}` : 'Check the status page for connection details'}<br><br>
+          ${
+            data.ip_address
+              ? `IP Address: ${data.ip_address}`
+              : "Check the status page for connection details"
+          }<br><br>
           <strong>Next steps:</strong><br>
           • Access your device using its new network address<br>
           • Bookmark the status page for future reference<br>
@@ -374,27 +159,29 @@
       }
 
       function showFailure() {
-        document.getElementById('status-code').textContent = '[FAILED]';
-        document.getElementById('status-title').textContent = 'Connection Failed';
-        document.getElementById('status-message').innerHTML = 
-          `Connection to {{ ssid }} failed. This could be due to:<br><br>
+        document.getElementById("status-code").textContent = "[FAILED]";
+        document.getElementById("status-title").textContent =
+          "Connection Failed";
+        document.getElementById(
+          "status-message"
+        ).innerHTML = `Connection to {{ ssid }} failed. This could be due to:<br><br>
           • Incorrect password<br>
           • Network not available<br>
           • Signal too weak<br><br>
           The device has returned to setup mode. Please try again.`;
-          
+
         // Redirect back to setup after 5 seconds
         setTimeout(() => {
-          window.location.href = '/';
+          window.location.href = "/";
         }, 5000);
       }
 
       function showStatusMessage(message) {
-        document.getElementById('status-message').textContent = message;
+        document.getElementById("status-message").textContent = message;
       }
 
       // Start checking connection status
-      document.addEventListener('DOMContentLoaded', function() {
+      CommonUtils.onReady(function () {
         // Start checking after a brief delay
         setTimeout(() => {
           statusCheckInterval = setInterval(checkConnectionStatus, 3000);
