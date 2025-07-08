@@ -527,12 +527,15 @@ class DistillerWiFiServiceFixed:
                 and not wifi_status.ssid.startswith(self.hotspot_ssid)  # Not connected to our hotspot
                 and wifi_status.ip_address
                 and wifi_status.ip_address != self.hotspot_ip  # Not using hotspot IP
+                and self.target_ssid  # We have a target SSID
+                and (wifi_status.ssid == self.target_ssid or wifi_status.ssid.startswith(self.target_ssid + " "))  # Connected to target (handle NetworkManager numbering)
             )
 
             # CRITICAL FIX: If we're in CONNECTED state but WiFi status doesn't show connection,
             # trust the service state (this handles network transition timing issues)
             if self.current_state == ServiceState.CONNECTED and not connected_to_target:
-                self.logger.info("Service state is CONNECTED but WiFi status check inconsistent - trusting service state")
+                self.logger.info(f"Service state is CONNECTED but WiFi status check inconsistent - trusting service state")
+                self.logger.info(f"  WiFi Status: connected={wifi_status.connected}, ssid='{wifi_status.ssid}', target_ssid='{self.target_ssid}'")
                 connected_to_target = True
 
             # Check if we're connected to hotspot

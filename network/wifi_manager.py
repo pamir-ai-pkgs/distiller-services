@@ -659,9 +659,10 @@ class WiFiManager:
                     # More robust connection verification
                     if status.connected:
                         # Check if we're connected to the target network
-                        if status.ssid == ssid:
+                        # Handle cases where NetworkManager appends numbers (e.g., "Network 1", "Network 2")
+                        if status.ssid and (status.ssid == ssid or status.ssid.startswith(ssid + " ")):
                             self.logger.info(
-                                f"Successfully connected to '{ssid}' at {status.ip_address} (attempt {attempt + 1})"
+                                f"Successfully connected to '{ssid}' (detected as '{status.ssid}') at {status.ip_address} (attempt {attempt + 1})"
                             )
                             return True
                         elif status.ssid:
@@ -674,8 +675,13 @@ class WiFiManager:
                 # Final verification with additional checks
                 status = await self.get_connection_status()
 
-                # If we're connected but SSID doesn't match, try alternative verification
-                if status.connected and status.ssid != ssid:
+                # If we're connected but SSID doesn't match exactly, try flexible matching
+                if status.connected and status.ssid and (status.ssid == ssid or status.ssid.startswith(ssid + " ")):
+                    self.logger.info(
+                        f"Successfully connected to '{ssid}' (detected as '{status.ssid}') at {status.ip_address}"
+                    )
+                    return True
+                elif status.connected and status.ssid != ssid:
                     # Check if the connection profile was created and is active
                     connection_active = await self._verify_connection_by_profile(ssid)
                     if connection_active:
@@ -692,9 +698,10 @@ class WiFiManager:
                     )
                     return True
 
-                if status.connected and status.ssid == ssid:
+                # Final check with flexible SSID matching
+                if status.connected and status.ssid and (status.ssid == ssid or status.ssid.startswith(ssid + " ")):
                     self.logger.info(
-                        f"Successfully connected to '{ssid}' at {status.ip_address}"
+                        f"Successfully connected to '{ssid}' (detected as '{status.ssid}') at {status.ip_address}"
                     )
                     return True
                 else:
@@ -738,8 +745,11 @@ class WiFiManager:
                 for line in stdout.decode().strip().split("\n"):
                     if line:
                         parts = line.split(":")
-                        if len(parts) >= 2 and parts[0] == ssid and parts[1]:
-                            return True
+                        if len(parts) >= 2 and parts[1]:  # Device field is not empty
+                            # Check for exact match or SSID with appended number
+                            connection_name = parts[0]
+                            if connection_name == ssid or connection_name.startswith(ssid + " "):
+                                return True
 
             return False
 
@@ -779,7 +789,8 @@ class WiFiManager:
 
             if process.returncode == 0:
                 current_ssid = stdout.decode().strip()
-                if current_ssid == ssid:
+                # Check for exact match or SSID with appended number  
+                if current_ssid == ssid or current_ssid.startswith(ssid + " "):
                     return True
 
             return False
