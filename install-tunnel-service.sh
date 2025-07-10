@@ -57,12 +57,7 @@ else
     exit 1
 fi
 
-# Copy E-ink display scripts if they exist
-if [ -f "${SCRIPT_DIR}/eink_display_flush.py" ]; then
-    cp "${SCRIPT_DIR}/eink_display_flush.py" "$INSTALL_DIR/"
-    chmod +x "$INSTALL_DIR/eink_display_flush.py"
-    echo "   E-ink display script copied"
-fi
+# Copy WiFi display script if it exists (for e-ink functionality)
 
 if [ -f "${SCRIPT_DIR}/wifi_info_display.py" ]; then
     cp "${SCRIPT_DIR}/wifi_info_display.py" "$INSTALL_DIR/"

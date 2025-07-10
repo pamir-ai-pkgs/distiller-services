@@ -13,11 +13,12 @@ A comprehensive WiFi setup and management service designed for embedded Linux de
 - **Network Scanning**: Real-time WiFi network discovery
 - **Dynamic IP Detection**: Automatically detects and uses actual hotspot IP address
 
-### E-ink Display Support
+### E-ink Display Support (via distiller-cm5-sdk)
 - **Setup Instructions**: QR codes and connection details during setup
 - **Connection Progress**: Visual feedback during WiFi connection
 - **Success Confirmation**: Connection success with network details
-- **Current Status**: Real-time WiFi information display
+- **Current Status**: Real-time WiFi information display with tunnel URLs
+- **SDK Integration**: Uses distiller-cm5-sdk for hardware abstraction
 - **Auto-refresh**: Periodic display updates
 
 ### Advanced Features
@@ -31,8 +32,9 @@ A comprehensive WiFi setup and management service designed for embedded Linux de
 
 ### Prerequisites
 - Linux system with NetworkManager
-- Python 3.8+
+- Python 3.11+
 - Root privileges (for network management)
+- distiller-cm5-sdk (for e-ink display support)
 - E-ink display hardware (optional)
 
 ### Debian Package Installation (Recommended)
@@ -214,9 +216,9 @@ curl http://localhost:8080/refresh-display
 ## E-ink Display
 
 ### Supported Hardware
-- Waveshare e-Paper displays (240x416 resolution)
-- SPI interface connection
-- Compatible with Raspberry Pi and Rockchip boards
+- E-ink displays supported by distiller-cm5-sdk (128x250 pixels default)
+- SPI interface connection via SDK hardware abstraction
+- Compatible with Raspberry Pi CM5 and supported boards
 
 ### Display Modes
 
@@ -228,14 +230,17 @@ curl http://localhost:8080/refresh-display
 ### Manual Display Control
 
 ```bash
-# Display current WiFi info
-python3 wifi_info_display.py --display
+# Display current WiFi info (requires distiller-cm5-sdk)
+.venv/bin/python wifi_info_display.py --display
 
 # Create setup instructions
-python3 wifi_info_display.py --setup --ssid "MyHotspot" --password "password123" --ip "192.168.4.1"
+.venv/bin/python wifi_info_display.py --setup --ssid "MyHotspot" --password "password123" --ip "192.168.4.1"
 
 # Create success screen
-python3 wifi_info_display.py --success --ssid "HomeNetwork" --connected-ip "192.168.1.100"
+.venv/bin/python wifi_info_display.py --success --ssid "HomeNetwork" --connected-ip "192.168.1.100"
+
+# Use convenience wrapper
+distiller-display --display
 ```
 
 ## Network Management
@@ -289,14 +294,17 @@ sudo ufw status
 
 **E-ink display not working:**
 ```bash
-# Test e-ink hardware
-python3 eink_display_flush.py
+# Check distiller-cm5-sdk installation
+python3 -c "from distiller_cm5_sdk.hardware.eink import display_png"
 
-# Check SPI interface
-ls /dev/spi*
+# Test SDK display functionality
+.venv/bin/python wifi_info_display.py --display
 
 # Test without e-ink
-python3 distiller_wifi_service.py --no-eink
+.venv/bin/python distiller_wifi_service.py --no-eink
+
+# Check SPI interface (if using custom SDK config)
+ls /dev/spi*
 ```
 
 **Web interface not accessible:**
@@ -317,7 +325,11 @@ curl http://192.168.4.1:8080/api/status  # Use actual hotspot IP
 Enable verbose logging for detailed troubleshooting:
 
 ```bash
-sudo python3 distiller_wifi_service.py --verbose
+# Using virtual environment
+sudo .venv/bin/python distiller_wifi_service.py --verbose
+
+# Using package wrapper
+sudo distiller-wifi-setup --verbose
 ```
 
 ## System Integration
@@ -364,12 +376,13 @@ python3 distiller_wifi_service.py &
 
 ```
 distiller-cm5-services/
-├── distiller_wifi_service.py      # Main service
-├── wifi_info_display.py           # E-ink display functions
-├── eink_display_flush.py          # Low-level e-ink driver
+├── distiller_wifi_service.py      # Main WiFi service
+├── pinggy_tunnel_service.py       # SSH tunnel service  
+├── wifi_info_display.py           # E-ink display functions (SDK-based)
 ├── network/
 │   ├── wifi_manager.py            # WiFi management
 │   ├── network_utils.py           # Network utilities
+│   ├── device_config.py           # Device configuration
 │   └── __init__.py
 ├── templates/                     # Web interface templates
 │   ├── index.html                # Network selection
@@ -379,9 +392,13 @@ distiller-cm5-services/
 ├── static/                       # Web assets
 │   ├── css/style.css            # Styling
 │   ├── js/wifi-setup.js         # JavaScript functionality
-│   └── images/pamir-logo-01.svg  # Logo
-├── requirements.txt              # Python dependencies
-└── README.md                    # This file
+│   ├── images/pamir-logo-01.svg  # Logo
+│   └── fonts/                   # MartianMono font for e-ink
+├── fonts/                        # Font directory for e-ink display
+├── debian/                       # Debian packaging
+├── pyproject.toml               # Python project configuration (uv)
+├── requirements.txt             # Python dependencies (pip fallback)
+└── README.md                   # This file
 ```
 
 ### Testing
@@ -390,14 +407,18 @@ distiller-cm5-services/
 # Syntax check
 python3 -m py_compile distiller_wifi_service.py
 
-# Test without hardware
-python3 distiller_wifi_service.py --no-eink --verbose
+# Test without hardware (using virtual environment)
+.venv/bin/python distiller_wifi_service.py --no-eink --verbose
 
-# Test e-ink display
-python3 wifi_info_display.py --display
+# Test e-ink display (requires distiller-cm5-sdk)
+.venv/bin/python wifi_info_display.py --display
 
 # Test web interface
 curl http://localhost:8080/api/status
+
+# Test using package wrappers
+distiller-wifi-setup --no-eink --verbose
+distiller-display --display
 ```
 
 ## Hardware Requirements
@@ -411,22 +432,19 @@ curl http://localhost:8080/api/status
 
 ### Recommended Hardware
 - Raspberry Pi CM5 or equivalent
-- E-ink display (240x416 resolution)
-- SPI interface for e-ink
+- E-ink display supported by distiller-cm5-sdk (128x250 default)
+- distiller-cm5-sdk compatible hardware
 - 1GB+ RAM for smooth operation
 
-### GPIO Connections (E-ink)
+### Hardware Setup
 
-| E-ink Pin | Raspberry Pi | Rockchip |
-|-----------|--------------|----------|
-| VCC | 3.3V | 3.3V |
-| GND | GND | GND |
-| DIN | SPI0_MOSI | SPI_MOSI |
-| CLK | SPI0_SCLK | SPI_SCLK |
-| CS | SPI0_CE0 | SPI_CS |
-| DC | GPIO25 | GPIO1_C6 |
-| RST | GPIO17 | GPIO1_B1 |
-| BUSY | GPIO24 | GPIO0_D3 |
+E-ink display connections and configuration are handled by the distiller-cm5-sdk. Refer to the SDK documentation for:
+- Supported hardware configurations
+- GPIO pin mappings
+- SPI interface setup
+- Display initialization and configuration
+
+The service automatically detects available hardware through the SDK.
 
 ## Building and Packaging
 

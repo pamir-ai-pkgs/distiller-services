@@ -2,13 +2,13 @@
 WiFi Information Display for E-Ink
 Generates and displays WiFi network information on e-ink display
 
-Updated to use distiller-cm5-sdk for improved e-ink display support:
-- Display resolution: 128x250 pixels (corrected from 240x416)
-- Uses distiller_cm5_sdk.hardware.eink for display operations
-- Fallback to original eink_display_flush implementation if SDK unavailable
-- Optimized fonts and layout for smaller display size
+Uses distiller-cm5-sdk for e-ink display operations:
+- Display resolution: 128x250 pixels (configurable via SDK)
+- Uses distiller_cm5_sdk.hardware.eink for all display operations
+- Requires distiller-cm5-sdk to be installed and available
+- Optimized fonts and layout for e-ink displays
 
-The distiller-cm5-sdk provides a cleaner API and better hardware abstraction.
+The distiller-cm5-sdk provides clean API and hardware abstraction.
 """
 
 import sys
@@ -37,31 +37,21 @@ except ImportError:
 # Add the distiller project path to import NetworkUtils
 from network.network_utils import NetworkUtils
 
-# Add the installed SDK path to Python path
-SDK_PATH = "/opt/distiller-cm5-sdk"
-if os.path.exists(SDK_PATH):
-    # Add the SDK path to sys.path if it's not already there
-    if SDK_PATH not in sys.path:
-        sys.path.insert(0, SDK_PATH)
-
-    # Also add the src directory if it exists
-    src_path = os.path.join(SDK_PATH, "src")
-    if os.path.exists(src_path) and src_path not in sys.path:
-        sys.path.insert(0, src_path)
-
 # Import the distiller-cm5-sdk e-ink display functions
 try:
-    from distiller_cm5_sdk.hardware.eink import display_png, DisplayMode
-
-    DISTILLER_SDK_AVAILABLE = True
-    logger.info("Using distiller-cm5-sdk for e-ink display")
-except ImportError:
-    logger.warning(
-        "distiller-cm5-sdk not available, falling back to eink_display_flush"
+    from distiller_cm5_sdk.hardware.eink import (
+        Display,
+        DisplayMode,
+        DisplayError,
+        display_png,
+        clear_display,
+        get_display_info
     )
-    from eink_display_flush import SimpleEinkDriver, load_and_convert_image
-
-    DISTILLER_SDK_AVAILABLE = False
+    logger.info("distiller-cm5-sdk loaded successfully")
+except ImportError as e:
+    logger.error(f"Failed to import distiller-cm5-sdk: {e}")
+    logger.error("Please ensure distiller-cm5-sdk is installed and available")
+    sys.exit(1)
 
 
 def create_wifi_info_image(
@@ -419,44 +409,20 @@ def create_wifi_info_image(
 
 
 def display_on_eink(image_path):
-    """Display the image on the e-ink screen"""
+    """Display the image on the e-ink screen using distiller-cm5-sdk"""
     logger.info("Displaying image on e-ink screen...")
 
     try:
-        if DISTILLER_SDK_AVAILABLE:
-            # Use the distiller-cm5-sdk
-            display_png(image_path, DisplayMode.FULL)
-            logger.info(
-                "WiFi info displayed successfully on e-ink using distiller-cm5-sdk"
-            )
-            return True
-        else:
-            # Fallback to original implementation
-            display = SimpleEinkDriver()
+        # Use the distiller-cm5-sdk convenience function
+        display_png(image_path, DisplayMode.FULL)
+        logger.info("WiFi info displayed successfully on e-ink using distiller-cm5-sdk")
+        return True
 
-            if not display.initialize():
-                logger.error("Failed to initialize e-ink display")
-                return False
-
-            # Convert and display image
-            image_data = load_and_convert_image(image_path, threshold=128, dither=True)
-
-            if image_data is None:
-                logger.error("Failed to convert image")
-                return False
-
-            success = display.display_image(image_data)
-            display.cleanup()
-
-            if success:
-                logger.info("WiFi info displayed successfully on e-ink")
-            else:
-                logger.error("Failed to display image on e-ink")
-
-            return success
-
+    except DisplayError as e:
+        logger.error(f"Display error: {e}")
+        return False
     except Exception as e:
-        logger.error(f"Error displaying on e-ink: {e}")
+        logger.error(f"Unexpected error displaying on e-ink: {e}")
         return False
 
 
@@ -927,7 +893,7 @@ def main():
             print(f"WiFi information image created: {filename}")
 
             if not args.display:
-                print(f"To display on e-ink: python eink_display_simple.py {filename}")
+                print(f"To display on e-ink: .venv/bin/python wifi_info_display.py --display")
 
         return 0
 

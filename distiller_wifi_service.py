@@ -913,33 +913,37 @@ class DistillerWiFiServiceFixed:
         try:
             self.logger.info(f"Updating e-ink display for connecting to {ssid}")
             # For connecting state, we'll create a simple image showing connection progress
-            # Since there's no specific connecting image function, we'll use the setup function
-            # with modified text to indicate connection in progress
             from PIL import Image, ImageDraw, ImageFont
+            from distiller_cm5_sdk.hardware.eink import display_png, DisplayMode, DisplayError
 
-            # Create a simple connecting image
-            width, height = 240, 416
+            # Create a simple connecting image with correct SDK dimensions
+            width, height = 128, 250
             img = Image.new("L", (width, height), 255)  # White background
             draw = ImageDraw.Draw(img)
 
-            # Try to load font
+            # Try to load MartianMono font first (optimized for SDK)
             try:
-                font_large = ImageFont.truetype(
-                    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 18
-                )
-                font_medium = ImageFont.truetype(
-                    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-                    14,
-                )
+                martian_font_path = "/opt/distiller-cm5-services/fonts/MartianMonoNerdFont-CondensedBold.ttf"
+                font_large = ImageFont.truetype(martian_font_path, 14)
+                font_medium = ImageFont.truetype(martian_font_path, 10)
+                self.logger.info("Using MartianMono font for connecting display")
             except:
-                font_large = ImageFont.load_default()
-                font_medium = ImageFont.load_default()
+                try:
+                    font_large = ImageFont.truetype(
+                        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 13
+                    )
+                    font_medium = ImageFont.truetype(
+                        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 10
+                    )
+                except:
+                    font_large = ImageFont.load_default()
+                    font_medium = ImageFont.load_default()
 
             # Border
             draw.rectangle([0, 0, width - 1, height - 1], outline=0, width=2)
 
             # Title
-            y_pos = 30
+            y_pos = 25
             title = "CONNECTING..."
             bbox = draw.textbbox((0, 0), title, font=font_large)
             title_width = bbox[2] - bbox[0]
@@ -947,10 +951,13 @@ class DistillerWiFiServiceFixed:
                 ((width - title_width) // 2, y_pos), title, fill=0, font=font_large
             )
 
-            y_pos += 50
+            y_pos += 40
 
             # Network name
             network_text = f"Network: {ssid}"
+            # Truncate long SSIDs for smaller display
+            if len(ssid) > 12:
+                network_text = f"Network: {ssid[:9]}..."
             bbox = draw.textbbox((0, 0), network_text, font=font_medium)
             text_width = bbox[2] - bbox[0]
             draw.text(
@@ -960,7 +967,7 @@ class DistillerWiFiServiceFixed:
                 font=font_medium,
             )
 
-            y_pos += 40
+            y_pos += 30
 
             # Status message
             status_text = "Please wait..."
@@ -973,20 +980,27 @@ class DistillerWiFiServiceFixed:
                 font=font_medium,
             )
 
-            # Save and display the image
+            # Progress indicator (simple dots)
+            y_pos += 40
+            dots = "• • •"
+            bbox = draw.textbbox((0, 0), dots, font=font_medium)
+            dots_width = bbox[2] - bbox[0]
+            draw.text(
+                ((width - dots_width) // 2, y_pos), dots, fill=0, font=font_medium
+            )
+
+            # Save and display the image using SDK
             filename = "wifi_connecting_display.png"
+            # Apply left-right flip before saving (required for SDK)
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)
             img.save(filename)
 
-            # Display on e-ink
-            from eink_display_flush import SimpleEinkDriver, load_and_convert_image
-
-            driver = SimpleEinkDriver()
-            driver.initialize()
-            image_data = load_and_convert_image(filename)
-            driver.display_image(image_data)
-            driver.cleanup()
-
-            self.logger.info("E-ink display updated for connecting state")
+            # Display on e-ink using distiller-cm5-sdk
+            display_png(filename, DisplayMode.FULL)
+            self.logger.info("E-ink display updated for connecting state using distiller-cm5-sdk")
+            
+        except DisplayError as e:
+            self.logger.error(f"E-ink display error during connecting update: {e}")
         except Exception as e:
             self.logger.error(f"E-ink connecting update error: {e}")
 

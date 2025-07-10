@@ -59,7 +59,6 @@ mkdir -p "$INSTALL_DIR"
 # Copy service files with proper structure
 echo "Copying service files..."
 cp "$CURRENT_DIR/distiller_wifi_service.py" "$INSTALL_DIR/"
-cp "$CURRENT_DIR/eink_display_flush.py" "$INSTALL_DIR/"
 cp "$CURRENT_DIR/wifi_info_display.py" "$INSTALL_DIR/"
 cp "$CURRENT_DIR/pinggy_tunnel_service.py" "$INSTALL_DIR/"
 cp "$CURRENT_DIR/requirements.txt" "$INSTALL_DIR/"
@@ -78,7 +77,6 @@ fi
 echo "Setting permissions..."
 chown -R $SERVICE_USER:$SERVICE_USER "$INSTALL_DIR"
 chmod +x "$INSTALL_DIR/distiller_wifi_service.py"
-chmod +x "$INSTALL_DIR/eink_display_flush.py"
 chmod +x "$INSTALL_DIR/wifi_info_display.py"
 chmod +x "$INSTALL_DIR/pinggy_tunnel_service.py"
 
