@@ -13,6 +13,7 @@ import signal
 import sys
 import time
 import threading
+import subprocess
 from pathlib import Path
 from typing import Optional
 from enum import Enum
@@ -769,8 +770,59 @@ class DistillerWiFiServiceFixed:
                 mdns_url = self.device_config.get_device_mdns_url()
                 self.logger.info(f"Device also accessible via mDNS: {mdns_url}")
 
+                # Start pinggy tunnel service after successful WiFi connection
+                self._start_pinggy_tunnel_service()
+
         except Exception as e:
             self.logger.error(f"Error handling network transition: {e}")
+
+    def _start_pinggy_tunnel_service(self):
+        """Start the pinggy tunnel service after successful WiFi connection"""
+        try:
+            # Check if pinggy tunnel service is already running
+            try:
+                result = subprocess.run(
+                    ['systemctl', 'is-active', 'pinggy-tunnel.service'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip() == 'active':
+                    self.logger.info("Pinggy tunnel service is already running")
+                    return
+            except subprocess.TimeoutExpired:
+                self.logger.warning("Timeout checking pinggy tunnel service status")
+            except Exception as e:
+                self.logger.warning(f"Could not check pinggy tunnel service status: {e}")
+
+            # Start the pinggy tunnel service
+            self.logger.info("Starting pinggy tunnel service for remote access")
+            try:
+                result = subprocess.run(
+                    ['systemctl', 'start', 'pinggy-tunnel.service'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                if result.returncode == 0:
+                    self.logger.info("Pinggy tunnel service started successfully")
+                    # Enable it for future boots
+                    subprocess.run(
+                        ['systemctl', 'enable', 'pinggy-tunnel.service'],
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+                else:
+                    self.logger.warning(f"Failed to start pinggy tunnel service: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                self.logger.error("Timeout starting pinggy tunnel service")
+            except Exception as e:
+                self.logger.error(f"Error starting pinggy tunnel service: {e}")
+
+        except Exception as e:
+            self.logger.error(f"Unexpected error starting pinggy tunnel service: {e}")
 
     async def check_initial_state(self) -> ServiceState:
         """Check initial state and determine startup mode"""
@@ -917,7 +969,14 @@ class DistillerWiFiServiceFixed:
             from distiller_cm5_sdk.hardware.eink import display_png, DisplayMode, DisplayError
 
             # Create a simple connecting image with correct SDK dimensions
-            width, height = 128, 250
+            try:
+                from distiller_cm5_sdk.hardware.eink import Display
+                display = Display(auto_init=False)
+                width, height = display.get_dimensions()
+                self.logger.debug(f"Got display dimensions from SDK: {width}x{height}")
+            except Exception as e:
+                self.logger.warning(f"Could not get display dimensions from SDK: {e}")
+                width, height = 128, 250  # Fallback
             img = Image.new("L", (width, height), 255)  # White background
             draw = ImageDraw.Draw(img)
 

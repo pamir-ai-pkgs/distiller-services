@@ -54,6 +54,25 @@ except ImportError as e:
     sys.exit(1)
 
 
+def get_eink_display_dimensions():
+    """
+    Get e-ink display dimensions from distiller-cm5-sdk
+    
+    Returns:
+        Tuple of (width, height) in pixels
+    """
+    try:
+        from distiller_cm5_sdk.hardware.eink import Display
+        display = Display(auto_init=False)
+        width, height = display.get_dimensions()
+        logger.debug(f"Got display dimensions from SDK: {width}x{height}")
+        return width, height
+    except Exception as e:
+        logger.warning(f"Could not get display dimensions from SDK: {e}")
+        logger.warning("Falling back to default 128x250 dimensions")
+        return 128, 250
+
+
 def create_wifi_info_image(
     filename="wifi_info.png", auto_display=False, tunnel_url=None
 ):
@@ -68,8 +87,9 @@ def create_wifi_info_image(
     Returns:
         Filename of created image
     """
-    width = 128
-    height = 250
+    # Get dynamic display dimensions from SDK
+    width, height = get_eink_display_dimensions()
+    logger.info(f"Using display dimensions: {width}x{height}")
 
     # Get network information
     logger.info("Gathering network information...")
@@ -88,7 +108,7 @@ def create_wifi_info_image(
     img = Image.new("L", (width, height), 255)  # White background
     draw = ImageDraw.Draw(img)
 
-    # Try to load fonts - prioritize MartianMono (reduced sizes for 128x250 display)
+    # Try to load fonts - prioritize MartianMono (optimized for eink display)
     try:
         # Use MartianMono font from local directory
         martian_font_path = (
@@ -431,8 +451,6 @@ def create_wifi_setup_image(
     password,
     ip_address,
     port=8080,
-    width=128,
-    height=250,
     filename="wifi_setup.png",
     auto_display=False,
 ):
@@ -444,20 +462,21 @@ def create_wifi_setup_image(
         password: WiFi password
         ip_address: IP address for the web interface
         port: Port number for the web interface
-        width: Image width in pixels
-        height: Image height in pixels
         filename: Output filename
         auto_display: If True, automatically display on e-ink after creating
 
     Returns:
         Filename of created image
     """
+    # Get dynamic display dimensions from SDK
+    width, height = get_eink_display_dimensions()
+    logger.info(f"Using display dimensions: {width}x{height}")
 
     # Create image
     img = Image.new("L", (width, height), 255)  # White background
     draw = ImageDraw.Draw(img)
 
-    # Try to load fonts (reduced sizes for 128x250 display)
+    # Try to load fonts (optimized for eink display)
     try:
         martian_font_path = (
             "/opt/distiller-cm5-services/fonts/MartianMonoNerdFont-CondensedBold.ttf"
@@ -643,8 +662,6 @@ def create_wifi_setup_image(
 def create_wifi_success_image(
     ssid,
     ip_address,
-    width=128,
-    height=250,
     filename="wifi_success.png",
     auto_display=False,
 ):
@@ -654,20 +671,21 @@ def create_wifi_success_image(
     Args:
         ssid: Connected WiFi network name
         ip_address: Assigned IP address
-        width: Image width in pixels
-        height: Image height in pixels
         filename: Output filename
         auto_display: If True, automatically display on e-ink after creating
 
     Returns:
         Filename of created image
     """
+    # Get dynamic display dimensions from SDK
+    width, height = get_eink_display_dimensions()
+    logger.info(f"Using display dimensions: {width}x{height}")
 
     # Create image
     img = Image.new("L", (width, height), 255)  # White background
     draw = ImageDraw.Draw(img)
 
-    # Try to load fonts (reduced sizes for 128x250 display)
+    # Try to load fonts (optimized for eink display)
     try:
         martian_font_path = (
             "/opt/distiller-cm5-services/fonts/MartianMonoNerdFont-CondensedBold.ttf"
@@ -805,8 +823,7 @@ def main():
         action="store_true",
         help="Only display on e-ink, do not save image file",
     )
-    parser.add_argument("--width", type=int, default=128, help="Image width")
-    parser.add_argument("--height", type=int, default=250, help="Image height")
+    # Removed hardcoded width/height arguments - now uses SDK dimensions
     parser.add_argument(
         "--setup",
         action="store_true",
