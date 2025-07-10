@@ -715,11 +715,10 @@ class DistillerWiFiServiceFixed:
                 self._successful_connection_ip = status.ip_address
                 self._successful_connection_ssid = self.target_ssid
 
-                # Update e-ink display
+                # Update e-ink display with simple success message
+                # The pinggy tunnel service will handle detailed display updates once connected
                 if self.enable_eink:
-                    # Handle None IP address properly
-                    ip_address = status.ip_address or "unknown"
-                    self._update_eink_success(self.target_ssid, ip_address)
+                    self._update_eink_success(self.target_ssid)
 
                 # Handle network transition
                 await self._handle_network_transition()
@@ -771,6 +770,7 @@ class DistillerWiFiServiceFixed:
                 self.logger.info(f"Device also accessible via mDNS: {mdns_url}")
 
                 # Start pinggy tunnel service after successful WiFi connection
+                self.logger.info("Starting pinggy tunnel service for remote access")
                 self._start_pinggy_tunnel_service()
 
         except Exception as e:
@@ -789,7 +789,16 @@ class DistillerWiFiServiceFixed:
                 )
                 if result.returncode == 0 and result.stdout.strip() == 'active':
                     self.logger.info("Pinggy tunnel service is already running")
-                    return
+                    # Restart it to ensure it's fresh
+                    self.logger.info("Restarting pinggy tunnel service")
+                    subprocess.run(
+                        ['systemctl', 'restart', 'pinggy-tunnel.service'],
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+                else:
+                    self.logger.info("Pinggy tunnel service is not running, starting it")
             except subprocess.TimeoutExpired:
                 self.logger.warning("Timeout checking pinggy tunnel service status")
             except Exception as e:
@@ -867,7 +876,7 @@ class DistillerWiFiServiceFixed:
                 )
                 
                 # Start mDNS service for device discovery
-                mdns_success = self.device_config.start_mdns_service(hotspot_ip, self.web_port)
+                mdns_success = self.device_config.start_mdns_service(hotspot_ip or "192.168.4.1", self.web_port)
                 if mdns_success:
                     mdns_url = self.device_config.get_device_mdns_url()
                     self.logger.info(f"mDNS service started: {mdns_url}")
@@ -1051,7 +1060,7 @@ class DistillerWiFiServiceFixed:
             # Save and display the image using SDK
             filename = "wifi_connecting_display.png"
             # Apply left-right flip before saving (required for SDK)
-            img = img.transpose(Image.FLIP_LEFT_RIGHT)
+            img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
             img.save(filename)
 
             # Display on e-ink using distiller-cm5-sdk
@@ -1063,7 +1072,7 @@ class DistillerWiFiServiceFixed:
         except Exception as e:
             self.logger.error(f"E-ink connecting update error: {e}")
 
-    def _update_eink_success(self, ssid: str, ip_address: str):
+    def _update_eink_success(self, ssid: str):
         """Update e-ink display for success state"""
         if not self.enable_eink:
             return
@@ -1071,10 +1080,11 @@ class DistillerWiFiServiceFixed:
             self.logger.info(
                 f"Updating e-ink display for successful connection to {ssid}"
             )
-            # Create and display success image with connection information
+            # Create and display simple success image
+            # The pinggy tunnel service will handle detailed WiFi info display
             create_wifi_success_image(
                 ssid=ssid,
-                ip_address=ip_address,
+                ip_address="Connected",  # Simple message instead of actual IP
                 filename="wifi_success_display.png",
                 auto_display=True,  # Automatically display on e-ink
             )
@@ -1112,9 +1122,7 @@ class DistillerWiFiServiceFixed:
                 await self._start_hotspot_mode()
             elif initial_state == ServiceState.CONNECTED:
                 self.logger.info("Already connected, service ready")
-                # Display current WiFi info on e-ink
-                if self.enable_eink:
-                    self._update_eink_info()
+                # Note: No e-ink display update here - pinggy tunnel service handles this
 
             # Start web server
             self._start_web_server()
@@ -1151,17 +1159,7 @@ class DistillerWiFiServiceFixed:
                             )
                             self.current_state = ServiceState.HOTSPOT_MODE
                             await self._start_hotspot_mode()
-                        else:
-                            # Periodically update WiFi info display (every 5 minutes)
-                            if self.enable_eink and hasattr(self, "_last_info_update"):
-                                if (
-                                    time.time() - self._last_info_update > 300
-                                ):  # 5 minutes
-                                    self._update_eink_info()
-                                    self._last_info_update = time.time()
-                            elif self.enable_eink:
-                                # First time - set the timestamp
-                                self._last_info_update = time.time()
+                        # Note: No periodic display updates - the pinggy tunnel service handles this
 
                     elif self.current_state == ServiceState.CONNECTING:
                         # Check for connection timeout
