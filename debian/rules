@@ -24,10 +24,15 @@ override_dh_auto_install:
 	-mkdir -p debian/distiller-cm5-services/usr/share/lintian/overrides
 	-cp debian/distiller-cm5-services.lintian-overrides debian/distiller-cm5-services/usr/share/lintian/overrides/distiller-cm5-services
 	
-	# Create fonts directory (will be populated by user or package)
+	# Create fonts directory and copy MartianMono font
 	mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services/fonts
+	# Copy MartianMono font from static/fonts to fonts directory
+	if [ -f static/fonts/MartianMonoNerdFont-CondensedBold.ttf ]; then \
+		cp static/fonts/MartianMonoNerdFont-CondensedBold.ttf debian/distiller-cm5-services/opt/distiller-cm5-services/fonts/; \
+	fi
 	
-	# Install requirements file for reference
+	# Install pyproject.toml and requirements file for reference
+	cp pyproject.toml debian/distiller-cm5-services/opt/distiller-cm5-services/
 	cp requirements.txt debian/distiller-cm5-services/opt/distiller-cm5-services/
 
 override_dh_installinit:

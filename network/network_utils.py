@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Network utilities for synchronous network information retrieval
 Provides compatibility layer for wifi_info_display.py
@@ -8,6 +7,7 @@ import asyncio
 import subprocess
 import socket
 import logging
+import os
 from typing import Dict, List, Any
 from .wifi_manager import WiFiManager
 
@@ -19,6 +19,21 @@ class NetworkUtils:
 
     def __init__(self):
         self.wifi_manager = WiFiManager()
+        self._use_sudo = self._should_use_sudo()
+
+    def _should_use_sudo(self) -> bool:
+        """Determine if we should use sudo for privileged commands"""
+        # Use sudo if we're running as the 'distiller' user
+        current_user = os.getenv('USER') or os.getenv('USERNAME') or 'unknown'
+        return current_user == 'distiller'
+
+    def _build_command(self, base_cmd: list[str]) -> list[str]:
+        """Build command with sudo prefix if needed for privileged operations"""
+        privileged_commands = {'nmcli', 'ip', 'hostname', 'systemctl', 'iwconfig', 'iwgetid'}
+        
+        if self._use_sudo and base_cmd and base_cmd[0] in privileged_commands:
+            return ['sudo'] + base_cmd
+        return base_cmd
 
     def _run_async(self, coro):
         """Run async coroutine synchronously"""
@@ -83,7 +98,7 @@ class NetworkUtils:
             if status and status.interface:
                 # Get MAC address using ip command
                 result = subprocess.run(
-                    ["ip", "link", "show", status.interface],
+                    self._build_command(["ip", "link", "show", status.interface]),
                     capture_output=True,
                     text=True,
                     timeout=10,
@@ -98,7 +113,7 @@ class NetworkUtils:
             for interface in ["wlan0", "wlp2s0", "wlp3s0"]:
                 try:
                     result = subprocess.run(
-                        ["ip", "link", "show", interface],
+                        self._build_command(["ip", "link", "show", interface]),
                         capture_output=True,
                         text=True,
                         timeout=5,
@@ -126,7 +141,7 @@ class NetworkUtils:
             # Try to get signal strength using nmcli
             try:
                 result = subprocess.run(
-                    [
+                    self._build_command([
                         "nmcli",
                         "-t",
                         "-f",
@@ -136,7 +151,7 @@ class NetworkUtils:
                         "list",
                         "--rescan",
                         "no",
-                    ],
+                    ]),
                     capture_output=True,
                     text=True,
                     timeout=10,
@@ -153,7 +168,7 @@ class NetworkUtils:
             # Fallback: try iwconfig
             try:
                 result = subprocess.run(
-                    ["iwconfig", status.interface],
+                    self._build_command(["iwconfig", status.interface]),
                     capture_output=True,
                     text=True,
                     timeout=5,
@@ -230,7 +245,7 @@ class NetworkUtils:
         interfaces = []
         try:
             result = subprocess.run(
-                ["ip", "addr", "show"], capture_output=True, text=True, timeout=10
+                self._build_command(["ip", "addr", "show"]), capture_output=True, text=True, timeout=10
             )
             if result.returncode == 0:
                 current_interface = None

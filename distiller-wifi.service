@@ -6,11 +6,11 @@ Wants=NetworkManager.service
 
 [Service]
 Type=simple
-User=root
-Group=root
+User=distiller
+Group=distiller
 WorkingDirectory=/opt/distiller-cm5-services
 ExecStartPre=/bin/sleep 10
-ExecStart=/usr/local/bin/distiller-wifi-setup
+ExecStart=/opt/distiller-cm5-services/.venv/bin/python distiller_wifi_service.py
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=60
@@ -20,10 +20,11 @@ TimeoutStopSec=30
 Environment=WIFI_HOTSPOT_SSID=SetupWiFi
 Environment=WIFI_HOTSPOT_PASSWORD=setupwifi123
 
-# Security settings
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=/var/log /opt/distiller-cm5-services /etc/NetworkManager/system-connections
+# Security settings - relaxed for hardware and network access
+NoNewPrivileges=false
+ProtectSystem=false
+ReadWritePaths=/var/log /opt/distiller-cm5-services /etc/distiller /etc/NetworkManager/system-connections
+SupplementaryGroups=netdev gpio spi dialout audio
 
 [Install]
-WantedBy=multi-user.target 
+WantedBy=multi-user.target

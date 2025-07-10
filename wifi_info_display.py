@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 WiFi Information Display for E-Ink
 Generates and displays WiFi network information on e-ink display

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 WiFi Manager
 
@@ -8,6 +7,7 @@ connection/disconnection sequences and state transitions.
 
 import asyncio
 import logging
+import os
 from typing import Optional
 from dataclasses import dataclass
 
@@ -49,11 +49,26 @@ class WiFiManager:
         self._original_connection = None  # Store original connection for restoration
         self.hotspot_ssid = None
         self.hotspot_password = None
+        self._use_sudo = self._should_use_sudo()
+
+    def _should_use_sudo(self) -> bool:
+        """Determine if we should use sudo for privileged commands"""
+        # Use sudo if we're running as the 'distiller' user
+        current_user = os.getenv('USER') or os.getenv('USERNAME') or 'unknown'
+        return current_user == 'distiller'
+
+    def _build_command(self, base_cmd: list[str]) -> list[str]:
+        """Build command with sudo prefix if needed for privileged operations"""
+        privileged_commands = {'nmcli', 'ip', 'hostname', 'systemctl', 'iwconfig', 'iwgetid'}
+        
+        if self._use_sudo and base_cmd and base_cmd[0] in privileged_commands:
+            return ['sudo'] + base_cmd
+        return base_cmd
 
     async def get_connection_status(self) -> ConnectionStatus:
         """Get current WiFi connection status"""
         try:
-            cmd = [
+            cmd = self._build_command([
                 "nmcli",
                 "-t",
                 "-f",
@@ -61,7 +76,7 @@ class WiFiManager:
                 "connection",
                 "show",
                 "--active",
-            ]
+            ])
 
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -105,7 +120,7 @@ class WiFiManager:
         """Get SSID of connected device"""
         try:
             # First try to get the connection name
-            cmd = ["nmcli", "-t", "-f", "GENERAL.CONNECTION", "device", "show", device]
+            cmd = self._build_command(["nmcli", "-t", "-f", "GENERAL.CONNECTION", "device", "show", device])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -117,7 +132,7 @@ class WiFiManager:
                     return connection_name
 
             # Fallback: Try to get SSID directly from wireless properties
-            cmd = [
+            cmd = self._build_command([
                 "nmcli",
                 "-t",
                 "-f",
@@ -125,7 +140,7 @@ class WiFiManager:
                 "device",
                 "show",
                 device,
-            ]
+            ])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -138,7 +153,7 @@ class WiFiManager:
 
             # Another fallback: Use iwgetid if available
             try:
-                cmd = ["iwgetid", device, "--raw"]
+                cmd = self._build_command(["iwgetid", device, "--raw"])
                 process = await asyncio.create_subprocess_exec(
                     *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
                 )
@@ -159,7 +174,7 @@ class WiFiManager:
     async def _get_device_ip(self, device: str) -> Optional[str]:
         """Get IP address of device"""
         try:
-            cmd = ["ip", "addr", "show", device]
+            cmd = self._build_command(["ip", "addr", "show", device])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -184,7 +199,7 @@ class WiFiManager:
         """Scan for available WiFi networks"""
         try:
             # Trigger fresh scan
-            cmd = ["nmcli", "device", "wifi", "rescan"]
+            cmd = self._build_command(["nmcli", "device", "wifi", "rescan"])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -194,7 +209,7 @@ class WiFiManager:
             await asyncio.sleep(2)
 
             # Get scan results
-            cmd = [
+            cmd = self._build_command([
                 "nmcli",
                 "-t",
                 "-f",
@@ -202,7 +217,7 @@ class WiFiManager:
                 "device",
                 "wifi",
                 "list",
-            ]
+            ])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -271,7 +286,7 @@ class WiFiManager:
             self.logger.info(f"Disconnecting from {status.ssid}")
 
             # Disconnect using device interface
-            cmd = ["nmcli", "device", "disconnect", status.interface]
+            cmd = self._build_command(["nmcli", "device", "disconnect", status.interface])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -297,7 +312,7 @@ class WiFiManager:
                 return None
 
             # Get active connections to find the hotspot interface
-            cmd = [
+            cmd = self._build_command([
                 "nmcli",
                 "-t",
                 "-f",
@@ -305,7 +320,7 @@ class WiFiManager:
                 "connection",
                 "show",
                 "--active",
-            ]
+            ])
 
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -402,7 +417,7 @@ class WiFiManager:
         """Create and activate hotspot connection"""
         try:
             # Create hotspot connection
-            cmd = [
+            cmd = self._build_command([
                 "nmcli",
                 "connection",
                 "add",
@@ -416,7 +431,7 @@ class WiFiManager:
                 "no",
                 "ssid",
                 ssid,
-            ]
+            ])
 
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -428,60 +443,60 @@ class WiFiManager:
 
             # Configure hotspot settings
             config_commands = [
-                [
+                self._build_command([
                     "nmcli",
                     "connection",
                     "modify",
                     self._hotspot_connection_name,
                     "802-11-wireless.mode",
                     "ap",
-                ],
-                [
+                ]),
+                self._build_command([
                     "nmcli",
                     "connection",
                     "modify",
                     self._hotspot_connection_name,
                     "802-11-wireless.band",
                     "bg",
-                ],
-                [
+                ]),
+                self._build_command([
                     "nmcli",
                     "connection",
                     "modify",
                     self._hotspot_connection_name,
                     "ipv4.method",
                     "shared",
-                ],
-                [
+                ]),
+                self._build_command([
                     "nmcli",
                     "connection",
                     "modify",
                     self._hotspot_connection_name,
                     "ipv4.addresses",
                     "192.168.4.1/24",
-                ],
+                ]),
             ]
 
             # Add security if password provided
             if password:
                 config_commands.extend(
                     [
-                        [
+                        self._build_command([
                             "nmcli",
                             "connection",
                             "modify",
                             self._hotspot_connection_name,
                             "802-11-wireless-security.key-mgmt",
                             "wpa-psk",
-                        ],
-                        [
+                        ]),
+                        self._build_command([
                             "nmcli",
                             "connection",
                             "modify",
                             self._hotspot_connection_name,
                             "802-11-wireless-security.psk",
                             password,
-                        ],
+                        ]),
                     ]
                 )
 
@@ -497,7 +512,7 @@ class WiFiManager:
                     return False
 
             # Activate the hotspot
-            cmd = ["nmcli", "connection", "up", self._hotspot_connection_name]
+            cmd = self._build_command(["nmcli", "connection", "up", self._hotspot_connection_name])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -526,8 +541,8 @@ class WiFiManager:
 
             # Deactivate and remove hotspot connection
             cmds = [
-                ["nmcli", "connection", "down", self._hotspot_connection_name],
-                ["nmcli", "connection", "delete", self._hotspot_connection_name],
+                self._build_command(["nmcli", "connection", "down", self._hotspot_connection_name]),
+                self._build_command(["nmcli", "connection", "delete", self._hotspot_connection_name]),
             ]
 
             for cmd in cmds:
@@ -616,7 +631,7 @@ class WiFiManager:
 
             if password:
                 # Use --ask flag for password authentication
-                cmd = ["nmcli", "--ask", "device", "wifi", "connect", ssid]
+                cmd = self._build_command(["nmcli", "--ask", "device", "wifi", "connect", ssid])
                 self.logger.debug(
                     f"Running command: {' '.join(cmd[:-1])} [password hidden]"
                 )
@@ -633,7 +648,7 @@ class WiFiManager:
                 _, stderr = await process.communicate(input=password_input.encode())
             else:
                 # Open network
-                cmd = ["nmcli", "device", "wifi", "connect", ssid]
+                cmd = self._build_command(["nmcli", "device", "wifi", "connect", ssid])
                 self.logger.debug(f"Running command: {' '.join(cmd)}")
 
                 process = await asyncio.create_subprocess_exec(
@@ -735,7 +750,7 @@ class WiFiManager:
     async def _verify_connection_by_profile(self, ssid: str) -> bool:
         """Verify connection by checking if the connection profile is active"""
         try:
-            cmd = ["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"]
+            cmd = self._build_command(["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -760,7 +775,7 @@ class WiFiManager:
         """Verify connection by checking device WiFi properties directly"""
         try:
             # Get WiFi device
-            cmd = ["nmcli", "-t", "-f", "DEVICE,TYPE", "device", "status"]
+            cmd = self._build_command(["nmcli", "-t", "-f", "DEVICE,TYPE", "device", "status"])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -781,7 +796,7 @@ class WiFiManager:
                 return False
 
             # Check if device is connected to our target SSID
-            cmd = ["iwgetid", wifi_device, "--raw"]
+            cmd = self._build_command(["iwgetid", wifi_device, "--raw"])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -801,7 +816,7 @@ class WiFiManager:
     async def _remove_existing_connection(self, ssid: str):
         """Remove any existing connection profile for the SSID"""
         try:
-            cmd = ["nmcli", "connection", "delete", ssid]
+            cmd = self._build_command(["nmcli", "connection", "delete", ssid])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -814,7 +829,7 @@ class WiFiManager:
     async def _cleanup_hotspot_connection(self):
         """Clean up hotspot connection"""
         try:
-            cmd = ["nmcli", "connection", "delete", self._hotspot_connection_name]
+            cmd = self._build_command(["nmcli", "connection", "delete", self._hotspot_connection_name])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -834,7 +849,7 @@ class WiFiManager:
             )
 
             # Try to reconnect to original network
-            cmd = ["nmcli", "connection", "up", self._original_connection]
+            cmd = self._build_command(["nmcli", "connection", "up", self._original_connection])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )

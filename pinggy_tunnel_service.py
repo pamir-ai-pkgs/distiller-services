@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Pinggy Tunnel Service - SSH Tunnel Manager with WiFi Info Display Integration
 
@@ -41,6 +40,7 @@ class PinggyTunnelManager:
         self.current_process: Optional[subprocess.Popen] = None
         self.current_url: Optional[str] = None
         self.running = False
+        self._use_sudo = self._should_use_sudo()
         
         # Setup logging
         self.setup_logging()
@@ -48,6 +48,21 @@ class PinggyTunnelManager:
         
         # Network utilities
         self.network_utils = NetworkUtils()
+
+    def _should_use_sudo(self) -> bool:
+        """Determine if we should use sudo for privileged commands"""
+        # Use sudo if we're running as the 'distiller' user
+        current_user = os.getenv('USER') or os.getenv('USERNAME') or 'unknown'
+        return current_user == 'distiller'
+
+    def _build_command(self, base_cmd: list[str]) -> list[str]:
+        """Build command with sudo prefix if needed for privileged operations"""
+        # SSH doesn't typically need sudo, but include for completeness
+        privileged_commands = {'systemctl', 'ip', 'nmcli', 'hostname'}
+        
+        if self._use_sudo and base_cmd and base_cmd[0] in privileged_commands:
+            return ['sudo'] + base_cmd
+        return base_cmd
     
     def setup_logging(self):
         """Configure logging"""

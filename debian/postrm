@@ -15,13 +15,36 @@ case "$1" in
         log "Removing wrapper scripts..."
         rm -f /usr/local/bin/distiller-wifi-setup
         rm -f /usr/local/bin/distiller-tunnel
-        rm -f /usr/local/bin/distiller-mdns
+        rm -f /usr/local/bin/distiller-display
         
-        # Remove virtual environment
-        if [ -d /opt/distiller-cm5-services/venv ]; then
+        # Remove permission configuration files
+        log "Removing permission configuration files..."
+        rm -f /etc/sudoers.d/distiller-system
+        rm -f /etc/polkit-1/rules.d/50-distiller-networkmanager.rules
+        rm -f /etc/udev/rules.d/99-distiller-hardware.rules
+        
+        # Remove virtual environment (.venv not venv)
+        if [ -d /opt/distiller-cm5-services/.venv ]; then
             log "Removing virtual environment..."
-            rm -rf /opt/distiller-cm5-services/venv
+            rm -rf /opt/distiller-cm5-services/.venv
         fi
+        
+        # Remove uv lock file
+        rm -f /opt/distiller-cm5-services/uv.lock
+        
+        # Remove distiller user and directories on purge
+        log "Removing distiller user and system directories..."
+        if getent passwd distiller >/dev/null 2>&1; then
+            # Check if this is the distiller user created by our package
+            if [ "$(getent passwd distiller | cut -d: -f6)" = "/opt/distiller-cm5-services" ]; then
+                deluser --system distiller 2>/dev/null || true
+                log "Removed distiller user"
+            fi
+        fi
+        
+        # Remove system directories
+        rm -rf /var/log/distiller-cm5-services
+        rm -rf /etc/distiller
         
         # Remove any generated files in /opt/distiller-cm5-services
         # (but preserve fonts directory if it was manually populated)
@@ -129,6 +152,10 @@ case "$1" in
         if systemctl is-system-running >/dev/null 2>&1; then
             log "Reloading systemd daemon..."
             systemctl daemon-reload || true
+            
+            # Restart polkit to reload rules after removing permission files
+            log "Restarting polkit to reload permission rules..."
+            systemctl restart polkit 2>/dev/null || true
         fi
         
         log "Purge cleanup completed"

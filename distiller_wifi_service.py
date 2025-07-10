@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Distiller WiFi Service
 
@@ -1187,7 +1186,7 @@ class DistillerWiFiServiceFixed:
         """Get networks without stopping hotspot - use alternative method"""
         try:
             # Use a different approach that doesn't interfere with hotspot
-            cmd = [
+            base_cmd = [
                 "nmcli",
                 "-t",
                 "-f",
@@ -1198,6 +1197,8 @@ class DistillerWiFiServiceFixed:
                 "--rescan",
                 "no",
             ]
+            # Use WiFiManager's sudo handling for privileged commands
+            cmd = self.wifi_manager._build_command(base_cmd)
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -1272,10 +1273,7 @@ def main():
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # Check root privileges
-    if os.geteuid() != 0:
-        print("Error: This service requires root privileges")
-        sys.exit(1)
+    # Service now runs as distiller user with proper sudo permissions
 
     try:
         service = DistillerWiFiServiceFixed(

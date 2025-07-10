@@ -7,9 +7,10 @@ ConditionPathExists=/sys/class/net/wlan0/carrier
 
 [Service]
 Type=simple
-User=root
+User=distiller
+Group=distiller
 WorkingDirectory=/opt/distiller-cm5-services
-ExecStart=/usr/local/bin/distiller-tunnel --port 3000
+ExecStart=/opt/distiller-cm5-services/.venv/bin/python pinggy_tunnel_service.py --port 3000
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -20,6 +21,9 @@ Environment="PYTHONUNBUFFERED=1"
 
 # Give WiFi setup time to complete
 ExecStartPre=/bin/sleep 30
+
+# Security settings
+SupplementaryGroups=netdev gpio spi dialout audio
 
 [Install]
 WantedBy=multi-user.target

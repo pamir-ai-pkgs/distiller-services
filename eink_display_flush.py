@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Simple E-Ink Display Script
 Minimal standalone script to display images on e-ink display

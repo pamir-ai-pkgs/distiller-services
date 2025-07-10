@@ -1,97 +1,313 @@
-#!/bin/bash
-
+#!/bin/sh
 set -e
+
+# Source debian helper functions
+. /usr/share/debconf/confmodule
 
 # Log function for better debugging
 log() {
-    echo "[postinst] $1" >&2
+	echo "[postinst] $1" >&2
 }
 
 case "$1" in
-    configure)
-        log "Starting configuration..."
-        
-        # Create virtual environment for Python dependencies
-        VENV_DIR="/opt/distiller-cm5-services/venv"
-        log "Creating virtual environment at $VENV_DIR..."
-        
-        if [ ! -d "$VENV_DIR" ]; then
-            python3 -m venv "$VENV_DIR"
-            log "Virtual environment created successfully"
-        else
-            log "Virtual environment already exists"
-        fi
-        
-        # Install Python dependencies in virtual environment
-        if [ -f /opt/distiller-cm5-services/requirements.txt ]; then
-            log "Installing Python dependencies in virtual environment..."
-            "$VENV_DIR/bin/pip" install --upgrade pip
-            
-            # Try to install requirements, but continue even if some fail
-            if ! "$VENV_DIR/bin/pip" install -r /opt/distiller-cm5-services/requirements.txt; then
-                log "Warning: Some Python dependencies failed to install, but continuing..."
-                log "System python3-dbus package will be used instead of pip-installed dbus-python"
-            else
-                log "Python dependencies installed successfully"
-            fi
-        else
-            log "No requirements.txt found, skipping Python dependency installation"
-        fi
-        
-        # Create wrapper scripts that use the virtual environment
-        log "Creating wrapper scripts..."
-        
-        # Create distiller-wifi-setup wrapper
-        cat > /usr/local/bin/distiller-wifi-setup <<EOF
-#!/bin/bash
-cd /opt/distiller-cm5-services
-exec /opt/distiller-cm5-services/venv/bin/python distiller_wifi_service.py "\$@"
+configure)
+	log "Starting configuration..."
+
+	# Create distiller group if it doesn't exist
+	if ! getent group distiller >/dev/null 2>&1; then
+		addgroup --system distiller
+		log "Created distiller group"
+	fi
+
+	# Create distiller user if it doesn't exist
+	if ! getent passwd distiller >/dev/null 2>&1; then
+		adduser --system --ingroup distiller --home /opt/distiller-cm5-services --shell /bin/bash distiller
+		log "Created distiller user"
+	fi
+
+	# Add distiller user to required system groups for hardware and network access
+	usermod -a -G netdev,gpio,spi,dialout,audio distiller 2>/dev/null || true
+	log "Added distiller user to system groups: netdev, gpio, spi, dialout, audio"
+
+	# Install uv if not available
+	UV_BINARY=""
+	if command -v uv >/dev/null 2>&1; then
+		UV_BINARY="uv"
+		log "Found existing uv installation"
+	elif [ -f "/usr/local/bin/uv" ] && [ -x "/usr/local/bin/uv" ]; then
+		UV_BINARY="/usr/local/bin/uv"
+		export PATH="/usr/local/bin:$PATH"
+		log "Found uv in /usr/local/bin"
+	else
+		log "Installing uv package manager..."
+		# Install uv system-wide
+		if ! curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null 2>&1; then
+			log "Error: Failed to install uv package manager"
+			exit 1
+		fi
+
+		# Make uv available system-wide
+		if [ -f "/root/.local/bin/uv" ]; then
+			# Only copy if the target doesn't exist or is different
+			if [ ! -f "/usr/local/bin/uv" ] || ! cmp -s "/root/.local/bin/uv" "/usr/local/bin/uv"; then
+				cp /root/.local/bin/uv /usr/local/bin/uv 2>/dev/null || true
+			fi
+			if [ ! -f "/usr/local/bin/uvx" ] || ! cmp -s "/root/.local/bin/uvx" "/usr/local/bin/uvx"; then
+				cp /root/.local/bin/uvx /usr/local/bin/uvx 2>/dev/null || true
+			fi
+			chmod +x /usr/local/bin/uv /usr/local/bin/uvx 2>/dev/null || true
+			UV_BINARY="/usr/local/bin/uv"
+			export PATH="/usr/local/bin:$PATH"
+		else
+			log "Error: uv installation failed"
+			exit 1
+		fi
+	fi
+
+	# Verify uv installation
+	if [ -n "$UV_BINARY" ] && [ -x "$UV_BINARY" ]; then
+		true # uv is available
+	elif command -v uv >/dev/null 2>&1; then
+		UV_BINARY="uv"
+	else
+		log "Error: uv is not available after installation"
+		exit 1
+	fi
+
+	log "Using uv binary: $UV_BINARY"
+
+	# Set up SDK environment for virtual environment creation if available
+	export ORIGINAL_PYTHONPATH="${PYTHONPATH:-}"
+	export ORIGINAL_LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
+
+	if [ -d "/opt/distiller-cm5-sdk" ]; then
+		export PYTHONPATH="/opt/distiller-cm5-sdk:/opt/distiller-cm5-sdk/src:${PYTHONPATH:-}"
+		if [ -d "/opt/distiller-cm5-sdk/lib" ]; then
+			export LD_LIBRARY_PATH="/opt/distiller-cm5-sdk/lib:${LD_LIBRARY_PATH:-}"
+		fi
+	fi
+
+	# Create virtual environment for Python dependencies
+	VENV_PATH="/opt/distiller-cm5-services/.venv"
+	rm -rf "$VENV_PATH" 2>/dev/null || true
+	cd /opt/distiller-cm5-services
+
+	log "Creating virtual environment with uv..."
+	if ! "$UV_BINARY" venv "$VENV_PATH" --python python3.11 --system-site-packages; then
+		log "Error: Failed to create virtual environment with uv"
+		exit 1
+	fi
+
+	# Set ownership of virtual environment
+	chown -R distiller:distiller "$VENV_PATH"
+
+	# Install dependencies using uv sync
+	log "Installing dependencies with uv sync..."
+	if ! "$UV_BINARY" sync; then
+		log "Error: Failed to install dependencies with uv sync"
+		exit 1
+	fi
+
+	# Set proper ownership after installation
+	chown -R distiller:distiller "$VENV_PATH"
+	[ -f "/opt/distiller-cm5-services/uv.lock" ] && chown distiller:distiller "/opt/distiller-cm5-services/uv.lock"
+
+	# Restore original environment variables
+	export PYTHONPATH="$ORIGINAL_PYTHONPATH"
+	export LD_LIBRARY_PATH="$ORIGINAL_LD_LIBRARY_PATH"
+
+	# Verify installation
+	VENV_PYTHON="/opt/distiller-cm5-services/.venv/bin/python"
+	if [ ! -f "$VENV_PYTHON" ]; then
+		log "Error: Virtual environment setup failed - Python binary not found"
+		exit 1
+	fi
+
+	log "Virtual environment created successfully"
+
+	# Create necessary directories with proper ownership
+	log "Creating system directories..."
+	install -d -o distiller -g distiller -m 755 /var/log/distiller-cm5-services
+	install -d -o distiller -g distiller -m 755 /etc/distiller
+
+	# Set proper ownership for application files
+	log "Setting file ownership..."
+	find /opt/distiller-cm5-services -type f -exec chown distiller:distiller {} \;
+	find /opt/distiller-cm5-services -type d -exec chown distiller:distiller {} \;
+	chmod +x /opt/distiller-cm5-services/*.py
+
+	# Create comprehensive sudo rules for NetworkManager and system operations
+	log "Creating sudo rules for system operations..."
+	cat >/etc/sudoers.d/distiller-system <<EOF
+# Distiller service system access rules
+# NetworkManager operations
+distiller ALL=(ALL) NOPASSWD: /usr/bin/nmcli
+distiller ALL=(ALL) NOPASSWD: /usr/bin/nmcli *
+# Service management
+distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart avahi-daemon
+distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload avahi-daemon
+distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl start NetworkManager
+distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart NetworkManager
+# Network interface information
+distiller ALL=(ALL) NOPASSWD: /usr/bin/ip addr show*
+distiller ALL=(ALL) NOPASSWD: /usr/bin/ip link show*
+distiller ALL=(ALL) NOPASSWD: /usr/bin/iwgetid*
+# Hostname management
+distiller ALL=(ALL) NOPASSWD: /usr/bin/hostname
+distiller ALL=(ALL) NOPASSWD: /usr/bin/hostnamectl*
+# File operations for configuration
+distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hostname
+distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hosts
 EOF
-        chmod 755 /usr/local/bin/distiller-wifi-setup
-        
-        # Create tunnel wrapper
-        cat > /usr/local/bin/distiller-tunnel <<EOF
-#!/bin/bash
-cd /opt/distiller-cm5-services
-exec /opt/distiller-cm5-services/venv/bin/python pinggy_tunnel_service.py "\$@"
+	chmod 440 /etc/sudoers.d/distiller-system
+
+	# Create PolicyKit rules for NetworkManager D-Bus access
+	log "Creating PolicyKit rules for NetworkManager D-Bus access..."
+	mkdir -p /etc/polkit-1/rules.d
+	cat >/etc/polkit-1/rules.d/50-distiller-networkmanager.rules <<EOF
+/* Allow distiller user to manage NetworkManager without authentication */
+polkit.addRule(function(action, subject) {
+    if ((action.id == "org.freedesktop.NetworkManager.settings.modify.system" ||
+         action.id == "org.freedesktop.NetworkManager.settings.modify.own" ||
+         action.id == "org.freedesktop.NetworkManager.network-control" ||
+         action.id == "org.freedesktop.NetworkManager.wifi.share.protected" ||
+         action.id == "org.freedesktop.NetworkManager.wifi.share.open" ||
+         action.id == "org.freedesktop.NetworkManager.settings.modify.hostname") &&
+        subject.user == "distiller") {
+        return polkit.Result.YES;
+    }
+});
+
+/* Allow distiller user to control system services related to networking */
+polkit.addRule(function(action, subject) {
+    if ((action.id == "org.freedesktop.systemd1.manage-units" ||
+         action.id == "org.freedesktop.systemd1.reload-daemon") &&
+        subject.user == "distiller") {
+        return polkit.Result.YES;
+    }
+});
 EOF
-        chmod 755 /usr/local/bin/distiller-tunnel
-        
-        # Create mdns wrapper
-        cat > /usr/local/bin/distiller-mdns <<EOF
+	chmod 644 /etc/polkit-1/rules.d/50-distiller-networkmanager.rules
+
+	# Create wrapper scripts that handle user switching appropriately
+	log "Creating wrapper scripts..."
+
+	# Main WiFi service wrapper
+	cat >/usr/local/bin/distiller-wifi-setup <<EOF
 #!/bin/bash
+# WiFi Service Wrapper - handles user permissions automatically
+
+set -e
 cd /opt/distiller-cm5-services
-exec /opt/distiller-cm5-services/venv/bin/python mdns_service.py "\$@"
+
+# Function to run as distiller user
+run_as_distiller() {
+    if [ "\$(id -un)" = "distiller" ]; then
+        # Already running as distiller user
+        exec /opt/distiller-cm5-services/.venv/bin/python distiller_wifi_service.py "\$@"
+    else
+        # Switch to distiller user
+        exec sudo -u distiller -g distiller -H /opt/distiller-cm5-services/.venv/bin/python distiller_wifi_service.py "\$@"
+    fi
+}
+
+# Check if we need elevated permissions
+if [ "\$(id -u)" = "0" ]; then
+    # Running as root, switch to distiller
+    run_as_distiller "\$@"
+else
+    # Check if current user is distiller or can sudo to distiller
+    if [ "\$(id -un)" = "distiller" ]; then
+        run_as_distiller "\$@"
+    else
+        # Regular user, use sudo to become distiller
+        run_as_distiller "\$@"
+    fi
+fi
 EOF
-        chmod 755 /usr/local/bin/distiller-mdns
-        
-        # Set proper permissions (non-recursive to avoid lintian warnings)
-        log "Setting file permissions..."
-        chown -R root:root /opt/distiller-cm5-services
-        find /opt/distiller-cm5-services -type f -exec chmod 644 {} \;
-        find /opt/distiller-cm5-services -type d -exec chmod 755 {} \;
-        chmod 755 /opt/distiller-cm5-services/*.py
-        
-        # Set proper permissions for virtual environment
-        if [ -d "$VENV_DIR" ]; then
-            find "$VENV_DIR" -type f -name "python*" -exec chmod 755 {} \;
-            find "$VENV_DIR" -type f -name "pip*" -exec chmod 755 {} \;
-        fi
-        
-        log "Configuration completed successfully"
-        ;;
-    
-    abort-upgrade|abort-remove|abort-deconfigure)
-        log "Called with argument: $1"
-        ;;
-    
-    *)
-        log "Called with unknown argument: $1"
-        echo "postinst called with unknown argument \`$1'" >&2
-        exit 1
-        ;;
+	chmod 755 /usr/local/bin/distiller-wifi-setup
+
+	# Tunnel service wrapper
+	cat >/usr/local/bin/distiller-tunnel <<EOF
+#!/bin/bash
+# Tunnel Service Wrapper
+
+set -e
+cd /opt/distiller-cm5-services
+
+if [ "\$(id -un)" = "distiller" ]; then
+    exec /opt/distiller-cm5-services/.venv/bin/python pinggy_tunnel_service.py "\$@"
+else
+    exec sudo -u distiller -g distiller -H /opt/distiller-cm5-services/.venv/bin/python pinggy_tunnel_service.py "\$@"
+fi
+EOF
+	chmod 755 /usr/local/bin/distiller-tunnel
+
+	# Display service wrapper
+	cat >/usr/local/bin/distiller-display <<EOF
+#!/bin/bash
+# Display Service Wrapper
+
+set -e
+cd /opt/distiller-cm5-services
+
+if [ "\$(id -un)" = "distiller" ]; then
+    exec /opt/distiller-cm5-services/.venv/bin/python wifi_info_display.py "\$@"
+else
+    exec sudo -u distiller -g distiller -H /opt/distiller-cm5-services/.venv/bin/python wifi_info_display.py "\$@"
+fi
+EOF
+	chmod 755 /usr/local/bin/distiller-display
+
+	# Make sure distiller user can access device files
+	log "Setting device permissions..."
+	# Add udev rules for hardware access
+	cat >/etc/udev/rules.d/99-distiller-hardware.rules <<EOF
+# GPIO access for distiller user
+SUBSYSTEM=="gpio", GROUP="gpio", MODE="0664"
+# SPI access for e-ink display
+SUBSYSTEM=="spidev", GROUP="spi", MODE="0664"
+# Serial port access
+SUBSYSTEM=="tty", ATTRS{idVendor}=="*", GROUP="dialout", MODE="0664"
+EOF
+
+	# Reload systemd daemon to pick up new service configurations
+	systemctl daemon-reload 2>/dev/null || true
+
+	# Restart polkit to load new rules (if running)
+	if systemctl is-active --quiet polkit; then
+		systemctl restart polkit 2>/dev/null || true
+	fi
+
+	log "Configuration completed successfully!"
+	log ""
+	log "Distiller CM5 Services configured with proper permissions:"
+	log "- distiller user created with system group access"
+	log "- NetworkManager access via sudo and PolicyKit"
+	log "- Hardware access (GPIO, SPI) via group membership"
+	log "- Service wrappers handle user switching automatically"
+	log ""
+	log "Available commands:"
+	log "  distiller-wifi-setup [options]  - Start WiFi management service"
+	log "  distiller-tunnel [options]      - Start SSH tunnel service"
+	log "  distiller-display [options]     - Control e-ink display"
+	log ""
+	log "Services can be managed with:"
+	log "  sudo systemctl start distiller-wifi"
+	log "  sudo systemctl start pinggy-tunnel"
+	;;
+
+abort-upgrade | abort-remove | abort-deconfigure)
+	log "Called with argument: $1"
+	;;
+
+*)
+	log "Called with unknown argument: $1"
+	echo "postinst called with unknown argument \`$1'" >&2
+	exit 1
+	;;
 esac
 
 #DEBHELPER#
 
-exit 0 
+exit 0

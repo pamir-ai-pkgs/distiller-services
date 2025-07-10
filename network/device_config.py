@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Device Configuration Manager
 
@@ -38,12 +37,27 @@ class DeviceConfigManager:
         self._config_cache: Optional[Dict[str, Any]] = None
         self._zeroconf_thread: Optional[threading.Thread] = None
         self._running = False
+        self._use_sudo = self._should_use_sudo()
 
         # Ensure config directory exists
         self.config_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
 
         # Initialize configuration
         self._load_or_create_config()
+
+    def _should_use_sudo(self) -> bool:
+        """Determine if we should use sudo for privileged commands"""
+        # Use sudo if we're running as the 'distiller' user
+        current_user = os.getenv('USER') or os.getenv('USERNAME') or 'unknown'
+        return current_user == 'distiller'
+
+    def _build_command(self, base_cmd: list[str]) -> list[str]:
+        """Build command with sudo prefix if needed for privileged operations"""
+        privileged_commands = {'hostname', 'systemctl', 'ip', 'nmcli'}
+        
+        if self._use_sudo and base_cmd and base_cmd[0] in privileged_commands:
+            return ['sudo'] + base_cmd
+        return base_cmd
 
     def _generate_random_suffix(self, length: int = 4) -> str:
         """Generate random alphanumeric suffix"""
@@ -144,7 +158,7 @@ class DeviceConfigManager:
                 f.write(f"{hostname}\n")
 
             # Update current hostname
-            subprocess.run(["hostname", hostname], check=True)
+            subprocess.run(self._build_command(["hostname", hostname]), check=True)
 
             # Update /etc/hosts
             self._update_hosts_file(hostname)
@@ -263,7 +277,7 @@ rlimit-nproc=3
             os.chmod(avahi_config_path, 0o644)
 
             # Restart Avahi daemon
-            subprocess.run(["systemctl", "restart", "avahi-daemon"], check=False)
+            subprocess.run(self._build_command(["systemctl", "restart", "avahi-daemon"]), check=False)
 
             logger.info(f"Updated Avahi configuration with hostname: {hostname}")
 

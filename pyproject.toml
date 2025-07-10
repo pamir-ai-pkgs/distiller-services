@@ -1,0 +1,52 @@
+[project]
+name = "distiller-cm5-services"
+version = "0.0.1"
+description = "WiFi setup and network management for Raspberry Pi CM5 Distiller devices"
+authors = [{name = "PamirAI Incorporated", email = "support@pamir.ai"}]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.9.3",
+    "cachetools>=5.3.2",
+    "evdev>=1.6.1",
+    "fastapi>=0.109.2",
+    "flask>=3.0.2",
+    "jinja2>=3.1.3",
+    "lgpio>=0.2.2.0",
+    "numpy>=1.26.4",
+    "pillow>=10.2.0",
+    "pydantic>=2.6.1",
+    "python-multipart>=0.0.9",
+    "python-networkmanager>=2.2",
+    "qrcode[pil]>=7.4.2",
+    "spidev>=3.7",
+    "uvicorn[standard]>=0.27.1",
+    "zeroconf>=0.147.0",
+]
+
+[project.scripts]
+"distiller-wifi-setup" = "distiller_wifi_service:main"
+"distiller-tunnel" = "pinggy_tunnel_service:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "isort>=5.0",
+    "flake8>=6.0",
+    "mypy>=1.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["distiller_cm5_services*", "network*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.toml", "*.txt", "*.md", "*.py", "*.sh", "*.html", "*.css", "*.js", "*.svg", "*.ttf"]
+
+[tool.uv]
+dev-dependencies = []
