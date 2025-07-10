@@ -17,7 +17,10 @@ StandardOutput=journal
 StandardError=journal
 
 # Environment variables
-Environment="PYTHONUNBUFFERED=1"
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONPATH=/opt/distiller-cm5-sdk:/opt/distiller-cm5-sdk/src
+Environment=LD_LIBRARY_PATH=/opt/distiller-cm5-sdk/lib
 
 # Give WiFi setup time to complete
 ExecStartPre=/bin/sleep 30
