@@ -87,11 +87,15 @@ case "$1" in
             fi
         fi
         
-        # Clean up any potential Python cache files
-        log "Cleaning up Python cache files..."
+        # Clean up any potential Python cache files and setuptools metadata
+        log "Cleaning up Python cache files and setuptools metadata..."
         find /opt/distiller-cm5-services -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
         find /opt/distiller-cm5-services -name "*.pyc" -delete 2>/dev/null || true
         find /opt/distiller-cm5-services -name "*.pyo" -delete 2>/dev/null || true
+        
+        # Remove setuptools/pip generated metadata directories
+        find /opt/distiller-cm5-services -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
+        find /opt/distiller-cm5-services -type d -name "*.dist-info" -exec rm -rf {} + 2>/dev/null || true
         
         # Clean up any potential log files in system directories
         log "Cleaning up log files..."
@@ -164,7 +168,15 @@ case "$1" in
     remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
         log "Called with argument: $1"
         # For remove/upgrade, systemd services are handled by dh_installsystemd
-        # We don't need to do additional cleanup here
+        # Clean up generated metadata that shouldn't persist after package removal
+        if [ "$1" = "remove" ] && [ -d /opt/distiller-cm5-services ]; then
+            log "Cleaning up generated metadata during remove..."
+            find /opt/distiller-cm5-services -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
+            find /opt/distiller-cm5-services -type d -name "*.dist-info" -exec rm -rf {} + 2>/dev/null || true
+            find /opt/distiller-cm5-services -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+            find /opt/distiller-cm5-services -name "*.pyc" -delete 2>/dev/null || true
+            find /opt/distiller-cm5-services -name "*.pyo" -delete 2>/dev/null || true
+        fi
         ;;
     
     *)
