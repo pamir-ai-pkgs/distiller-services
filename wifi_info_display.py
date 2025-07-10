@@ -63,9 +63,9 @@ def get_eink_display_dimensions():
     """
     try:
         from distiller_cm5_sdk.hardware.eink import Display
-        display = Display(auto_init=False)
+        display = Display()
         width, height = display.get_dimensions()
-        logger.debug(f"Got display dimensions from SDK: {width}x{height}")
+        logger.info(f"Got display dimensions from SDK: {width}x{height}")
         return width, height
     except Exception as e:
         logger.warning(f"Could not get display dimensions from SDK: {e}")

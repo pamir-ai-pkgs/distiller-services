@@ -971,7 +971,7 @@ class DistillerWiFiServiceFixed:
             # Create a simple connecting image with correct SDK dimensions
             try:
                 from distiller_cm5_sdk.hardware.eink import Display
-                display = Display(auto_init=False)
+                display = Display()
                 width, height = display.get_dimensions()
                 self.logger.debug(f"Got display dimensions from SDK: {width}x{height}")
             except Exception as e:
