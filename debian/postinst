@@ -158,6 +158,13 @@ distiller ALL=(ALL) NOPASSWD: /usr/bin/hostnamectl*
 # File operations for configuration
 distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hostname
 distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hosts
+distiller ALL=(ALL) NOPASSWD: /usr/bin/hostnamectl
+distiller ALL=(ALL) NOPASSWD: /bin/hostname
+distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart avahi-daemon
+distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload avahi-daemon
+distiller ALL=(ALL) NOPASSWD: /bin/sh -c echo * > /etc/hostname
+distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hostname
+distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hosts
 EOF
 	chmod 440 /etc/sudoers.d/distiller-system
 
@@ -172,6 +179,7 @@ polkit.addRule(function(action, subject) {
          action.id == "org.freedesktop.NetworkManager.network-control" ||
          action.id == "org.freedesktop.NetworkManager.wifi.share.protected" ||
          action.id == "org.freedesktop.NetworkManager.wifi.share.open" ||
+         action.id == "org.freedesktop.hostname1.set-static-hostname" ||
          action.id == "org.freedesktop.NetworkManager.settings.modify.hostname") &&
         subject.user == "distiller") {
         return polkit.Result.YES;

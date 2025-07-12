@@ -54,23 +54,174 @@ except ImportError as e:
     sys.exit(1)
 
 
-def get_eink_display_dimensions():
+# Global display instance for acquire/release pattern
+_display_instance = None
+
+
+def acquire_display_lock(max_retries=3, retry_delay=1.0):
     """
-    Get e-ink display dimensions from distiller-cm5-sdk
+    Acquire exclusive access to the e-ink display.
+    
+    This function implements the acquire/release pattern to allow sharing
+    of the e-ink display between multiple services and programs.
+    
+    Args:
+        max_retries: Maximum number of retry attempts (default: 3)
+        retry_delay: Delay between retries in seconds (default: 1.0)
+    
+    Returns:
+        Display: Display instance if successful, None if failed
+    """
+    global _display_instance
+    import time
+    
+    for attempt in range(max_retries + 1):
+        try:
+            if _display_instance is None:
+                _display_instance = Display()
+                logger.debug(f"Display lock acquired successfully (attempt {attempt + 1})")
+                return _display_instance
+            else:
+                logger.warning("Display already acquired by this process")
+                return _display_instance
+                
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning(f"Failed to acquire display lock on attempt {attempt + 1}/{max_retries + 1}: {e}")
+                logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                logger.error(f"Failed to acquire display lock after {max_retries + 1} attempts: {e}")
+                return None
+    
+    return None
+
+
+def release_display_lock():
+    """
+    Release exclusive access to the e-ink display.
+    
+    This allows other services and programs to use the display.
+    """
+    global _display_instance
+    
+    try:
+        if _display_instance is not None:
+            # Clean up display instance
+            _display_instance = None
+            logger.debug("Display lock released successfully")
+        else:
+            logger.debug("Display lock was not held by this process")
+    except Exception as e:
+        logger.warning(f"Error releasing display lock: {e}")
+        _display_instance = None  # Force release even if error occurred
+
+
+def with_display_lock(func):
+    """
+    Decorator to automatically acquire and release display lock around a function.
+    
+    Usage:
+        @with_display_lock
+        def my_display_function():
+            # Your display code here
+            pass
+    """
+    def wrapper(*args, **kwargs):
+        display = acquire_display_lock()
+        if display is None:
+            logger.error("Could not acquire display lock for operation")
+            return False
+        
+        try:
+            return func(*args, **kwargs)
+        finally:
+            release_display_lock()
+    
+    return wrapper
+
+
+def wait_for_display_handoff(max_wait_time=30, check_interval=2):
+    """
+    Wait for the RP2040 → RPi CM5 e-ink display handoff to complete.
+    
+    This function attempts to detect when the e-ink display becomes available
+    for the RPi CM5 to use by trying basic SDK operations.
+    
+    Args:
+        max_wait_time: Maximum time to wait in seconds (default: 30)
+        check_interval: Time between checks in seconds (default: 2)
+    
+    Returns:
+        bool: True if display becomes available, False if timeout
+    """
+    import time
+    
+    logger.info(f"Waiting for e-ink display handoff from RP2040 (max {max_wait_time}s)...")
+    
+    start_time = time.time()
+    while time.time() - start_time < max_wait_time:
+        try:
+            # Try to get display info - this is a lightweight test
+            get_display_info()
+            logger.info("E-ink display handoff completed successfully")
+            return True
+        except Exception as e:
+            logger.debug(f"Display not ready yet: {e}")
+            time.sleep(check_interval)
+    
+    logger.warning(f"E-ink display handoff timeout after {max_wait_time}s")
+    return False
+
+
+def get_eink_display_dimensions(max_retries=3, retry_delay=1.0):
+    """
+    Get e-ink display dimensions from distiller-cm5-sdk with acquire/release pattern
+    
+    This handles the RP2040 → RPi CM5 e-ink handoff issue during boot and
+    uses the acquire/release pattern for display sharing.
+    
+    Args:
+        max_retries: Maximum number of retry attempts (default: 3)
+        retry_delay: Delay between retries in seconds (default: 1.0)
     
     Returns:
         Tuple of (width, height) in pixels
     """
-    try:
-        from distiller_cm5_sdk.hardware.eink import Display
-        display = Display()
-        width, height = display.get_dimensions()
-        logger.info(f"Got display dimensions from SDK: {width}x{height}")
-        return width, height
-    except Exception as e:
-        logger.warning(f"Could not get display dimensions from SDK: {e}")
-        logger.warning("Falling back to default 128x250 dimensions")
-        return 128, 250
+    import time
+    
+    for attempt in range(max_retries + 1):
+        # Acquire display lock for this operation
+        display = acquire_display_lock()
+        if display is None:
+            if attempt < max_retries:
+                logger.warning(f"Could not acquire display lock for dimensions on attempt {attempt + 1}/{max_retries + 1}")
+                logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                continue
+            else:
+                logger.warning(f"Could not acquire display lock for dimensions after {max_retries + 1} attempts")
+                logger.warning("Falling back to default 128x250 dimensions")
+                return 128, 250
+        
+        try:
+            width, height = display.get_dimensions()
+            logger.info(f"Got display dimensions from SDK: {width}x{height} (attempt {attempt + 1})")
+            return width, height
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning(f"Could not get display dimensions on attempt {attempt + 1}/{max_retries + 1}: {e}")
+                logger.info(f"Retrying in {retry_delay} seconds (RP2040 handoff may be in progress)...")
+                time.sleep(retry_delay)
+            else:
+                logger.warning(f"Could not get display dimensions from SDK after {max_retries + 1} attempts: {e}")
+                logger.warning("Falling back to default 128x250 dimensions")
+                return 128, 250
+        finally:
+            # Always release the display lock
+            release_display_lock()
+    
+    return 128, 250
 
 
 def create_wifi_info_image(
@@ -428,22 +579,70 @@ def create_wifi_info_image(
     return filename
 
 
-def display_on_eink(image_path):
-    """Display the image on the e-ink screen using distiller-cm5-sdk"""
-    logger.info("Displaying image on e-ink screen...")
+def display_on_eink(image_path, max_retries=5, retry_delay=2.0, wait_for_handoff=True):
+    """Display the image on the e-ink screen using acquire/release pattern
+    
+    This function now uses the acquire/release pattern to allow sharing of the
+    e-ink display between multiple services and programs.
+    
+    Args:
+        image_path: Path to the image file to display
+        max_retries: Maximum number of retry attempts (default: 5)
+        retry_delay: Delay between retries in seconds (default: 2.0)
+        wait_for_handoff: Whether to wait for display handoff first (default: True)
+    
+    Returns:
+        bool: True if successful, False if all retries failed
+    """
+    import time
+    
+    # First, wait for the display handoff if requested
+    if wait_for_handoff:
+        if not wait_for_display_handoff():
+            logger.warning("Display handoff timeout, proceeding with retry logic anyway...")
+    
+    logger.info(f"Displaying image on e-ink screen with acquire/release pattern (max_retries={max_retries})...")
 
-    try:
-        # Use the distiller-cm5-sdk convenience function
-        display_png(image_path, DisplayMode.FULL)
-        logger.info("WiFi info displayed successfully on e-ink using distiller-cm5-sdk")
-        return True
+    for attempt in range(max_retries + 1):
+        # Acquire display lock for this operation
+        display = acquire_display_lock()
+        if display is None:
+            if attempt < max_retries:
+                logger.warning(f"Could not acquire display lock on attempt {attempt + 1}/{max_retries + 1}")
+                logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                continue
+            else:
+                logger.error(f"Could not acquire display lock after {max_retries + 1} attempts")
+                return False
+        
+        try:
+            # Use the distiller-cm5-sdk convenience function
+            display_png(image_path, DisplayMode.FULL)
+            logger.info(f"WiFi info displayed successfully on e-ink using distiller-cm5-sdk (attempt {attempt + 1})")
+            return True
 
-    except DisplayError as e:
-        logger.error(f"Display error: {e}")
-        return False
-    except Exception as e:
-        logger.error(f"Unexpected error displaying on e-ink: {e}")
-        return False
+        except DisplayError as e:
+            if attempt < max_retries:
+                logger.warning(f"Display error on attempt {attempt + 1}/{max_retries + 1}: {e}")
+                logger.info(f"Retrying in {retry_delay} seconds (display may still be controlled by RP2040)...")
+                time.sleep(retry_delay)
+            else:
+                logger.error(f"Display error after {max_retries + 1} attempts: {e}")
+                return False
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning(f"Unexpected error on attempt {attempt + 1}/{max_retries + 1}: {e}")
+                logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                logger.error(f"Unexpected error after {max_retries + 1} attempts: {e}")
+                return False
+        finally:
+            # Always release the display lock
+            release_display_lock()
+    
+    return False
 
 
 def create_wifi_setup_image(

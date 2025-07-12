@@ -63,6 +63,23 @@ class DeviceConfigManager:
         """Generate random alphanumeric suffix"""
         return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
+    def _get_current_hostname(self) -> str:
+        """Get current system hostname"""
+        try:
+            result = subprocess.run(['hostname'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception as e:
+            logger.error(f"Failed to get current hostname: {e}")
+        
+        # Fallback to socket method
+        try:
+            import socket
+            return socket.gethostname()
+        except Exception as e:
+            logger.error(f"Failed to get hostname via socket: {e}")
+            return "unknown"
+
     def _load_or_create_config(self) -> Dict[str, Any]:
         """Load existing config or create new one with random identifiers"""
         try:
@@ -74,6 +91,13 @@ class DeviceConfigManager:
                     if all(field in config for field in required_fields):
                         self._config_cache = config
                         logger.info(f"Loaded device config: {config['device_id']}")
+                        
+                        # Always ensure system hostname matches config hostname
+                        current_hostname = self._get_current_hostname()
+                        if current_hostname != config["hostname"]:
+                            logger.info(f"Hostname mismatch: system='{current_hostname}', config='{config['hostname']}' - updating system")
+                            self._update_system_hostname(config["hostname"])
+                        
                         return config
                     else:
                         logger.warning("Invalid config file, regenerating...")
@@ -151,23 +175,77 @@ class DeviceConfigManager:
         return self.get_config().get("web_port", 8080)
 
     def _update_system_hostname(self, hostname: str) -> bool:
-        """Update system hostname"""
+        """Update system hostname with graceful fallback"""
         try:
-            # Update /etc/hostname
-            with open("/etc/hostname", "w") as f:
-                f.write(f"{hostname}\n")
+            current_hostname = self._get_current_hostname()
+            logger.info(f"Attempting to update system hostname from '{current_hostname}' to '{hostname}'")
+            
+            success = False
+            
+            # Method 1: Try hostnamectl (preferred for systemd)
+            try:
+                cmd = self._build_command(["hostnamectl", "set-hostname", hostname])
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    logger.info(f"Successfully updated hostname using hostnamectl")
+                    success = True
+                else:
+                    logger.warning(f"hostnamectl failed (exit {result.returncode}): {result.stderr.strip()}")
+            except Exception as e:
+                logger.warning(f"hostnamectl method failed: {e}")
 
-            # Update current hostname
-            subprocess.run(self._build_command(["hostname", hostname]), check=True)
+            # Method 2: Try writing to /etc/hostname directly
+            if not success:
+                try:
+                    hostname_cmd = self._build_command(["tee", "/etc/hostname"])
+                    result = subprocess.run(hostname_cmd, input=f"{hostname}\n", 
+                                          capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        logger.info("Updated /etc/hostname successfully")
+                        # Set runtime hostname
+                        subprocess.run(self._build_command(["hostname", hostname]), 
+                                     check=False, timeout=5)
+                        success = True
+                    else:
+                        logger.warning(f"Failed to write /etc/hostname: {result.stderr.strip()}")
+                except Exception as e:
+                    logger.warning(f"Direct /etc/hostname update failed: {e}")
 
-            # Update /etc/hosts
-            self._update_hosts_file(hostname)
+            # If we can't update system hostname, just continue with service
+            if not success:
+                logger.warning(f"Could not update system hostname due to permissions")
+                logger.warning(f"Service will continue with hostname mismatch:")
+                logger.warning(f"  System hostname: {current_hostname}")
+                logger.warning(f"  Service config:  {hostname}")
+                logger.warning(f"  mDNS will advertise: {current_hostname}.local")
+                logger.warning(f"  Service will claim: {hostname}.local")
+                return False
+            
+            # Update /etc/hosts (optional, continue if fails)
+            try:
+                self._update_hosts_file(hostname)
+            except Exception as e:
+                logger.warning(f"Failed to update /etc/hosts: {e}")
 
-            # Update Avahi configuration
-            self._update_avahi_config(hostname)
+            # Update Avahi configuration (optional, continue if fails)
+            try:
+                self._update_avahi_config(hostname)
+                
+                # Restart avahi-daemon to pick up new hostname
+                subprocess.run(self._build_command(["systemctl", "restart", "avahi-daemon"]), 
+                             check=False, timeout=10)
+                logger.info("Restarted avahi-daemon")
+            except Exception as e:
+                logger.warning(f"Failed to update avahi config: {e}")
 
-            logger.info(f"Updated system hostname to: {hostname}")
-            return True
+            # Verify the change
+            new_hostname = self._get_current_hostname()
+            if new_hostname == hostname:
+                logger.info(f"Hostname successfully updated to: {hostname}")
+                return True
+            else:
+                logger.warning(f"Hostname verification: expected '{hostname}', got '{new_hostname}'")
+                return False
 
         except Exception as e:
             logger.error(f"Failed to update hostname: {e}")

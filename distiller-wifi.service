@@ -1,34 +1,38 @@
 [Unit]
-Description=Distiller WiFi Setup Service
-After=network.target NetworkManager.service
+Description=Distiller WiFi Setup Service (Oneshot - Exits After Connection)
+After=network.target NetworkManager.service multi-user.target
 Wants=network.target
 Wants=NetworkManager.service
+# Wait for system to be fully ready for RP2040 -> RPi CM5 handoff
+Requires=multi-user.target
 
 [Service]
-Type=simple
-User=distiller
-Group=distiller
+Type=oneshot
+RemainAfterExit=yes
+User=root
+Group=root
 WorkingDirectory=/opt/distiller-cm5-services
-ExecStartPre=/bin/sleep 10
-ExecStart=/opt/distiller-cm5-services/.venv/bin/python distiller_wifi_service.py
-Restart=on-failure
-RestartSec=5
-TimeoutStartSec=60
+# Use specialized startup script that handles display handoff
+ExecStart=/opt/distiller-cm5-services/start-wifi-service.sh
+# Oneshot services don't restart on failure - manual intervention required
+TimeoutStartSec=180
 TimeoutStopSec=30
 
 # Environment
 Environment=WIFI_HOTSPOT_SSID=SetupWiFi
 Environment=WIFI_HOTSPOT_PASSWORD=setupwifi123
 Environment=PYTHONUNBUFFERED=1
-Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONPATH=/opt/distiller-cm5-sdk:/opt/distiller-cm5-sdk/src
 Environment=LD_LIBRARY_PATH=/opt/distiller-cm5-sdk/lib
 
 # Security settings - relaxed for hardware and network access
 NoNewPrivileges=false
 ProtectSystem=false
-ReadWritePaths=/var/log /opt/distiller-cm5-services /etc/distiller /etc/NetworkManager/system-connections
+ReadWritePaths=/var/log /opt/distiller-cm5-services /etc/distiller /etc/NetworkManager/system-connections /etc/hostname /etc/hosts /etc/avahi
 SupplementaryGroups=netdev gpio spi dialout audio
+# Grant hostname management capabilities
+AmbientCapabilities=CAP_SYS_ADMIN
 
 [Install]
 WantedBy=multi-user.target

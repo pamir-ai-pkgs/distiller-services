@@ -11,6 +11,9 @@ override_dh_auto_install:
 	mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services
 	cp -r *.py network/ static/ templates/ debian/distiller-cm5-services/opt/distiller-cm5-services/
 	
+	# Install startup script for display handoff
+	cp start-wifi-service.sh debian/distiller-cm5-services/opt/distiller-cm5-services/
+	
 	# Install systemd service files
 	mkdir -p debian/distiller-cm5-services/lib/systemd/system
 	cp distiller-wifi.service debian/distiller-cm5-services/lib/systemd/system/
@@ -48,3 +51,5 @@ override_dh_fixperms:
 	chmod +x debian/distiller-cm5-services/opt/distiller-cm5-services/*.py
 	chmod +x debian/distiller-cm5-services/opt/distiller-cm5-services/network/*.py
 	chmod -x debian/distiller-cm5-services/opt/distiller-cm5-services/network/__init__.py
+	# Make startup script executable
+	chmod +x debian/distiller-cm5-services/opt/distiller-cm5-services/start-wifi-service.sh

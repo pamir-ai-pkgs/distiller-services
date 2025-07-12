@@ -1,9 +1,10 @@
 [Unit]
 Description=Pinggy SSH Tunnel Service
-After=network-online.target distiller-wifi.service
+After=network-online.target
 Wants=network-online.target
-# Only start if network is actually connected
+# Only start if network is actually connected and WiFi setup is complete
 ConditionPathExists=/sys/class/net/wlan0/carrier
+# Wait for network connectivity instead of depending on WiFi service state
 
 [Service]
 Type=simple
@@ -22,8 +23,8 @@ Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONPATH=/opt/distiller-cm5-sdk:/opt/distiller-cm5-sdk/src
 Environment=LD_LIBRARY_PATH=/opt/distiller-cm5-sdk/lib
 
-# Give WiFi setup time to complete
-ExecStartPre=/bin/sleep 30
+# Give network time to stabilize after connection
+ExecStartPre=/bin/sleep 15
 
 # Security settings
 SupplementaryGroups=netdev gpio spi dialout audio

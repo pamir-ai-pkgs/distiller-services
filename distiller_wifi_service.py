@@ -1,8 +1,9 @@
 """
-Distiller WiFi Service
+Distiller WiFi Service (Oneshot Mode)
 
 Handles single-radio WiFi hardware limitation with proper state management,
 web server coordination, and seamless user experience during transitions.
+Runs as a oneshot service - exits after successful WiFi connection to free resources.
 """
 
 import argparse
@@ -20,6 +21,7 @@ from enum import Enum
 
 from network.wifi_manager import WiFiManager
 from network.device_config import get_device_config
+from network.session_manager import get_session_manager, SessionStatus
 
 try:
     from flask import Flask, render_template, request, jsonify, redirect, url_for
@@ -51,8 +53,8 @@ class ServiceState(Enum):
     ERROR = "error"
 
 
-class DistillerWiFiServiceFixed:
-    """Fixed WiFi Setup Service with proper state transitions"""
+class DistillerWiFiService:
+    """Oneshot WiFi Setup Service with proper state transitions - exits after connection"""
 
     def __init__(
         self,
@@ -90,15 +92,22 @@ class DistillerWiFiServiceFixed:
         # Initialize WiFi manager
         self.wifi_manager = WiFiManager()
 
+        # Initialize session manager
+        self.session_manager = get_session_manager()
+
         # Flask app for web interface
         self.app = self._create_flask_app() if FLASK_AVAILABLE else None
         self.web_server_thread: Optional[threading.Thread] = None
+        
+        # Add custom template filters
+        if self.app:
+            self._add_template_filters()
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
-        self.logger.info("Fixed WiFi Service initialized")
+        self.logger.info("Oneshot WiFi Service initialized")
         self.logger.info(f"Device ID: {self.device_config.get_device_id()}")
         self.logger.info(f"Hostname: {self.device_config.get_hostname()}")
         self.logger.info(f"Hotspot SSID: {self.hotspot_ssid}")
@@ -130,8 +139,8 @@ class DistillerWiFiServiceFixed:
         )
 
     def _signal_handler(self, signum, frame):
-        """Handle shutdown signals"""
-        self.logger.info(f"Received signal {signum}, shutting down...")
+        """Handle shutdown signals for oneshot service"""
+        self.logger.info(f"Received signal {signum}, shutting down oneshot service...")
         self.running = False
 
     def _create_flask_app(self) -> Flask:
@@ -241,6 +250,26 @@ class DistillerWiFiServiceFixed:
                 self.logger.error(f"Error refreshing display: {e}")
                 return jsonify({"success": False, "error": str(e)}), 500
 
+        @app.route("/api/setup-status/<session_id>")
+        def api_setup_status(session_id):
+            """Get setup status for specific session"""
+            return self._handle_api_setup_status(session_id)
+
+        @app.route("/setup/success/<session_id>")
+        def setup_success(session_id):
+            """Show success page for specific session"""
+            return self._handle_setup_success(session_id)
+
+        @app.route("/api/session/validate", methods=["POST"])
+        def api_session_validate():
+            """Validate and refresh session"""
+            return self._handle_api_session_validate()
+
+        @app.route("/api/session/stats")
+        def api_session_stats():
+            """Get session statistics (for debugging)"""
+            return self._handle_api_session_stats()
+
         # Catch-all for captive portal
         @app.route("/<path:path>")
         def catch_all(path):
@@ -248,6 +277,19 @@ class DistillerWiFiServiceFixed:
             return redirect(url_for("index"))
 
         return app
+
+
+    def _add_template_filters(self):
+        """Add custom template filters"""
+        @self.app.template_filter('timestamp_to_time')
+        def timestamp_to_time(timestamp):
+            """Convert timestamp to readable time format"""
+            try:
+                from datetime import datetime
+                dt = datetime.fromtimestamp(float(timestamp))
+                return dt.strftime('%Y-%m-%d %H:%M:%S')
+            except (ValueError, TypeError):
+                return 'Unknown time'
 
     def _handle_index(self):
         """Handle main index page"""
@@ -338,18 +380,28 @@ class DistillerWiFiServiceFixed:
                     return jsonify({"success": False, "error": "No SSID provided"}), 400
                 return redirect(url_for("index"))
 
+            # Create setup session
+            user_agent = request.headers.get('User-Agent', 'Unknown')
+            session_id = self.session_manager.create_session(
+                target_ssid=ssid,
+                user_agent=user_agent
+            )
+
             # Store connection target
             self.target_ssid = ssid
             self.target_password = password
             self.connection_start_time = time.time()
 
-            self.logger.info(f"Starting connection process to '{ssid}' in background")
+            self.logger.info(f"Starting connection process to '{ssid}' in background (session: {session_id})")
+
+            # Update session status to connecting
+            self.session_manager.update_session_status(session_id, SessionStatus.CONNECTING)
 
             # Start connection in background
-            self._start_connection_background()
+            self._start_connection_background(session_id)
 
             if request.is_json:
-                return jsonify({"success": True, "message": "Connection started"})
+                return jsonify({"success": True, "message": "Connection started", "session_id": session_id})
             
             # Instead of immediately redirecting to status, show a connecting page
             # that will handle the hotspot disconnection gracefully
@@ -359,6 +411,8 @@ class DistillerWiFiServiceFixed:
                 device_name=self.device_name,
                 web_port=self.web_port,
                 hotspot_ip=self.hotspot_ip or "192.168.4.1",
+                session_id=session_id,  # Pass session ID to template
+                device_id=self.device_config.get_device_id(),
             )
 
         except Exception as e:
@@ -397,7 +451,7 @@ class DistillerWiFiServiceFixed:
         try:
             status_info = self._get_current_status()
             
-            # DEBUG: Log what we're actually returning
+            # Log response data for troubleshooting
             self.logger.info(f"API Status response: connected_to_target={status_info.get('connected_to_target')}, "
                             f"current_state={status_info.get('current_state')}, "
                             f"ssid={status_info.get('ssid')}, "
@@ -474,6 +528,126 @@ class DistillerWiFiServiceFixed:
         except Exception as e:
             self.logger.error(f"Error in API networks: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
+
+    def _handle_api_setup_status(self, session_id: str):
+        """Handle setup status API request for specific session"""
+        try:
+            session = self.session_manager.get_session(session_id)
+            if not session:
+                return jsonify({"success": False, "error": "Session not found or expired"}), 404
+            
+            # Get current WiFi status
+            status_info = self._get_current_status()
+            
+            # Combine session data with current status
+            response_data = {
+                "success": True,
+                "session": session.to_dict(),
+                "current_status": status_info,
+                "device_info": {
+                    "device_id": self.device_config.get_device_id(),
+                    "hostname": self.device_config.get_hostname(),
+                    "mdns_url": self.device_config.get_device_mdns_url(),
+                }
+            }
+            
+            # If session is connected and current status matches, include success redirect
+            if (session.status == SessionStatus.CONNECTED and 
+                status_info.get("connected_to_target", False)):
+                response_data["redirect_to_success"] = True
+                response_data["success_url"] = f"/setup/success/{session_id}"
+            
+            return jsonify(response_data)
+            
+        except Exception as e:
+            self.logger.error(f"Error in setup status API: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    def _handle_setup_success(self, session_id: str):
+        """Handle success page request for specific session"""
+        try:
+            session = self.session_manager.get_session(session_id)
+            if not session:
+                return render_template("error.html", 
+                                     error="Session not found or expired",
+                                     device_name=self.device_name), 404
+            
+            # Only show success page if session is actually connected
+            if session.status != SessionStatus.CONNECTED:
+                return redirect(url_for("index"))
+            
+            # Get current status and connection details
+            status_info = self._get_current_status()
+            connection_details = session.connection_details or {}
+            
+            # Prepare template data
+            template_data = {
+                "device_name": self.device_name,
+                "device_id": self.device_config.get_device_id(),
+                "hostname": self.device_config.get_hostname(),
+                "session": session.to_dict(),
+                "connection": connection_details,
+                "current_status": status_info,
+                "mdns_url": self.device_config.get_device_mdns_url(),
+                "web_port": self.web_port,
+                "tunnel_info": self._get_tunnel_info(),  # Will implement this
+            }
+            
+            # Mark success page as cached
+            self.session_manager.mark_success_page_cached(session_id)
+            
+            return render_template("success.html", **template_data)
+            
+        except Exception as e:
+            self.logger.error(f"Error in setup success: {e}")
+            return render_template("error.html", 
+                                 error="Failed to load success page",
+                                 device_name=self.device_name), 500
+
+    def _handle_api_session_validate(self):
+        """Handle session validation API request"""
+        try:
+            data = request.get_json() or {}
+            session_id = data.get("session_id")
+            
+            if not session_id:
+                return jsonify({"success": False, "error": "Session ID required"}), 400
+            
+            session = self.session_manager.get_session(session_id)
+            if not session:
+                return jsonify({"success": False, "error": "Session not found or expired"}), 404
+            
+            # Session is valid, return current status
+            return jsonify({
+                "success": True,
+                "session": session.to_dict(),
+                "valid": True,
+                "message": "Session is valid"
+            })
+            
+        except Exception as e:
+            self.logger.error(f"Error in session validate: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    def _handle_api_session_stats(self):
+        """Handle session statistics API request (for debugging)"""
+        try:
+            stats = self.session_manager.get_session_stats()
+            return jsonify({"success": True, "stats": stats})
+        except Exception as e:
+            self.logger.error(f"Error in session stats: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    def _get_tunnel_info(self) -> dict:
+        """Get tunnel information if available"""
+        # This will be enhanced when we integrate with tunnel service
+        # For now, return placeholder
+        return {
+            "available": False,
+            "url": None,
+            "qr_code": None,
+            "status": "starting"
+        }
 
 
 
@@ -638,16 +812,18 @@ class DistillerWiFiServiceFixed:
                 "hostname": self.device_config.get_hostname(),
             }
 
-    def _start_connection_background(self):
+    def _start_connection_background(self, session_id: str):
         """Start connection process in background thread"""
 
         def connection_worker():
             try:
                 self._connection_in_progress = True
-                self.logger.info("Background connection thread started")
-                asyncio.run(self._perform_connection())
+                self.logger.info(f"Background connection thread started for session {session_id}")
+                asyncio.run(self._perform_connection(session_id))
             except Exception as e:
                 self.logger.error(f"Connection background thread error: {e}")
+                # Mark session as failed
+                self.session_manager.update_session_status(session_id, SessionStatus.FAILED)
             finally:
                 self._connection_in_progress = False
                 self.logger.info("Connection background thread finished")
@@ -656,13 +832,14 @@ class DistillerWiFiServiceFixed:
         thread.start()
         self.logger.info("Connection background thread launched")
 
-    async def _perform_connection(self):
+    async def _perform_connection(self, session_id: str):
         """Perform WiFi connection with proper state management"""
         try:
             if not self.target_ssid:
+                self.session_manager.update_session_status(session_id, SessionStatus.FAILED)
                 return
 
-            self.logger.info(f"Starting connection to {self.target_ssid}")
+            self.logger.info(f"Starting connection to {self.target_ssid} (session: {session_id})")
             self.current_state = ServiceState.CONNECTING
 
             # Update e-ink display if available
@@ -715,6 +892,17 @@ class DistillerWiFiServiceFixed:
                 self._successful_connection_ip = status.ip_address
                 self._successful_connection_ssid = self.target_ssid
 
+                # Update session status to connected with connection details
+                connection_details = {
+                    "ssid": self.target_ssid,
+                    "ip_address": status.ip_address,
+                    "interface": status.interface,
+                    "connected_at": time.time()
+                }
+                self.session_manager.update_session_status(
+                    session_id, SessionStatus.CONNECTED, connection_details
+                )
+
                 # Update e-ink display with simple success message
                 # The pinggy tunnel service will handle detailed display updates once connected
                 if self.enable_eink:
@@ -725,6 +913,9 @@ class DistillerWiFiServiceFixed:
 
             else:
                 self.logger.error(f"Failed to connect to {self.target_ssid}")
+                
+                # Update session status to failed
+                self.session_manager.update_session_status(session_id, SessionStatus.FAILED)
 
                 # Restore hotspot mode after connection failure
                 self.logger.info("Restoring hotspot mode after connection failure")
@@ -732,6 +923,8 @@ class DistillerWiFiServiceFixed:
 
         except Exception as e:
             self.logger.error(f"Connection error: {e}")
+            # Mark session as failed
+            self.session_manager.update_session_status(session_id, SessionStatus.FAILED)
             # Restore hotspot mode on error
             await self._start_hotspot_mode()
         finally:
@@ -949,12 +1142,14 @@ class DistillerWiFiServiceFixed:
         self.web_server_thread.start()
 
     def _update_eink_setup(self):
-        """Update e-ink display for setup mode"""
+        """Update e-ink display for setup mode using acquire/release pattern"""
         if not self.enable_eink:
             return
+            
         try:
             self.logger.info("Updating e-ink display for setup mode")
             # Create and display setup image with hotspot information
+            # This uses the updated create_wifi_setup_image with acquire/release pattern
             create_wifi_setup_image(
                 ssid=self.hotspot_ssid,
                 password=self.hotspot_password,
@@ -968,33 +1163,29 @@ class DistillerWiFiServiceFixed:
             self.logger.error(f"E-ink setup update error: {e}")
 
     def _update_eink_connecting(self, ssid: str):
-        """Update e-ink display for connecting state"""
+        """Update e-ink display for connecting state using acquire/release pattern"""
         if not self.enable_eink:
             return
+            
         try:
             self.logger.info(f"Updating e-ink display for connecting to {ssid}")
-            # For connecting state, we'll create a simple image showing connection progress
+            # Import the updated display functions with acquire/release support
+            from wifi_info_display import acquire_display_lock, release_display_lock, get_eink_display_dimensions
             from PIL import Image, ImageDraw, ImageFont
-            from distiller_cm5_sdk.hardware.eink import display_png, DisplayMode, DisplayError
+            from distiller_cm5_sdk.hardware.eink import display_png, DisplayMode
 
-            # Create a simple connecting image with correct SDK dimensions
-            try:
-                from distiller_cm5_sdk.hardware.eink import Display
-                display = Display()
-                width, height = display.get_dimensions()
-                self.logger.debug(f"Got display dimensions from SDK: {width}x{height}")
-            except Exception as e:
-                self.logger.warning(f"Could not get display dimensions from SDK: {e}")
-                width, height = 128, 250  # Fallback
+            # Get display dimensions using acquire/release pattern
+            width, height = get_eink_display_dimensions()
+            
+            # Create a simple connecting image
             img = Image.new("L", (width, height), 255)  # White background
             draw = ImageDraw.Draw(img)
 
-            # Try to load MartianMono font first (optimized for SDK)
+            # Try to load fonts
             try:
                 martian_font_path = "/opt/distiller-cm5-services/fonts/MartianMonoNerdFont-CondensedBold.ttf"
                 font_large = ImageFont.truetype(martian_font_path, 14)
                 font_medium = ImageFont.truetype(martian_font_path, 10)
-                self.logger.info("Using MartianMono font for connecting display")
             except:
                 try:
                     font_large = ImageFont.truetype(
@@ -1007,81 +1198,66 @@ class DistillerWiFiServiceFixed:
                     font_large = ImageFont.load_default()
                     font_medium = ImageFont.load_default()
 
-            # Border
+            # Draw connecting screen
             draw.rectangle([0, 0, width - 1, height - 1], outline=0, width=2)
 
-            # Title
             y_pos = 25
             title = "CONNECTING..."
             bbox = draw.textbbox((0, 0), title, font=font_large)
             title_width = bbox[2] - bbox[0]
-            draw.text(
-                ((width - title_width) // 2, y_pos), title, fill=0, font=font_large
-            )
+            draw.text(((width - title_width) // 2, y_pos), title, fill=0, font=font_large)
 
             y_pos += 40
-
-            # Network name
             network_text = f"Network: {ssid}"
-            # Truncate long SSIDs for smaller display
             if len(ssid) > 12:
                 network_text = f"Network: {ssid[:9]}..."
             bbox = draw.textbbox((0, 0), network_text, font=font_medium)
             text_width = bbox[2] - bbox[0]
-            draw.text(
-                ((width - text_width) // 2, y_pos),
-                network_text,
-                fill=0,
-                font=font_medium,
-            )
+            draw.text(((width - text_width) // 2, y_pos), network_text, fill=0, font=font_medium)
 
             y_pos += 30
-
-            # Status message
             status_text = "Please wait..."
             bbox = draw.textbbox((0, 0), status_text, font=font_medium)
             text_width = bbox[2] - bbox[0]
-            draw.text(
-                ((width - text_width) // 2, y_pos),
-                status_text,
-                fill=0,
-                font=font_medium,
-            )
+            draw.text(((width - text_width) // 2, y_pos), status_text, fill=0, font=font_medium)
 
-            # Progress indicator (simple dots)
             y_pos += 40
             dots = "• • •"
             bbox = draw.textbbox((0, 0), dots, font=font_medium)
             dots_width = bbox[2] - bbox[0]
-            draw.text(
-                ((width - dots_width) // 2, y_pos), dots, fill=0, font=font_medium
-            )
+            draw.text(((width - dots_width) // 2, y_pos), dots, fill=0, font=font_medium)
 
-            # Save and display the image using SDK
+            # Save and display using acquire/release pattern
             filename = "wifi_connecting_display.png"
-            # Apply left-right flip before saving (required for SDK)
             img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
             img.save(filename)
 
-            # Display on e-ink using distiller-cm5-sdk
-            display_png(filename, DisplayMode.FULL)
-            self.logger.info("E-ink display updated for connecting state using distiller-cm5-sdk")
+            # Acquire display lock, display, then release
+            display = acquire_display_lock()
+            if display:
+                try:
+                    display_png(filename, DisplayMode.FULL)
+                    self.logger.info("E-ink display updated for connecting state")
+                finally:
+                    release_display_lock()
+            else:
+                self.logger.warning("Could not acquire display lock for connecting update")
             
-        except DisplayError as e:
-            self.logger.error(f"E-ink display error during connecting update: {e}")
         except Exception as e:
             self.logger.error(f"E-ink connecting update error: {e}")
 
     def _update_eink_success(self, ssid: str):
-        """Update e-ink display for success state"""
+        """Update e-ink display for success state using acquire/release pattern"""
         if not self.enable_eink:
             return
+            
         try:
             self.logger.info(
                 f"Updating e-ink display for successful connection to {ssid}"
             )
             # Create and display simple success image
             # The pinggy tunnel service will handle detailed WiFi info display
+            # This uses the updated create_wifi_success_image with acquire/release pattern
             create_wifi_success_image(
                 ssid=ssid,
                 ip_address="Connected",  # Simple message instead of actual IP
@@ -1093,12 +1269,14 @@ class DistillerWiFiServiceFixed:
             self.logger.error(f"E-ink success update error: {e}")
 
     def _update_eink_info(self):
-        """Update e-ink display with current WiFi information"""
+        """Update e-ink display with current WiFi information using acquire/release pattern"""
         if not self.enable_eink:
             return
+            
         try:
             self.logger.info("Updating e-ink display with current WiFi information")
             # Create and display WiFi info image showing current connection details
+            # This uses the updated create_wifi_info_image with acquire/release pattern
             create_wifi_info_image(
                 filename="wifi_info_display.png",
                 auto_display=True,  # Automatically display on e-ink
@@ -1108,8 +1286,8 @@ class DistillerWiFiServiceFixed:
             self.logger.error(f"E-ink WiFi info update error: {e}")
 
     async def run(self):
-        """Run the WiFi service"""
-        self.logger.info("Starting Fixed Distiller WiFi Service")
+        """Run the WiFi service in oneshot mode - exits after successful connection"""
+        self.logger.info("Starting Distiller WiFi Service (Oneshot Mode)")
         self.running = True
 
         try:
@@ -1117,68 +1295,55 @@ class DistillerWiFiServiceFixed:
             initial_state = await self.check_initial_state()
             self.current_state = initial_state
 
-            # Start appropriate mode
+            # If already connected, exit immediately with success
+            if initial_state == ServiceState.CONNECTED:
+                self.logger.info("Already connected to WiFi network - oneshot service complete")
+                return
+
+            # If disconnected, start hotspot mode and wait for configuration
             if initial_state == ServiceState.HOTSPOT_MODE:
                 await self._start_hotspot_mode()
-            elif initial_state == ServiceState.CONNECTED:
-                self.logger.info("Already connected, service ready")
-                # Note: No e-ink display update here - pinggy tunnel service handles this
-
-            # Start web server
-            self._start_web_server()
-
-            # Main service loop
-            while self.running:
-                try:
-                    # Periodic health checks
-                    await asyncio.sleep(10)
-
-                    # Handle state-specific tasks
-                    if self.current_state == ServiceState.HOTSPOT_MODE:
-                        # Check if hotspot is still active (but be careful about restarts)
-                        if not self.wifi_manager.is_hotspot_active():
-                            self.logger.warning("Hotspot lost, restarting...")
-                            # Only restart if we're not in the middle of a connection attempt
-                            if not self._connection_in_progress:
-                                await asyncio.sleep(
-                                    3
-                                )  # Wait longer to prevent race conditions
-                                # Double-check state and connection flag haven't changed
-                                if (
-                                    self.current_state == ServiceState.HOTSPOT_MODE
-                                    and not self._connection_in_progress
-                                ):
-                                    await self._start_hotspot_mode()
-
-                    elif self.current_state == ServiceState.CONNECTED:
-                        # Monitor connection health
-                        status = await self.wifi_manager.get_connection_status()
-                        if not status.connected:
-                            self.logger.warning(
-                                "WiFi connection lost, starting hotspot"
-                            )
+                
+                # Start web server for user interaction
+                self._start_web_server()
+                
+                self.logger.info("WiFi setup service ready - waiting for user configuration")
+                
+                # Wait for user to configure and connect to WiFi
+                # This is a oneshot service, so we wait until connection is successful
+                max_setup_time = 1800  # 30 minutes maximum setup time
+                start_time = time.time()
+                
+                while self.running and (time.time() - start_time) < max_setup_time:
+                    try:
+                        # Check if we've successfully connected
+                        if self.current_state == ServiceState.CONNECTED:
+                            self.logger.info("WiFi connection successful - oneshot service complete")
+                            # Small delay to ensure connection is stable
+                            await asyncio.sleep(5)
+                            return
+                        
+                        # Handle connection timeout
+                        if (self.current_state == ServiceState.CONNECTING and 
+                            self.connection_start_time and 
+                            time.time() - self.connection_start_time > 120):
+                            self.logger.warning("Connection timeout, returning to hotspot mode")
                             self.current_state = ServiceState.HOTSPOT_MODE
                             await self._start_hotspot_mode()
-                        # Note: No periodic display updates - the pinggy tunnel service handles this
-
-                    elif self.current_state == ServiceState.CONNECTING:
-                        # Check for connection timeout
-                        if (
-                            self.connection_start_time
-                            and time.time() - self.connection_start_time > 120
-                        ):
-                            self.logger.warning(
-                                "Connection timeout, returning to hotspot mode"
-                            )
-                            self.current_state = ServiceState.HOTSPOT_MODE
-                            await self._start_hotspot_mode()
-
-                except Exception as e:
-                    self.logger.error(f"Error in main loop: {e}")
-                    await asyncio.sleep(5)
+                        
+                        # Check every 5 seconds
+                        await asyncio.sleep(5)
+                        
+                    except Exception as e:
+                        self.logger.error(f"Error in oneshot service loop: {e}")
+                        await asyncio.sleep(5)
+                
+                # If we reach here, the setup time limit was exceeded
+                self.logger.error(f"WiFi setup timeout after {max_setup_time} seconds")
+                raise TimeoutError("WiFi setup timeout - manual intervention required")
 
         except Exception as e:
-            self.logger.error(f"Service error: {e}")
+            self.logger.error(f"Oneshot service error: {e}")
             raise
         finally:
             await self.cleanup()
@@ -1318,7 +1483,7 @@ class DistillerWiFiServiceFixed:
 
 def main():
     """Main entry point"""
-    parser = argparse.ArgumentParser(description="Fixed Distiller WiFi Service")
+    parser = argparse.ArgumentParser(description="Oneshot Distiller WiFi Service")
 
     parser.add_argument(
         "--ssid",
@@ -1347,7 +1512,7 @@ def main():
     # Service now runs as distiller user with proper sudo permissions
 
     try:
-        service = DistillerWiFiServiceFixed(
+        service = DistillerWiFiService(
             hotspot_ssid=args.ssid,
             hotspot_password=args.password,
             device_name=args.device_name,
