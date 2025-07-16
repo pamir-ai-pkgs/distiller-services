@@ -3,7 +3,7 @@ Description=Distiller WiFi Setup Service (Oneshot - Exits After Connection)
 After=network.target NetworkManager.service multi-user.target
 Wants=network.target
 Wants=NetworkManager.service
-# Wait for system to be fully ready for RP2040 -> RPi CM5 handoff
+# Wait for system to be fully ready
 Requires=multi-user.target
 
 [Service]
@@ -12,7 +12,7 @@ RemainAfterExit=yes
 User=root
 Group=root
 WorkingDirectory=/opt/distiller-cm5-services
-# Use specialized startup script that handles display handoff
+# Use startup script for consistent initialization
 ExecStart=/opt/distiller-cm5-services/start-wifi-service.sh
 # Oneshot services don't restart on failure - manual intervention required
 TimeoutStartSec=180

@@ -22,6 +22,7 @@ from enum import Enum
 from network.wifi_manager import WiFiManager
 from network.device_config import get_device_config
 from network.session_manager import get_session_manager, SessionStatus
+from display.eink_display import get_display
 
 try:
     from flask import Flask, render_template, request, jsonify, redirect, url_for
@@ -30,17 +31,6 @@ try:
 except ImportError:
     FLASK_AVAILABLE = False
 
-# E-ink display imports (optional)
-try:
-    from wifi_info_display import (
-        create_wifi_setup_image,
-        create_wifi_success_image,
-        create_wifi_info_image,
-    )
-
-    EINK_AVAILABLE = True
-except ImportError:
-    EINK_AVAILABLE = False
 
 
 class ServiceState(Enum):
@@ -62,7 +52,6 @@ class DistillerWiFiService:
         hotspot_password: str = None,
         device_name: str = None,
         web_port: int = None,
-        enable_eink: bool = True,
     ):
         # Initialize device configuration
         self.device_config = get_device_config()
@@ -72,7 +61,6 @@ class DistillerWiFiService:
         self.hotspot_password = hotspot_password or self.device_config.get_hotspot_password()
         self.device_name = device_name or self.device_config.get_friendly_name()
         self.web_port = web_port or self.device_config.get_web_port()
-        self.enable_eink = enable_eink and EINK_AVAILABLE
 
         # Service state
         self.current_state = ServiceState.INITIALIZING
@@ -94,6 +82,9 @@ class DistillerWiFiService:
 
         # Initialize session manager
         self.session_manager = get_session_manager()
+        
+        # Initialize e-ink display
+        self.display = get_display()
 
         # Flask app for web interface
         self.app = self._create_flask_app() if FLASK_AVAILABLE else None
@@ -236,8 +227,15 @@ class DistillerWiFiService:
         def refresh_display():
             """Refresh e-ink display with current WiFi info"""
             try:
-                if self.enable_eink and self.current_state == ServiceState.CONNECTED:
-                    self._update_eink_info()
+                if self.current_state == ServiceState.CONNECTED:
+                    # Get current WiFi info and update display
+                    from network.network_utils import NetworkUtils
+                    network_utils = NetworkUtils()
+                    wifi_name = network_utils.get_wifi_name()
+                    ip_address = network_utils.get_wifi_ip_address()
+                    signal_strength = network_utils.get_wifi_signal_strength()
+                    
+                    self.display.display_info_screen(wifi_name, ip_address, signal_strength)
                     return jsonify({"success": True, "message": "Display refreshed"})
                 else:
                     return jsonify(
@@ -842,9 +840,8 @@ class DistillerWiFiService:
             self.logger.info(f"Starting connection to {self.target_ssid} (session: {session_id})")
             self.current_state = ServiceState.CONNECTING
 
-            # Update e-ink display if available
-            if self.enable_eink:
-                self._update_eink_connecting(self.target_ssid)
+            # Update e-ink display
+            self.display.display_connecting_screen(self.target_ssid)
 
             # CRITICAL: Stop hotspot first before attempting connection
             if self.wifi_manager.is_hotspot_active():
@@ -903,10 +900,9 @@ class DistillerWiFiService:
                     session_id, SessionStatus.CONNECTED, connection_details
                 )
 
-                # Update e-ink display with simple success message
+                # Update e-ink display with success message
+                self.display.display_success_screen(self.target_ssid, "Connected")
                 # The pinggy tunnel service will handle detailed display updates once connected
-                if self.enable_eink:
-                    self._update_eink_success(self.target_ssid)
 
                 # Handle network transition
                 await self._handle_network_transition()
@@ -1076,9 +1072,13 @@ class DistillerWiFiService:
                 else:
                     self.logger.warning("Failed to start mDNS service")
 
-                # Update e-ink display
-                if self.enable_eink:
-                    self._update_eink_setup()
+                # Update e-ink display with setup information
+                self.display.display_setup_screen(
+                    self.hotspot_ssid,
+                    self.hotspot_password, 
+                    self.hotspot_ip or "192.168.4.1",
+                    self.web_port
+                )
 
             else:
                 self.logger.error("Failed to start hotspot")
@@ -1141,149 +1141,9 @@ class DistillerWiFiService:
         self.web_server_thread = threading.Thread(target=run_server, daemon=True)
         self.web_server_thread.start()
 
-    def _update_eink_setup(self):
-        """Update e-ink display for setup mode using acquire/release pattern"""
-        if not self.enable_eink:
-            return
-            
-        try:
-            self.logger.info("Updating e-ink display for setup mode")
-            # Create and display setup image with hotspot information
-            # This uses the updated create_wifi_setup_image with acquire/release pattern
-            create_wifi_setup_image(
-                ssid=self.hotspot_ssid,
-                password=self.hotspot_password,
-                ip_address=self.hotspot_ip or "localhost",  # Use actual hotspot IP
-                port=self.web_port,
-                filename="wifi_setup_display.png",
-                auto_display=True,  # Automatically display on e-ink
-            )
-            self.logger.info("E-ink display updated for setup mode")
-        except Exception as e:
-            self.logger.error(f"E-ink setup update error: {e}")
 
-    def _update_eink_connecting(self, ssid: str):
-        """Update e-ink display for connecting state using acquire/release pattern"""
-        if not self.enable_eink:
-            return
-            
-        try:
-            self.logger.info(f"Updating e-ink display for connecting to {ssid}")
-            # Import the updated display functions with acquire/release support
-            from wifi_info_display import acquire_display_lock, release_display_lock, get_eink_display_dimensions
-            from PIL import Image, ImageDraw, ImageFont
-            from distiller_cm5_sdk.hardware.eink import display_png, DisplayMode
 
-            # Get display dimensions using acquire/release pattern
-            width, height = get_eink_display_dimensions()
-            
-            # Create a simple connecting image
-            img = Image.new("L", (width, height), 255)  # White background
-            draw = ImageDraw.Draw(img)
 
-            # Try to load fonts
-            try:
-                martian_font_path = "/opt/distiller-cm5-services/fonts/MartianMonoNerdFont-CondensedBold.ttf"
-                font_large = ImageFont.truetype(martian_font_path, 14)
-                font_medium = ImageFont.truetype(martian_font_path, 10)
-            except:
-                try:
-                    font_large = ImageFont.truetype(
-                        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 13
-                    )
-                    font_medium = ImageFont.truetype(
-                        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 10
-                    )
-                except:
-                    font_large = ImageFont.load_default()
-                    font_medium = ImageFont.load_default()
-
-            # Draw connecting screen
-            draw.rectangle([0, 0, width - 1, height - 1], outline=0, width=2)
-
-            y_pos = 25
-            title = "CONNECTING..."
-            bbox = draw.textbbox((0, 0), title, font=font_large)
-            title_width = bbox[2] - bbox[0]
-            draw.text(((width - title_width) // 2, y_pos), title, fill=0, font=font_large)
-
-            y_pos += 40
-            network_text = f"Network: {ssid}"
-            if len(ssid) > 12:
-                network_text = f"Network: {ssid[:9]}..."
-            bbox = draw.textbbox((0, 0), network_text, font=font_medium)
-            text_width = bbox[2] - bbox[0]
-            draw.text(((width - text_width) // 2, y_pos), network_text, fill=0, font=font_medium)
-
-            y_pos += 30
-            status_text = "Please wait..."
-            bbox = draw.textbbox((0, 0), status_text, font=font_medium)
-            text_width = bbox[2] - bbox[0]
-            draw.text(((width - text_width) // 2, y_pos), status_text, fill=0, font=font_medium)
-
-            y_pos += 40
-            dots = "• • •"
-            bbox = draw.textbbox((0, 0), dots, font=font_medium)
-            dots_width = bbox[2] - bbox[0]
-            draw.text(((width - dots_width) // 2, y_pos), dots, fill=0, font=font_medium)
-
-            # Save and display using acquire/release pattern
-            filename = "wifi_connecting_display.png"
-            img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-            img.save(filename)
-
-            # Acquire display lock, display, then release
-            display = acquire_display_lock()
-            if display:
-                try:
-                    display_png(filename, DisplayMode.FULL)
-                    self.logger.info("E-ink display updated for connecting state")
-                finally:
-                    release_display_lock()
-            else:
-                self.logger.warning("Could not acquire display lock for connecting update")
-            
-        except Exception as e:
-            self.logger.error(f"E-ink connecting update error: {e}")
-
-    def _update_eink_success(self, ssid: str):
-        """Update e-ink display for success state using acquire/release pattern"""
-        if not self.enable_eink:
-            return
-            
-        try:
-            self.logger.info(
-                f"Updating e-ink display for successful connection to {ssid}"
-            )
-            # Create and display simple success image
-            # The pinggy tunnel service will handle detailed WiFi info display
-            # This uses the updated create_wifi_success_image with acquire/release pattern
-            create_wifi_success_image(
-                ssid=ssid,
-                ip_address="Connected",  # Simple message instead of actual IP
-                filename="wifi_success_display.png",
-                auto_display=True,  # Automatically display on e-ink
-            )
-            self.logger.info("E-ink display updated for success state")
-        except Exception as e:
-            self.logger.error(f"E-ink success update error: {e}")
-
-    def _update_eink_info(self):
-        """Update e-ink display with current WiFi information using acquire/release pattern"""
-        if not self.enable_eink:
-            return
-            
-        try:
-            self.logger.info("Updating e-ink display with current WiFi information")
-            # Create and display WiFi info image showing current connection details
-            # This uses the updated create_wifi_info_image with acquire/release pattern
-            create_wifi_info_image(
-                filename="wifi_info_display.png",
-                auto_display=True,  # Automatically display on e-ink
-            )
-            self.logger.info("E-ink display updated with WiFi info")
-        except Exception as e:
-            self.logger.error(f"E-ink WiFi info update error: {e}")
 
     async def run(self):
         """Run the WiFi service in oneshot mode - exits after successful connection"""
@@ -1513,7 +1373,6 @@ def main():
     parser.add_argument(
         "--port", type=int, default=8080, help="Web server port (default: 8080)"
     )
-    parser.add_argument("--no-eink", action="store_true", help="Disable e-ink display")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
     args = parser.parse_args()
@@ -1529,7 +1388,6 @@ def main():
             hotspot_password=args.password,
             device_name=args.device_name,
             web_port=args.port,
-            enable_eink=not args.no_eink,
         )
 
         asyncio.run(service.run())

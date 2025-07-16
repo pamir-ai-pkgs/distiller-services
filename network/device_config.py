@@ -62,6 +62,13 @@ class DeviceConfigManager:
     def _generate_random_suffix(self, length: int = 4) -> str:
         """Generate random alphanumeric suffix"""
         return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
+    
+    def _is_distiller_hostname(self, hostname: str) -> bool:
+        """Check if hostname is in distiller-XXXX format"""
+        import re
+        # Check for distiller- followed by exactly 4 alphanumeric characters
+        pattern = r'^distiller-[a-zA-Z0-9]{4}$'
+        return bool(re.match(pattern, hostname))
 
     def _get_current_hostname(self) -> str:
         """Get current system hostname"""
@@ -83,6 +90,8 @@ class DeviceConfigManager:
     def _load_or_create_config(self) -> Dict[str, Any]:
         """Load existing config or create new one with random identifiers"""
         try:
+            current_hostname = self._get_current_hostname()
+            
             if self.config_file.exists():
                 with open(self.config_file, "r") as f:
                     config = json.load(f)
@@ -92,9 +101,25 @@ class DeviceConfigManager:
                         self._config_cache = config
                         logger.info(f"Loaded device config: {config['device_id']}")
                         
-                        # Always ensure system hostname matches config hostname
-                        current_hostname = self._get_current_hostname()
-                        if current_hostname != config["hostname"]:
+                        # Check if system hostname is already in distiller-XXXX format
+                        if self._is_distiller_hostname(current_hostname) and current_hostname != config["hostname"]:
+                            logger.info(f"System already has valid distiller hostname '{current_hostname}', preserving it")
+                            # Update config to match system hostname
+                            config["hostname"] = current_hostname
+                            config["device_id"] = current_hostname
+                            # Extract suffix from hostname for other fields
+                            suffix = current_hostname.replace("distiller-", "").upper()
+                            config["hotspot_suffix"] = suffix
+                            config["hotspot_ssid"] = f"DistillerSetup-{suffix}"
+                            config["friendly_name"] = f"Distiller {suffix}"
+                            
+                            # Save updated config
+                            with open(self.config_file, "w") as f:
+                                json.dump(config, f, indent=2)
+                            os.chmod(self.config_file, 0o644)
+                            
+                            logger.info(f"Updated config to match system hostname: {current_hostname}")
+                        elif current_hostname != config["hostname"]:
                             logger.info(f"Hostname mismatch: system='{current_hostname}', config='{config['hostname']}' - updating system")
                             self._update_system_hostname(config["hostname"])
                         
@@ -102,19 +127,36 @@ class DeviceConfigManager:
                     else:
                         logger.warning("Invalid config file, regenerating...")
 
-            # Generate new configuration
-            random_suffix = self._generate_random_suffix()
-            config = {
-                "device_id": f"distiller-{random_suffix.lower()}",
-                "hotspot_suffix": random_suffix,
-                "hostname": f"distiller-{random_suffix.lower()}",
-                "friendly_name": f"Distiller {random_suffix}",
-                "hotspot_ssid": f"DistillerSetup-{random_suffix}",
-                "hotspot_password": "setup123",
-                "web_port": 8080,
-                "created_at": int(time.time()),
-                "version": "1.0",
-            }
+            # Check if system already has a valid distiller hostname
+            if self._is_distiller_hostname(current_hostname):
+                logger.info(f"System already has valid distiller hostname '{current_hostname}', using it for new config")
+                # Extract suffix from existing hostname
+                suffix = current_hostname.replace("distiller-", "").upper()
+                config = {
+                    "device_id": current_hostname,
+                    "hotspot_suffix": suffix,
+                    "hostname": current_hostname,
+                    "friendly_name": f"Distiller {suffix}",
+                    "hotspot_ssid": f"DistillerSetup-{suffix}",
+                    "hotspot_password": "setup123",
+                    "web_port": 8080,
+                    "created_at": int(time.time()),
+                    "version": "1.0",
+                }
+            else:
+                # Generate new configuration with random suffix
+                random_suffix = self._generate_random_suffix()
+                config = {
+                    "device_id": f"distiller-{random_suffix.lower()}",
+                    "hotspot_suffix": random_suffix,
+                    "hostname": f"distiller-{random_suffix.lower()}",
+                    "friendly_name": f"Distiller {random_suffix}",
+                    "hotspot_ssid": f"DistillerSetup-{random_suffix}",
+                    "hotspot_password": "setup123",
+                    "web_port": 8080,
+                    "created_at": int(time.time()),
+                    "version": "1.0",
+                }
 
             # Save configuration
             with open(self.config_file, "w") as f:
@@ -126,8 +168,9 @@ class DeviceConfigManager:
             self._config_cache = config
             logger.info(f"Created new device config: {config['device_id']}")
 
-            # Apply hostname immediately
-            self._update_system_hostname(config["hostname"])
+            # Only update system hostname if it's not already in distiller-XXXX format
+            if not self._is_distiller_hostname(current_hostname):
+                self._update_system_hostname(config["hostname"])
 
             return config
 

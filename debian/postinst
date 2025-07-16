@@ -108,6 +108,18 @@ configure)
 		exit 1
 	fi
 
+	# Install SDK package if available
+	if [ -d "/opt/distiller-cm5-sdk/src" ]; then
+		log "Installing distiller-cm5-sdk from local path..."
+		if ! "$UV_BINARY" add "/opt/distiller-cm5-sdk" --editable; then
+			log "Warning: Failed to install SDK package, but continuing..."
+		else
+			log "SDK package installed successfully"
+		fi
+	else
+		log "Warning: SDK directory not found, display functionality may not work"
+	fi
+
 	# Set proper ownership after installation
 	chown -R distiller:distiller "$VENV_PATH"
 	[ -f "/opt/distiller-cm5-services/uv.lock" ] && chown distiller:distiller "/opt/distiller-cm5-services/uv.lock"
