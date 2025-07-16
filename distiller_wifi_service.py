@@ -1295,9 +1295,21 @@ class DistillerWiFiService:
             initial_state = await self.check_initial_state()
             self.current_state = initial_state
 
-            # If already connected, exit immediately with success
+            # If already connected, show current WiFi info then exit with success
             if initial_state == ServiceState.CONNECTED:
-                self.logger.info("Already connected to WiFi network - oneshot service complete")
+                self.logger.info("Already connected to WiFi network - displaying current info before exit")
+                
+                # Update e-ink display with current WiFi information
+                if self.enable_eink:
+                    try:
+                        self._update_eink_info()
+                        self.logger.info("E-ink display updated with current WiFi information")
+                        # Small delay to ensure display update completes
+                        await asyncio.sleep(3)
+                    except Exception as e:
+                        self.logger.error(f"Error updating e-ink display: {e}")
+                
+                self.logger.info("WiFi info display complete - oneshot service complete")
                 return
 
             # If disconnected, start hotspot mode and wait for configuration
