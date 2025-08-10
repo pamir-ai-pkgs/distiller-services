@@ -1,0 +1,58 @@
+# Ignore build outputs
+build/
+dist/
+*.egg-info/
+
+# Python environments
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Node modules
+node_modules/
+
+# System files
+.DS_Store
+*.log
+
+# Git
+.git/
+
+# Debian packaging
+debian/
+
+# Coverage reports
+htmlcov/
+.coverage
+*.cover
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Static assets that shouldn't be formatted
+*.min.js
+*.min.css
+
+# Font files
+*.ttf
+*.woff
+*.woff2
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+
+# Binary files
+*.pdf
+*.zip
+*.tar.gz

@@ -1,228 +1,175 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Connection Status</title>
-    <link
-      rel="icon"
-      href="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
-    />
-    <!-- Allow insecure HTTP requests for local IoT device operation -->
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="
-        default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:;
-        connect-src 'self' http: https: ws: wss:;
-        img-src 'self' data: blob: http: https:;
-        font-src 'self' data: http: https:;
-        frame-src 'none';
-        object-src 'none'
-    "
-    />
-    <!-- Common styles -->
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/common.css') }}"
-    />
-    <!-- Page-specific styles -->
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/status.css') }}"
-    />
-  </head>
+{% extends "base.html" %} {% block title %}Connected - {{ device_name }}{% endblock %} {% block
+status %}CONNECTED{% endblock %} {% block content %}
+<div class="status-container">
+  <div class="status-card success">
+    <div class="status-icon">
+      <div class="checkmark"></div>
+    </div>
+    <h2>Connected Successfully</h2>
+    <p class="status-subtitle">Your device is now online</p>
+  </div>
 
-  <body>
-    <div class="container">
-      <div class="header">
-        <h1>Connection Status</h1>
-      </div>
-
-      <div class="content">
-        {% if status.connected_to_target %}
-        <div class="status-connected">
-          <div class="status-code">[CONNECTED]</div>
-          <div class="status-title">Successfully Connected</div>
-          <div class="status-message">
-            Your device is connected to the WiFi network and ready for use.
-          </div>
+  <div class="connection-details">
+    <div class="detail-card">
+      <h3>Network Information</h3>
+      <div class="detail-grid">
+        <div class="detail-row">
+          <span class="detail-label">Network</span>
+          <span class="detail-value">{{ ssid | default('N/A') }}</span>
         </div>
-
-        <div class="connection-details">
-          <div class="detail-row">
-            <span class="detail-label">Network</span>
-            <span class="detail-value">{{ status.ssid }}</span>
-          </div>
-          {% if status.ip_address %}
-          <div class="detail-row">
-            <span class="detail-label">IP Address</span>
-            <span class="detail-value">{{ status.ip_address }}</span>
-          </div>
-          {% endif %} {% if status.interface %}
-          <div class="detail-row">
-            <span class="detail-label">Interface</span>
-            <span class="detail-value">{{ status.interface }}</span>
-          </div>
-          {% endif %} {% if status.mdns_url %}
-          <div class="detail-row">
-            <span class="detail-label">mDNS Address</span>
-            <span class="detail-value">{{ status.mdns_url }}</span>
-          </div>
-          {% endif %}
+        <div class="detail-row">
+          <span class="detail-label">IP Address</span>
+          <span class="detail-value">{{ ip_address | default('Obtaining...') }}</span>
         </div>
-
-        <div class="instructions">
-          <div class="instruction-item">
-            <div class="instruction-title">Access your device:</div>
-            <div class="instruction-detail">
-              {% if status.ip_address %} Use IP: {{ status.ip_address }}:{{
-              web_port }} {% elif status.mdns_url %} Use mDNS: {{
-              status.mdns_url }} {% else %} Check your router's connected
-              devices {% endif %}
-            </div>
-          </div>
-          <div class="instruction-item">
-            <div class="instruction-title">Network settings:</div>
-            <div class="instruction-detail">
-              Your device will remember this network for future connections
-            </div>
-          </div>
-          <div class="instruction-item">
-            <div class="instruction-title">Setup complete:</div>
-            <div class="instruction-detail">
-              You can now close this setup interface and use your device
-              normally
-            </div>
-          </div>
+        <div class="detail-row">
+          <span class="detail-label">Hostname</span>
+          <span class="detail-value">{{ device_name }}.local</span>
         </div>
-
-        {% elif status.connecting %}
-        <div class="status-connecting">
-          <div class="status-code">[CONNECTING]</div>
-          <div class="status-title">Connection in Progress</div>
-          <div class="status-message">
-            Your device is connecting to the WiFi network. Please wait...
-          </div>
-        </div>
-
-        <div class="instructions">
-          <div class="instruction-item">
-            <div class="instruction-title">What's happening:</div>
-            <div class="instruction-detail">
-              Device is establishing connection to {{ status.target_ssid or 'the
-              network' }}
-            </div>
-          </div>
-          <div class="instruction-item">
-            <div class="instruction-title">Please wait:</div>
-            <div class="instruction-detail">
-              This process may take up to 60 seconds
-            </div>
-          </div>
-          <div class="instruction-item">
-            <div class="instruction-title">If connection fails:</div>
-            <div class="instruction-detail">
-              The device will return to setup mode automatically
-            </div>
-          </div>
-        </div>
-
-        {% elif status.connected_to_hotspot %}
-        <div class="status-setup">
-          <div class="status-code">[SETUP MODE]</div>
-          <div class="status-title">Setup Mode Active</div>
-          <div class="status-message">
-            Device is in setup mode and ready for WiFi configuration.
-          </div>
-        </div>
-
-        <div class="instructions">
-          <div class="instruction-item">
-            <div class="instruction-title">Current mode:</div>
-            <div class="instruction-detail">
-              Device is broadcasting setup hotspot
-            </div>
-          </div>
-          <div class="instruction-item">
-            <div class="instruction-title">To connect:</div>
-            <div class="instruction-detail">
-              Go to the
-              <a href="/" style="color: #000; text-decoration: underline"
-                >Setup Page</a
-              >
-              to configure WiFi
-            </div>
-          </div>
-          <div class="instruction-item">
-            <div class="instruction-title">Access info:</div>
-            <div class="instruction-detail">
-              {% if status.ip_address %} Setup available at: {{
-              status.ip_address }}:{{ web_port }} {% endif %}
-            </div>
-          </div>
-        </div>
-
-        {% else %}
-        <div class="status-disconnected">
-          <div class="status-code">[DISCONNECTED]</div>
-          <div class="status-title">Not Connected</div>
-          <div class="status-message">
-            Device is not connected to any network.
-          </div>
-        </div>
-
-        <div class="instructions">
-          <div class="instruction-item">
-            <div class="instruction-title">Status:</div>
-            <div class="instruction-detail">
-              Device is not connected to WiFi
-            </div>
-          </div>
-          <div class="instruction-item">
-            <div class="instruction-title">To connect:</div>
-            <div class="instruction-detail">
-              Go to the
-              <a href="/" style="color: #000; text-decoration: underline"
-                >Setup Page</a
-              >
-              to configure WiFi
-            </div>
-          </div>
-        </div>
-        {% endif %}
-
-        <div class="button-group">
-          <a href="javascript:location.reload()" class="btn btn-primary"
-            >Refresh Status</a
-          >
-          <a href="/" class="btn btn-secondary">WiFi Setup</a>
-        </div>
-      </div>
-
-      <div class="footer">
-        <div class="footer-content">
-          <img
-            src="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
-            alt="Pamir AI"
-            class="footer-logo"
-          />
-          <span class="footer-text">{{ device_name }} Network Status</span>
+        <div class="detail-row">
+          <span class="detail-label">Status</span>
+          <span class="detail-value status-online">ONLINE</span>
         </div>
       </div>
     </div>
 
-    <!-- Common JavaScript -->
-    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
-    {% if status.connecting %}
-    <script>
-      // Auto-refresh during connecting state
-      CommonUtils.onReady(function () {
-        setTimeout(function () {
-          console.log("Auto-refreshing status during connection...");
-          window.location.reload();
-        }, 5000);
-      });
-    </script>
+    {% if tunnel_url %}
+    <div class="detail-card">
+      <h3>Remote Access</h3>
+      <div class="tunnel-info">
+        <p class="tunnel-label">Pinggy Tunnel Active</p>
+        <div class="tunnel-url">
+          <a href="{{ tunnel_url }}" target="_blank" class="url-link">{{ tunnel_url }}</a>
+          <button class="copy-btn" onclick="copyToClipboard('{{ tunnel_url }}')">COPY</button>
+        </div>
+        <p class="tunnel-note">Use this URL to access your device from anywhere</p>
+      </div>
+    </div>
+    {% else %}
+    <div class="detail-card">
+      <h3>Remote Access</h3>
+      <div class="tunnel-info">
+        <p class="tunnel-status">Tunnel not connected</p>
+        <p class="tunnel-note">Remote access will be available shortly...</p>
+      </div>
+    </div>
     {% endif %}
-  </body>
-</html>
+  </div>
+
+  <div class="action-section">
+    <button class="btn btn-secondary" onclick="changeNetwork()">
+      <span class="btn-text">CHANGE NETWORK</span>
+    </button>
+    <button class="btn btn-outline" onclick="refreshStatus()">
+      <span class="btn-text">REFRESH</span>
+    </button>
+  </div>
+
+  <div class="help-card">
+    <h4>Access Information</h4>
+    <div class="access-info">
+      <div class="access-method">
+        <span class="access-label">Local Access:</span>
+        <code>http://{{ device_name }}.local:{{ port | default('8080') }}</code>
+      </div>
+      {% if tunnel_url %}
+      <div class="access-method">
+        <span class="access-label">Remote Access:</span>
+        <code>{{ tunnel_url }}</code>
+      </div>
+      {% endif %}
+    </div>
+    <p class="help-note">The connection will persist across device reboots.</p>
+  </div>
+</div>
+
+<script>
+  // Copy to clipboard function
+  function copyToClipboard(text) {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = 'COPIED!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.classList.remove('copied');
+        }, 2000);
+      })
+      .catch((err) => {
+        console.error('Failed to copy:', err);
+      });
+  }
+
+  function changeNetwork() {
+    if (
+      confirm('This will disconnect from the current network and restart WiFi setup. Continue?')
+    ) {
+      fetch('/api/disconnect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }).then(() => {
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+      });
+    }
+  }
+
+  function refreshStatus() {
+    window.location.reload();
+  }
+
+  // WebSocket for real-time updates
+  let ws = null;
+
+  function connectWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.state !== 'CONNECTED') {
+        // Lost connection, redirect to setup
+        window.location.href = '/';
+      }
+      // Update tunnel URL if it changes
+      if (data.tunnel_url && !document.querySelector('.tunnel-url')) {
+        location.reload();
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    ws.onclose = () => {
+      // Attempt reconnection
+      setTimeout(connectWebSocket, 5000);
+    };
+  }
+
+  // Periodic status check
+  function checkStatus() {
+    fetch('/api/status')
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.state !== 'CONNECTED') {
+          window.location.href = '/';
+        }
+      })
+      .catch((error) => {
+        console.error('Status check failed:', error);
+      });
+  }
+
+  // Initialize
+  document.addEventListener('DOMContentLoaded', () => {
+    connectWebSocket();
+    setInterval(checkStatus, 10000);
+  });
+</script>
+{% endblock %}

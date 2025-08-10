@@ -1,3 +1,54 @@
+distiller-cm5-services (2.0.0-1) unstable; urgency=medium
+
+  * Major refactoring to modern async Python architecture
+  * Single unified service instead of four separate services
+  * FastAPI with WebSocket support for real-time updates
+  * Persistent mDNS during network transitions
+  * Always starts in AP mode for easy setup
+  * Seamless AP to client mode transitions
+  * Session management across network changes
+  
+  * UI/UX Improvements:
+    - Complete UI redesign with clean monochrome e-ink inspired aesthetic
+    - Removed all ASCII art from templates for cleaner presentation
+    - Added custom MartianMono font support for both web and e-ink display
+    - Updated all templates with modern card-based layouts
+    - Added sophisticated CSS checkmark animation for status page
+    - Added geometric patterns and visual elements for e-ink aesthetic
+    - Improved UI consistency across all pages
+  
+  * E-ink Display Integration:
+    - Integrated e-ink SDK with proper 128x250 display layouts
+    - Created four distinct e-ink display modes with QR codes
+    - Improved font path detection for development and production environments
+  
+  * Network & Connectivity:
+    - Fixed missing /status route causing 404 after successful connection
+    - Enhanced mDNS hostname registration with Avahi cache clearing
+    - Fixed mDNS hostname issue by restarting Avahi daemon after configuration
+    - Fixed device identity persistence across restarts
+    - Fixed AP mode network scanning issue
+    - Added system hostname and /etc/hosts configuration
+  
+  * Pinggy Tunnel Service:
+    - Fixed Pinggy tunnel to generate unique random URLs (using pinggy.io not a.pinggy.io)
+    - Improved SSH tunnel resilience with retry logic
+    - Added tunnel rotation every 55 minutes (before 1 hour expiry)
+    - Fixed tunnel process to prevent interactive password prompts
+    - Added local port forwarding for debugger API (4300)
+    - Enhanced tunnel URL display with access instructions
+  
+  * System Improvements:
+    - Added file logging with rotation to /var/log/distiller/
+    - Improved logging configuration with debug mode support
+    - Removed all legacy code and dependencies
+    - Simplified Debian packaging
+    - Removed all test/development flags (--no-hardware, --no-tunnel)
+    - Suppressed invalid HTTP request warnings from mDNS
+    - Service now requires root privileges exclusively
+
+ -- PamirAI Incorporated <support@pamir.ai>  Sun, 10 Aug 2025 21:00:00 +0000
+
 distiller-cm5-services (1.2.0-2) unstable; urgency=medium
 
   * Fix Debian Bookworm compatibility issues

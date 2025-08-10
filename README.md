@@ -1,515 +1,581 @@
-# Distiller WiFi Service
+# Distiller CM5 WiFi Service
 
-A comprehensive WiFi setup and management service designed for embedded Linux devices (Raspberry Pi CM5, Rockchip boards) with e-ink display support. This service provides an intuitive web interface for WiFi configuration and visual feedback through e-ink displays.
+Modern, unified WiFi provisioning service for Raspberry Pi CM5 devices with E-ink display support.
+Features a single-service architecture with async Python, real-time WebSocket updates, and
+persistent mDNS discovery.
+
+## Architecture Overview
+
+This project has been completely refactored from a multi-service architecture to a **single unified
+service** using modern Python async/await patterns. The new architecture provides:
+
+- **Single Service**: One process managing all functionality (replacing 4 separate services)
+- **Async Architecture**: Built on FastAPI with full async/await support
+- **Real-time Updates**: WebSocket connections for live status updates
+- **Persistent mDNS**: Device remains discoverable during network transitions
+- **Monochrome UI**: Pure black and white terminal-style interface
+- **State-driven**: Event-based state management with callbacks
 
 ## Features
 
+### Core Functionality
+
+- **Always-On AP Mode**: Starts in Access Point mode for easy setup
+- **mDNS Discovery**: Access via `http://distiller-xxxx.local:8080`
+- **Seamless Transitions**: Maintains user connection during network switches
+- **WebSocket Updates**: Real-time status without polling
+- **Session Management**: Preserves user sessions across network changes
+
 ### WiFi Management
-- **Automatic WiFi Setup**: Creates a hotspot when no connection is available
-- **Random Device Naming**: Each device gets unique ID to prevent conflicts (e.g., DistillerSetup-A4B2)
-- **mDNS Discovery**: Devices advertise themselves via Bonjour/Zeroconf for easy discovery
-- **Web-based Configuration**: User-friendly interface for network selection and password entry
-- **Connection Monitoring**: Automatic reconnection and health monitoring
-- **Network Scanning**: Real-time WiFi network discovery
-- **Dynamic IP Detection**: Automatically detects and uses actual hotspot IP address
 
-### E-ink Display Support (via distiller-cm5-sdk)
-- **Setup Instructions**: QR codes and connection details during setup
-- **Connection Progress**: Visual feedback during WiFi connection
-- **Success Confirmation**: Connection success with network details
-- **Current Status**: Real-time WiFi information display with tunnel URLs
-- **SDK Integration**: Uses distiller-cm5-sdk for hardware abstraction
-- **Auto-refresh**: Periodic display updates
+- **Automatic Setup**: Creates hotspot when no connection available
+- **Unique Device IDs**: Random 4-character suffix prevents conflicts
+- **Network Scanning**: Real-time discovery with signal strength
+- **Smart Reconnection**: Automatic recovery from connection failures
+- **Change Network**: Switch networks without losing configuration session
 
-### Advanced Features
-- **Dynamic Port Configuration**: Configurable web server port
-- **State Management**: Robust service state transitions
-- **Error Recovery**: Automatic fallback to hotspot mode on connection loss
-- **Change Network**: Easy network switching without restart
-- **REST API**: JSON endpoints for status and control
+### E-ink Display Support
+
+- **QR Codes**: Easy mobile device connection during setup
+- **Status Display**: Current network info and connection state
+- **Progress Indicators**: Visual feedback during operations
+- **Monochrome Design**: Optimized for 1-bit displays
+- **Auto-refresh**: Periodic updates based on state changes
+
+### Remote Access
+
+- **Pinggy Tunnels**: SSH tunnel integration for remote access
+- **Auto-refresh**: Maintains tunnel connectivity
+- **State-aware**: Only active when WiFi connected
 
 ## Quick Start
 
 ### Prerequisites
+
 - Linux system with NetworkManager
 - Python 3.11+
-- Root privileges (for network management)
-- distiller-cm5-sdk (for e-ink display support)
+- **Root privileges required** (for NetworkManager operations and system directories)
 - E-ink display hardware (optional)
 
-### Debian Package Installation (Recommended)
+### Installation with uv (Recommended)
 
-The easiest way to install is using the Debian package:
-
-1. **Build the package:**
-   ```bash
-   git clone https://github.com/Pamir-AI/distiller-cm5-services
-   cd distiller-cm5-services
-   ./build-deb.sh
-   ```
-
-2. **Install the package:**
-   ```bash
-   sudo dpkg -i dist/distiller-cm5-services_*.deb
-   sudo apt-get install -f  # Fix any dependency issues
-   ```
-
-3. **Start services:**
-   ```bash
-   sudo systemctl start distiller-wifi
-   sudo systemctl start pinggy-tunnel
-   ```
-
-**Package Benefits:**
-- Installs to `/opt/distiller-cm5-services` (proper system location)
-- Handles dependencies intelligently via apt and pip
-- Creates convenient command symlinks (`distiller-wifi-setup`, `distiller-tunnel`, etc.)
-- Includes systemd service integration
-- Proper cleanup on removal
-
-### Manual Installation (Alternative)
-
-If you prefer manual installation:
-
-1. **Install system dependencies:**
-   ```bash
-   sudo apt update
-   sudo apt install python3-fastapi python3-uvicorn python3-pydantic python3-jinja2 \
-                    python3-multipart python3-pil python3-numpy python3-qrcode \
-                    python3-zeroconf python3-aiohttp network-manager systemd
-   ```
-
-2. **Install optional dependencies:**
-   ```bash
-   sudo apt install python3-evdev python3-spidev python3-lgpio fonts-liberation
-   ```
-
-3. **Clone and install:**
-   ```bash
-   git clone https://github.com/Pamir-AI/distiller-cm5-services
-   sudo cp -r distiller-cm5-services /opt/
-   cd /opt/distiller-cm5-services
-   
-   # Install Python dependencies not available via apt
-   pip install -r requirements.txt
-   
-   # Install systemd services
-   sudo cp distiller-wifi.service /etc/systemd/system/
-   sudo cp pinggy-tunnel.service /etc/systemd/system/
-   sudo systemctl daemon-reload
-   sudo systemctl enable distiller-wifi pinggy-tunnel
-   ```
-
-### Legacy Installation
-
-For systems using the old `/home/distiller` path:
+Using [uv](https://github.com/astral-sh/uv) for fast, reliable Python package management:
 
 ```bash
-sudo bash install-service.sh
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone repository
+git clone https://github.com/Pamir-AI/distiller-cm5-services
+cd distiller-cm5-services
+
+# Install dependencies with uv
+uv sync
+
+# Run in development mode (requires root)
+sudo uv run python distiller_wifi.py --no-hardware --debug
 ```
 
-**Note:** The new Debian package uses `/opt/distiller-cm5-services` which is the proper system location for applications.
+### Installation with pip (Fallback)
 
-### Basic Usage
+If uv is not available:
 
-1. **Automatic Setup**: Service automatically starts hotspot mode if no WiFi connection
-2. **Connect to Hotspot**: Join "DistillerSetup-XXXX" network (password: "setup123") where XXXX is a unique suffix
-3. **Open Web Interface**: Visit the IP address shown on the e-ink display (typically 192.168.4.1:8080)
-4. **Configure WiFi**: Select network, enter password, and connect
-5. **Automatic Transition**: Service transitions to connected mode and becomes available via mDNS (e.g., distiller-xxxx.local)
+```bash
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
 
-## Configuration
+# Install dependencies
+pip install -r requirements.txt
+
+# Run in development mode (requires root)
+sudo python distiller_wifi.py --no-hardware --debug
+```
+
+### Debian Package Installation
+
+For production deployment:
+
+```bash
+# Build package
+./build-deb.sh
+
+# Install
+sudo dpkg -i dist/distiller-cm5-services_*.deb
+sudo apt-get install -f  # Fix any dependencies
+
+# Start service
+sudo systemctl start distiller-wifi
+sudo systemctl status distiller-wifi
+```
+
+## Usage
+
+### Basic Operation
+
+1. **Device starts** → Creates WiFi hotspot `Distiller-XXXX`
+2. **Connect** → Join hotspot with password `setupwifi123`
+3. **Configure** → Open browser to `http://distiller-xxxx.local:8080`
+4. **Select Network** → Choose your WiFi and enter password
+5. **Connected** → Device joins network, remains accessible via mDNS
 
 ### Command Line Options
 
 ```bash
-sudo python3 distiller_wifi_service.py [OPTIONS]
+sudo python distiller_wifi.py [OPTIONS]
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--ssid` | "DistillerSetup" | Hotspot network name |
-| `--password` | "setup123" | Hotspot password |
-| `--device-name` | "Distiller" | Device name for display |
-| `--port` | 8080 | Web server port |
-| `--no-eink` | False | Disable e-ink display |
-| `--verbose` | False | Enable debug logging |
+| Option          | Default          | Description               |
+| --------------- | ---------------- | ------------------------- |
+| `--host`        | `0.0.0.0`        | Web server host binding   |
+| `--port`        | `8080`           | Web server port           |
+| `--ap-ssid`     | `Distiller-{ID}` | Access Point SSID         |
+| `--ap-password` | `setupwifi123`   | Access Point password     |
+| `--no-hardware` | `False`          | Disable hardware features |
+| `--debug`       | `False`          | Enable debug logging      |
+| `--config`      | `config.json`    | Configuration file path   |
 
-### Examples
+### Development Mode
+
+Run without hardware for development:
 
 ```bash
-# Custom hotspot settings
-sudo python3 distiller_wifi_service.py --ssid "MyDevice" --password "mypassword123"
+# Using uv (preferred)
+sudo uv run python distiller_wifi.py --no-hardware --debug
 
-# Different web port
-sudo python3 distiller_wifi_service.py --port 9090
+# Using pip virtual environment
+sudo .venv/bin/python distiller_wifi.py --no-hardware --debug
 
-# Disable e-ink display (for testing)
-sudo python3 distiller_wifi_service.py --no-eink
-
-# Verbose logging
-sudo python3 distiller_wifi_service.py --verbose
+# Access the web interface
+open http://localhost:8080
 ```
 
-## Service States
+## Project Structure
 
-The service operates in several distinct states:
-
-```mermaid
-graph TD
-    A[INITIALIZING] --> B{Check Connection}
-    B -->|Connected| C[CONNECTED]
-    B -->|No Connection| D[HOTSPOT_MODE]
-    D --> E[User Selects Network]
-    E --> F[CONNECTING]
-    F -->|Success| C
-    F -->|Failure| D
-    C -->|Connection Lost| D
-    C -->|Change Network| A
+```
+distiller-cm5-services/
+├── distiller_wifi.py           # Main application entry point
+├── core/                       # Core modules
+│   ├── config.py              # Pydantic configuration
+│   ├── state.py               # State management with events
+│   ├── network_manager.py     # NetworkManager wrapper
+│   └── mdns_service.py        # mDNS/Zeroconf service
+├── services/                   # Service modules
+│   ├── web_server.py          # FastAPI application
+│   ├── display_service.py     # E-ink display manager
+│   └── tunnel_service.py      # Pinggy SSH tunnels
+├── templates/                  # Jinja2 HTML templates
+│   ├── base.html              # Base template with monochrome design
+│   ├── setup.html             # WiFi setup interface
+│   ├── connecting.html        # Connection progress
+│   └── status.html            # Connection status
+├── static/                     # Static web assets
+│   ├── css/
+│   │   └── monochrome.css    # Pure black/white styling
+│   └── js/
+│       └── app.js             # WebSocket client
+├── debian/                     # Debian packaging
+├── pyproject.toml             # uv project configuration
+├── requirements.txt           # pip requirements (fallback)
+└── README.md                  # This file
 ```
 
-### State Descriptions
+## API Reference
 
-- **INITIALIZING**: Service startup, checking current network status
-- **HOTSPOT_MODE**: Creating WiFi hotspot for configuration
+### REST Endpoints
+
+| Endpoint          | Method | Description                 |
+| ----------------- | ------ | --------------------------- |
+| `/`               | GET    | Main web interface          |
+| `/api/status`     | GET    | Current connection status   |
+| `/api/networks`   | GET    | Available WiFi networks     |
+| `/api/connect`    | POST   | Connect to network          |
+| `/api/disconnect` | POST   | Disconnect and return to AP |
+| `/api/config`     | GET    | Current configuration       |
+
+### WebSocket
+
+Connect to `/ws` for real-time updates:
+
+```javascript
+const ws = new WebSocket('ws://distiller-xxxx.local:8080/ws');
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Status update:', data);
+};
+```
+
+### Status Response
+
+```json
+{
+  "state": "CONNECTED",
+  "ssid": "HomeNetwork",
+  "ip_address": "192.168.1.100",
+  "signal_strength": -45,
+  "uptime": 3600,
+  "tunnel_url": "https://abc123.pinggy.io"
+}
+```
+
+## State Management
+
+The service uses a state machine with the following states:
+
+```
+INITIALIZING → SETUP_MODE → CONNECTING → CONNECTED
+                   ↑            ↓            ↓
+                   └────────────←────────────┘
+```
+
+### States
+
+- **INITIALIZING**: Service startup and initialization
+- **SETUP_MODE**: Access Point active, awaiting configuration
 - **CONNECTING**: Attempting to connect to selected network
 - **CONNECTED**: Successfully connected to WiFi network
-- **ERROR**: Error state with automatic recovery
+- **FAILED**: Connection attempt failed (returns to SETUP_MODE)
 
-## Web Interface
+## Display Interface
 
-### Main Pages
+### Monochrome UI Design
 
-- **`/`** - Network selection and configuration
-- **`/status`** - Connection status and monitoring
-- **`/confirm`** - Network confirmation before connection
-- **`/change-network`** - Change network interface
+The web interface uses a strict 1-bit color scheme:
 
-### API Endpoints
+- **Colors**: Pure black (#000000) and white (#FFFFFF) only
+- **Typography**: Monospace fonts for terminal aesthetic
+- **Graphics**: ASCII art and box-drawing characters
+- **No gradients**: No shadows, gradients, or intermediate colors
+- **High contrast**: Maximum readability on all devices
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/status` | GET | Current connection status |
-| `/api/networks` | GET | Available WiFi networks |
-| `/api/connect` | POST | Connect to network |
-| `/api/scan` | GET | Trigger network scan |
-| `/refresh-display` | GET | Refresh e-ink display |
+### E-ink Display
 
-### API Examples
+The service automatically updates the E-ink display based on state:
 
+- **Setup Mode**: QR code with hotspot credentials
+- **Connecting**: Progress indicator
+- **Connected**: Network details and tunnel URL
+- **Failed**: Error message with retry instructions
+
+## Device Identity Management
+
+The service maintains a persistent device identity with the following features:
+
+- **Unique Device ID**: 4-character alphanumeric identifier (e.g., "ab12")
+- **Persistent Configuration**: Survives reboots and service restarts
+- **Automatic Hostname**: Sets system hostname to `distiller-xxxx`
+- **mDNS Registration**: Accessible via `distiller-xxxx.local`
+- **AP SSID Generation**: Creates unique hotspot name `Distiller-XXXX`
+
+Device configuration is stored in `/var/lib/distiller/device_config.json` and includes:
+- Device ID
+- Hostname
+- AP SSID
+- Creation timestamp
+
+## Security Features
+
+### Dynamic AP Password Generation
+
+For enhanced security, the service generates a new Access Point password on each startup:
+
+- **12-character random password** using cryptographically secure generation
+- **Displayed in service logs** during initialization
+- **Shown on E-ink display** if hardware is connected
+- **Never stored persistently** - regenerated on each restart
+- **Uses Python's `secrets` module** for secure randomness
+
+To view the current AP password:
 ```bash
-# Get current status
-curl http://localhost:8080/api/status
-
-# Get available networks
-curl http://localhost:8080/api/networks
-
-# Connect to network
-curl -X POST http://localhost:8080/api/connect \
-  -H "Content-Type: application/json" \
-  -d '{"ssid": "MyNetwork", "password": "mypassword"}'
-
-# Refresh e-ink display
-curl http://localhost:8080/refresh-display
+sudo journalctl -u distiller-wifi | grep "AP PASSWORD"
 ```
 
-## E-ink Display
+## Development
 
-### Supported Hardware
-- E-ink displays supported by distiller-cm5-sdk (128x250 pixels default)
-- SPI interface connection via SDK hardware abstraction
-- Compatible with Raspberry Pi CM5 and supported boards
+### Development Scripts
 
-### Display Modes
+The project includes comprehensive development tools:
 
-1. **Setup Mode**: Shows hotspot credentials and QR code
-2. **Connecting Mode**: Shows connection progress
-3. **Success Mode**: Shows connection confirmation
-4. **Info Mode**: Shows current network details
-
-### Manual Display Control
-
+#### dev.sh - Development Helper Script
 ```bash
-# Display current WiFi info (requires distiller-cm5-sdk)
-.venv/bin/python wifi_info_display.py --display
-
-# Create setup instructions
-.venv/bin/python wifi_info_display.py --setup --ssid "MyHotspot" --password "password123" --ip "192.168.4.1"
-
-# Create success screen
-.venv/bin/python wifi_info_display.py --success --ssid "HomeNetwork" --connected-ip "192.168.1.100"
-
-# Use convenience wrapper
-distiller-display --display
+./dev.sh setup              # Install dependencies (prefers uv)
+./dev.sh run                # Start with --no-hardware --debug
+./dev.sh run --port 9090    # Custom port
+./dev.sh test               # Run tests
+./dev.sh lint               # Run linters
+./dev.sh format             # Format code
+./dev.sh clean              # Clean temporary files
+./dev.sh reset              # Reset environment
+./dev.sh shell              # Start development shell
+./dev.sh status             # Check environment
 ```
 
-## Network Management
+#### lint.sh - Comprehensive Linting
+```bash
+./lint.sh --check           # Check for issues (default)
+./lint.sh --fix             # Auto-fix formatting
+./lint.sh --verbose         # Detailed output
+```
 
-### Dynamic IP Detection
+Supports:
+- Python: ruff, black, isort, mypy
+- HTML: djlint, prettier
+- JavaScript: eslint, prettier
+- CSS: stylelint, prettier
+- JSON/YAML: prettier, yamllint
+- Markdown: markdownlint
+- Shell: shellcheck
 
-The service automatically detects the actual IP address of the hotspot interface and uses it throughout the web interface. This eliminates connectivity issues that can occur with hardcoded IP addresses, especially when accessing from different device types (iPhone, Android, etc.).
+#### generate_eink_previews.py - Display Preview Generator
+```bash
+python generate_eink_previews.py
+```
 
-### Change Network Workflow
+Generates preview images of all E-ink display states:
+- Setup mode with QR code
+- Connecting animation
+- Connected status
+- Tunnel active with remote access QR
+- Initialization screen
 
-1. User clicks "Change Network" button
-2. Service shows countdown and instructions
-3. Automatic transition to hotspot mode
-4. User reconnects to setup hotspot
-5. Select new network and configure
+### Setting Up Development Environment
 
-## Logging
+```bash
+# Clone repository
+git clone https://github.com/Pamir-AI/distiller-cm5-services
+cd distiller-cm5-services
 
-### Log Locations
-- **System**: `/var/log/distiller-wifi.log` (if writable)
-- **Local**: `./distiller-wifi.log` (fallback)
-- **Console**: stdout (always enabled)
+# Install uv (if not installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-### Log Levels
-- **INFO**: Normal operation events
-- **WARNING**: Recoverable issues
-- **ERROR**: Service errors
-- **DEBUG**: Detailed troubleshooting (with `--verbose`)
+# Install dependencies
+uv sync
+
+# Run tests
+uv run pytest
+
+# Run with hot-reload (requires sudo)
+sudo uv run python distiller_wifi.py --no-hardware --debug --reload
+```
+
+### Code Style
+
+- **Type hints**: Full typing with Pydantic models
+- **Async/await**: All I/O operations are async
+- **No emojis**: Clean, professional code without emoji decorations
+- **Error handling**: Comprehensive exception handling with recovery
+- **Logging**: Structured logging with appropriate levels
+
+### Testing
+
+```bash
+# Run unit tests
+uv run pytest tests/
+
+# Run with coverage
+uv run pytest --cov=core --cov=services tests/
+
+# Test hardware integration (requires hardware)
+sudo uv run python distiller_wifi.py --debug
+
+# Test WebSocket connection
+wscat -c ws://localhost:8080/ws
+```
+
+## Deployment
+
+### Systemd Service
+
+The service is managed by systemd:
+
+```bash
+# Start service
+sudo systemctl start distiller-wifi
+
+# Enable on boot
+sudo systemctl enable distiller-wifi
+
+# View logs
+sudo journalctl -u distiller-wifi -f
+
+# Restart service
+sudo systemctl restart distiller-wifi
+```
+
+### Configuration
+
+Create `/etc/distiller/config.json`:
+
+```json
+{
+  "host": "0.0.0.0",
+  "port": 8080,
+  "ap_ssid_prefix": "Distiller",
+  "ap_password": "setupwifi123",
+  "mdns_type": "_distiller._tcp.local.",
+  "state_file": "/var/lib/distiller/state.json",
+  "enable_tunnel": true,
+  "enable_display": true
+}
+```
+
+### Environment Variables
+
+```bash
+# Override configuration with environment variables
+export DISTILLER_PORT=9090
+export DISTILLER_AP_PASSWORD=mysecurepassword
+export DISTILLER_DEBUG=true
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
 **Service won't start:**
-```bash
-# Check root privileges
-sudo python3 distiller_wifi_service.py
 
-# Check NetworkManager
+```bash
+# Check for port conflicts
+sudo netstat -tlnp | grep 8080
+
+# Verify NetworkManager
 systemctl status NetworkManager
+
+# Check permissions
+ls -la /var/lib/distiller/
 ```
 
 **Can't connect to hotspot:**
-```bash
-# Check hotspot status
-nmcli device wifi list | grep DistillerSetup
 
-# Check firewall
-sudo ufw status
+```bash
+# List WiFi networks
+nmcli device wifi list
+
+# Check hotspot status
+nmcli connection show
+
+# Verify IP address
+ip addr show
+```
+
+**WebSocket connection fails:**
+
+```bash
+# Test WebSocket endpoint
+curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Key: test" -H "Sec-WebSocket-Version: 13" \
+  http://localhost:8080/ws
 ```
 
 **E-ink display not working:**
+
 ```bash
-# Check distiller-cm5-sdk installation
-python3 -c "from distiller_cm5_sdk.hardware.eink import display_png"
+# Test display module
+uv run python -c "from services.display_service import DisplayService; print('Display module OK')"
 
-# Test SDK display functionality
-.venv/bin/python wifi_info_display.py --display
-
-# Test without e-ink
-.venv/bin/python distiller_wifi_service.py --no-eink
-
-# Check SPI interface (if using custom SDK config)
-ls /dev/spi*
-```
-
-**Web interface not accessible:**
-```bash
-# Check port availability
-netstat -ln | grep :8080
-
-# Try different port
-python3 distiller_wifi_service.py --port 9090
-
-# Check URL fallback
-curl http://localhost:8080/api/status
-curl http://192.168.4.1:8080/api/status  # Use actual hotspot IP
+# Run without display (requires sudo)
+sudo uv run python distiller_wifi.py --no-hardware
 ```
 
 ### Debug Mode
 
-Enable verbose logging for detailed troubleshooting:
+Enable comprehensive logging:
 
 ```bash
-# Using virtual environment
-sudo .venv/bin/python distiller_wifi_service.py --verbose
+# Set debug environment variable
+export DISTILLER_DEBUG=true
 
-# Using package wrapper
-sudo distiller-wifi-setup --verbose
+# Or use command line flag (requires sudo)
+sudo uv run python distiller_wifi.py --debug
+
+# View detailed logs
+sudo journalctl -u distiller-wifi -f --output=json-pretty
 ```
 
-## System Integration
+## Building from Source
 
-### Systemd Service
-
-Create `/etc/systemd/system/distiller-wifi.service`:
-
-```ini
-[Unit]
-Description=Distiller WiFi Setup Service
-After=network.target
-Wants=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/path/to/distiller-cm5-services
-ExecStart=/usr/bin/python3 distiller_wifi_service.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-```bash
-sudo systemctl enable distiller-wifi.service
-sudo systemctl start distiller-wifi.service
-```
-
-### Auto-start on Boot
-
-Add to `/etc/rc.local` (before `exit 0`):
-```bash
-cd /path/to/distiller-cm5-services
-python3 distiller_wifi_service.py &
-```
-
-## Development
-
-### Project Structure
-
-```
-distiller-cm5-services/
-├── distiller_wifi_service.py      # Main WiFi service
-├── pinggy_tunnel_service.py       # SSH tunnel service  
-├── wifi_info_display.py           # E-ink display functions (SDK-based)
-├── network/
-│   ├── wifi_manager.py            # WiFi management
-│   ├── network_utils.py           # Network utilities
-│   ├── device_config.py           # Device configuration
-│   └── __init__.py
-├── templates/                     # Web interface templates
-│   ├── index.html                # Network selection
-│   ├── status.html               # Status monitoring
-│   ├── confirm.html              # Connection confirmation
-│   └── change_network.html       # Network change interface
-├── static/                       # Web assets
-│   ├── css/style.css            # Styling
-│   ├── js/wifi-setup.js         # JavaScript functionality
-│   ├── images/pamir-logo-01.svg  # Logo
-│   └── fonts/                   # MartianMono font for e-ink
-├── fonts/                        # Font directory for e-ink display
-├── debian/                       # Debian packaging
-├── pyproject.toml               # Python project configuration (uv)
-├── requirements.txt             # Python dependencies (pip fallback)
-└── README.md                   # This file
-```
-
-### Testing
+### Prerequisites
 
 ```bash
-# Syntax check
-python3 -m py_compile distiller_wifi_service.py
+# Install build dependencies
+sudo apt install python3-dev build-essential
+sudo apt install debhelper dh-python dpkg-dev
 
-# Test without hardware (using virtual environment)
-.venv/bin/python distiller_wifi_service.py --no-eink --verbose
-
-# Test e-ink display (requires distiller-cm5-sdk)
-.venv/bin/python wifi_info_display.py --display
-
-# Test web interface
-curl http://localhost:8080/api/status
-
-# Test using package wrappers
-distiller-wifi-setup --no-eink --verbose
-distiller-display --display
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-## Hardware Requirements
-
-### Minimum Requirements
-- ARM-based Linux board (Raspberry Pi, Rockchip, etc.)
-- WiFi capability
-- 512MB RAM
-- Python 3.8+
-- NetworkManager
-
-### Recommended Hardware
-- Raspberry Pi CM5 or equivalent
-- E-ink display supported by distiller-cm5-sdk (128x250 default)
-- distiller-cm5-sdk compatible hardware
-- 1GB+ RAM for smooth operation
-
-### Hardware Setup
-
-E-ink display connections and configuration are handled by the distiller-cm5-sdk. Refer to the SDK documentation for:
-- Supported hardware configurations
-- GPIO pin mappings
-- SPI interface setup
-- Display initialization and configuration
-
-The service automatically detects available hardware through the SDK.
-
-## Building and Packaging
-
-### Debian Package Building
-
-The project includes modern Debian packaging with intelligent dependency handling:
+### Build Process
 
 ```bash
-# Build full package
+# Build Debian package
 ./build-deb.sh
 
-# Build with specific version
-./build-deb.sh -v 1.0.1-1
-
-# Install build dependencies
-./build-deb.sh deps
+# Build specific version
+./build-deb.sh -v 2.0.0-1
 
 # Clean build artifacts
 ./build-deb.sh clean
 ```
 
-**Package Features:**
-- Modern debhelper-based packaging
-- Automatic dependency resolution (apt + pip fallback)
-- Systemd service integration
-- Proper installation to `/opt/distiller-cm5-services`
-- Lintian quality checks
-- Graceful handling of optional dependencies
-
-### Build Requirements
+### Creating Release
 
 ```bash
-sudo apt install debhelper dh-python dpkg-dev lintian devscripts
+# Tag version
+git tag -a v2.0.0 -m "Release version 2.0.0"
+
+# Push tags
+git push origin v2.0.0
+
+# Build release package
+./build-deb.sh -v 2.0.0-1
 ```
-
-### Package Management
-
-After installation:
-- Use `distiller-wifi-setup`, `distiller-tunnel`, `distiller-mdns` commands
-- Services are available in systemd
-- Configuration in `/opt/distiller-cm5-services/`
-- Logs via `journalctl -u distiller-wifi` or `journalctl -u pinggy-tunnel`
-
-See [DEBIAN_PACKAGING.md](DEBIAN_PACKAGING.md) for detailed packaging documentation.
-
-## License
-
-This project is part of the Pamir AI Distiller ecosystem. Please refer to the project license for usage terms and conditions.
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+4. Run tests (`uv run pytest`)
+5. Commit changes (`git commit -m 'Add amazing feature'`)
+6. Push to branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+### Development Guidelines
+
+- Use type hints for all functions
+- Write async code for I/O operations
+- Follow PEP 8 style guide
+- Add unit tests for new features
+- Update documentation as needed
+- No emoji in source code
+
+## License
+
+Copyright (c) 2025 Pamir AI. All rights reserved.
 
 ## Support
 
 For issues and questions:
-- Check the troubleshooting section
-- Review logs with `--verbose` flag
+
 - Create an issue on GitHub
-- Test with `--no-eink` for hardware-independent debugging
+- Check the troubleshooting section
+- Enable debug mode for detailed diagnostics
+- Test with `--no-hardware` flag for hardware-independent issues
 
 ---
 
-**Note**: This service requires root privileges for NetworkManager operations. Always test in a safe environment before deploying to production systems.
+**Important**: This service **requires root privileges** to run. The application will check for root
+access at startup and exit with an error message if not running as root. This is necessary for:
+
+- NetworkManager operations (creating/managing WiFi connections)
+- Writing to system directories (`/var/lib/distiller`, `/var/log/distiller`)
+- Binding to network interfaces for mDNS service
+
+Always use `sudo` when running the application:
+
+```bash
+sudo uv run python distiller_wifi.py --no-hardware --debug
+# or
+sudo ./dev.sh run
+```

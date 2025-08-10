@@ -201,8 +201,8 @@ validate_package() {
     fi
     
     # Check for Python files
-    if [ ! -f "distiller_wifi_service.py" ]; then
-        print_error "Main Python file missing: distiller_wifi_service.py"
+    if [ ! -f "distiller_wifi.py" ]; then
+        print_error "Main Python file missing: distiller_wifi.py"
         exit 1
     fi
     

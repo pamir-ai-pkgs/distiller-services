@@ -1,0 +1,112 @@
+{% extends "base.html" %} {% block title %}WiFi Setup - {{ device_name }}{% endblock %} {% block
+status %}SELECT NETWORK{% endblock %} {% block content %}
+<div class="setup-container">
+  <div class="section-header">
+    <h2>Select WiFi Network</h2>
+    <p class="description">Choose your network from the list below</p>
+  </div>
+
+  <div class="network-list" id="networkList">
+    {% for network in networks %}
+    <div
+      class="network-card"
+      onclick="selectNetwork('{{ network.ssid }}', '{{ network.security }}')"
+    >
+      <div class="network-main">
+        <div class="network-name">{{ network.ssid }}</div>
+        <div class="network-meta">
+          {% if network.security != "Open" %}
+          <span class="security-badge locked">SECURE</span>
+          {% else %}
+          <span class="security-badge open">OPEN</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="network-signal">
+        <div class="signal-indicator">
+          <span class="signal-bar {{ 'active' if network.signal > 20 else '' }}"></span>
+          <span class="signal-bar {{ 'active' if network.signal > 40 else '' }}"></span>
+          <span class="signal-bar {{ 'active' if network.signal > 60 else '' }}"></span>
+          <span class="signal-bar {{ 'active' if network.signal > 80 else '' }}"></span>
+        </div>
+        <span class="signal-value">{{ network.signal }}%</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="action-bar">
+    <button class="btn btn-primary" onclick="refreshNetworks()">
+      <span class="btn-text">REFRESH</span>
+    </button>
+  </div>
+</div>
+
+<!-- Password Modal -->
+<div id="passwordModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closePasswordModal()"></div>
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3>Enter WiFi Password</h3>
+      <button class="modal-close" onclick="closePasswordModal()">&times;</button>
+    </div>
+
+    <form id="connectForm" method="POST" action="/connect">
+      <input type="hidden" id="ssidInput" name="ssid" value="" />
+
+      <div class="modal-body">
+        <div class="form-field">
+          <label for="passwordInput">PASSWORD</label>
+          <input
+            type="password"
+            id="passwordInput"
+            name="password"
+            class="input-field"
+            autocomplete="off"
+            placeholder="Enter WiFi password"
+          />
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-primary">CONNECT</button>
+        <button type="button" class="btn btn-secondary" onclick="closePasswordModal()">
+          CANCEL
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function selectNetwork(ssid, security) {
+    if (security === 'Open') {
+      // Direct connection for open networks
+      document.getElementById('ssidInput').value = ssid;
+      document.getElementById('passwordInput').value = '';
+      document.getElementById('connectForm').submit();
+    } else {
+      // Show password modal for secured networks
+      document.getElementById('ssidInput').value = ssid;
+      document.getElementById('passwordModal').classList.remove('hidden');
+      document.getElementById('passwordInput').focus();
+    }
+  }
+
+  function closePasswordModal() {
+    document.getElementById('passwordModal').classList.add('hidden');
+    document.getElementById('passwordInput').value = '';
+  }
+
+  function refreshNetworks() {
+    location.reload();
+  }
+
+  // Handle escape key to close modal
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      closePasswordModal();
+    }
+  });
+</script>
+{% endblock %}
