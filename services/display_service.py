@@ -340,7 +340,8 @@ class DisplayService:
             y_pos += 8
 
         # IP Address with wrapping - no defaults
-        ip = self.state_manager.get_ip_address()
+        state = self.state_manager.get_state()
+        ip = state.network_info.ip_address if state.network_info else None
         if ip:
             font = self.fonts["tiny"]
             draw.text((self.content_x, y_pos), "IP Address:", font=font, fill=0)
@@ -350,7 +351,7 @@ class DisplayService:
             y_pos += 8
 
         # Signal strength - properly wrapped
-        signal = self.state_manager.get_signal_strength()
+        signal = state.network_info.signal_strength if state.network_info else None
         if signal:
             font = self.fonts["tiny"]
             draw.text((self.content_x, y_pos), "Signal:", font=font, fill=0)
@@ -528,7 +529,7 @@ class DisplayService:
 
             # Display the image with full refresh for important states
             state = self.state_manager.get_state()
-            if state in [ConnectionState.SETUP_MODE, ConnectionState.CONNECTED]:
+            if state in [ConnectionState.AP_MODE, ConnectionState.CONNECTED]:
                 # Full refresh for important state changes
                 self.display.display_image(str(temp_file), self.DisplayMode.FULL)
             else:
