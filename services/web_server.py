@@ -13,7 +13,7 @@ from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect, stat
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from core.config import Settings
 from core.network_manager import NetworkManager
@@ -26,7 +26,8 @@ class ConnectionRequest(BaseModel):
     ssid: str = Field(..., min_length=1, max_length=32)
     password: str | None = Field(None, min_length=8, max_length=63)
 
-    @validator("ssid")
+    @field_validator("ssid")
+    @classmethod
     def validate_ssid(cls, v):
         # Check for dangerous characters that could be used in command injection
         if not v or len(v.strip()) == 0:
@@ -36,7 +37,8 @@ class ConnectionRequest(BaseModel):
             raise ValueError("SSID contains invalid characters")
         return v.strip()
 
-    @validator("password")
+    @field_validator("password")
+    @classmethod
     def validate_password(cls, v):
         if v is None:
             return None
@@ -222,7 +224,9 @@ class WebServer:
             )
 
         @self.app.post("/connect", response_class=HTMLResponse)
-        async def connect_form(request: Request, ssid: str = Form(...), password: str = Form(None)):
+        async def connect_form(
+            request: Request, ssid: str = Form(...), password: str | None = Form(None)
+        ):
             """Handle form submission for WiFi connection."""
             session_id = request.cookies.get("session_id", str(uuid.uuid4()))
 
