@@ -106,6 +106,7 @@ class DistillerWiFiApp:
                 connection_info = await self.network_manager.get_connection_info()
                 if connection_info:
                     from core.state import NetworkInfo
+
                     network_info = NetworkInfo(
                         ssid=connection_info.get("ssid"),
                         ip_address=connection_info.get("ip_address"),

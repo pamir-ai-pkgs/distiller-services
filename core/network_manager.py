@@ -365,9 +365,7 @@ class NetworkManager:
             return False
 
         # Try to activate the existing connection
-        returncode, _, stderr = await self._run_command(
-            ["nmcli", "connection", "up", ssid]
-        )
+        returncode, _, stderr = await self._run_command(["nmcli", "connection", "up", ssid])
 
         if returncode != 0:
             logger.error(f"Failed to reconnect to {ssid}: {stderr}")

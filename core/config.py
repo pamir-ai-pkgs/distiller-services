@@ -72,9 +72,13 @@ class Settings(BaseSettings):
 
     # Connection settings
     # Tunnel service configuration (used by TunnelService)
-    tunnel_max_retries: int = Field(default=3, description="Maximum tunnel connection retry attempts")
+    tunnel_max_retries: int = Field(
+        default=3, description="Maximum tunnel connection retry attempts"
+    )
 
-    tunnel_retry_delay: int = Field(default=30, description="Delay between tunnel retries in seconds")
+    tunnel_retry_delay: int = Field(
+        default=30, description="Delay between tunnel retries in seconds"
+    )
 
     # Runtime settings
     debug: bool = Field(default=False, description="Enable debug logging")

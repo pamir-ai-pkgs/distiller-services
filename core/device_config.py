@@ -219,7 +219,7 @@ class DeviceConfigManager:
             # Write to temp file with proper permissions
             temp_fd, temp_path = tempfile.mkstemp(dir="/etc", prefix="hosts.")
             try:
-                with os.fdopen(temp_fd, 'w') as f:
+                with os.fdopen(temp_fd, "w") as f:
                     f.writelines(updated_lines)
 
                 # Set proper permissions
