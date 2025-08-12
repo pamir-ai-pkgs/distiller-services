@@ -108,3 +108,66 @@ warn_unused_configs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
 no_strict_optional = true
+
+[tool.pyright]
+# Python version and platform
+pythonVersion = "3.11"
+pythonPlatform = "Linux"
+
+# Include/exclude patterns
+include = [
+    "core",
+    "services", 
+    "distiller_wifi.py",
+    "generate_eink_previews.py"
+]
+exclude = [
+    ".venv",
+    "build",
+    "dist", 
+    "debian",
+    "__pycache__",
+    "*.egg-info",
+    ".git"
+]
+
+# Type checking settings
+typeCheckingMode = "basic"
+reportMissingImports = "error"
+reportMissingTypeStubs = "warning"
+reportImportCycles = "error"
+reportUnusedImport = "warning"
+reportUnusedClass = "warning"
+reportUnusedFunction = "warning"
+reportUnusedVariable = "warning"
+reportDuplicateImport = "error"
+
+# Optional member access (common with Pydantic models)
+reportOptionalMemberAccess = "warning"
+reportOptionalSubscript = "warning"
+reportOptionalIterable = "warning"
+reportOptionalContextManager = "warning"
+
+# General type issues
+reportGeneralTypeIssues = "error"
+reportPropertyTypeMismatch = "error"
+reportFunctionMemberAccess = "warning"
+reportIncompatibleMethodOverride = "error"
+reportIncompatibleVariableOverride = "error"
+reportOverlappingOverloads = "error"
+
+# Handle Any types
+reportUnknownMemberType = "warning"
+reportUnknownParameterType = "warning"
+reportUnknownVariableType = "warning"
+reportUnknownArgumentType = "warning"
+
+# Constants and final
+reportConstantRedefinition = "error"
+reportInvalidStringEscapeSequence = "error"
+
+# Disable some noisy warnings for this codebase
+reportMissingParameterType = "none"  # Too noisy for existing code
+reportMissingReturnType = "none"     # Too noisy for existing code
+reportUnknownLambdaType = "none"     # Lambda inference issues
+reportUnnecessaryTypeIgnoreComment = "warning"
