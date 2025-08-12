@@ -14,8 +14,7 @@ Rules-Requires-Root: no
 
 Package: distiller-cm5-services
 Architecture: any
-Depends: ${python3:Depends},
-         ${misc:Depends},
+Depends: ${misc:Depends},
          python3 (>= 3.11),
          python3-venv,
          python3-dev,
