@@ -85,30 +85,65 @@ class DistillerWiFiApp:
 
         await self.network_manager.initialize()
 
-        # Generate dynamic password for AP mode
-        ap_password = self.generate_ap_password()
-        logger.info("=" * 50)
-        logger.info(f"NEW AP PASSWORD GENERATED: {ap_password}")
-        logger.info("=" * 50)
+        # Check if we have a saved network connection to reconnect to
+        saved_state = self.state_manager.get_state()
+        reconnected = False
 
-        # Update state with the new password
-        await self.state_manager.update_state(ap_password=ap_password)
+        if saved_state.network_info and saved_state.network_info.ssid:
+            logger.info(f"Found saved network: {saved_state.network_info.ssid}")
+            logger.info("Attempting to reconnect to saved network...")
 
-        logger.info("Starting Access Point mode...")
-        success = await self.network_manager.start_ap_mode(
-            ssid=self.settings.ap_ssid,
-            password=ap_password,
-            ip_address=self.settings.ap_ip,
-        )
-
-        if success:
-            await self.state_manager.update_state(connection_state=ConnectionState.AP_MODE)
-            logger.info(
-                f"Access Point started: {self.settings.ap_ssid} with password: {ap_password}"
+            # Try to reconnect to the saved network
+            reconnected = await self.network_manager.reconnect_to_saved_network(
+                saved_state.network_info.ssid
             )
-        else:
-            logger.error("Failed to start Access Point mode")
-            raise RuntimeError("Cannot start without AP mode")
+
+            if reconnected:
+                # Update state to connected
+                logger.info(f"Successfully reconnected to {saved_state.network_info.ssid}")
+
+                # Get updated connection info
+                connection_info = await self.network_manager.get_connection_info()
+                if connection_info:
+                    from core.state import NetworkInfo
+                    network_info = NetworkInfo(
+                        ssid=connection_info.get("ssid"),
+                        ip_address=connection_info.get("ip_address"),
+                    )
+                    await self.state_manager.update_state(
+                        connection_state=ConnectionState.CONNECTED,
+                        network_info=network_info,
+                        reset_retry=True,
+                    )
+            else:
+                logger.info("Could not reconnect to saved network, starting AP mode...")
+
+        # Only start AP mode if we didn't reconnect to a saved network
+        if not reconnected:
+            # Generate dynamic password for AP mode
+            ap_password = self.generate_ap_password()
+            logger.info("=" * 50)
+            logger.info(f"NEW AP PASSWORD GENERATED: {ap_password}")
+            logger.info("=" * 50)
+
+            # Update state with the new password
+            await self.state_manager.update_state(ap_password=ap_password)
+
+            logger.info("Starting Access Point mode...")
+            success = await self.network_manager.start_ap_mode(
+                ssid=self.settings.ap_ssid,
+                password=ap_password,
+                ip_address=self.settings.ap_ip,
+            )
+
+            if success:
+                await self.state_manager.update_state(connection_state=ConnectionState.AP_MODE)
+                logger.info(
+                    f"Access Point started: {self.settings.ap_ssid} with password: {ap_password}"
+                )
+            else:
+                logger.error("Failed to start Access Point mode")
+                raise RuntimeError("Cannot start without AP mode")
 
         await self.mdns_service.start()
         logger.info(f"mDNS service started: {self.settings.mdns_fqdn}:{self.settings.mdns_port}")

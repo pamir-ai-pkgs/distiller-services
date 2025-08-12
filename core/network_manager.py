@@ -335,6 +335,57 @@ class NetworkManager:
 
         return None
 
+    async def reconnect_to_saved_network(self, ssid: str) -> bool:
+        """Try to reconnect to a previously saved network connection."""
+        if not self.wifi_device:
+            await self._detect_wifi_device()
+            if not self.wifi_device:
+                logger.error("No WiFi device available for reconnection")
+                return False
+
+        logger.info(f"Attempting to reconnect to saved network: {ssid}")
+
+        # Check if the connection profile exists
+        returncode, stdout, _ = await self._run_command(
+            ["nmcli", "-t", "-f", "NAME", "connection", "show"]
+        )
+
+        if returncode != 0:
+            logger.error("Failed to list network connections")
+            return False
+
+        connection_exists = False
+        for line in stdout.split("\n"):
+            if line.strip() == ssid:
+                connection_exists = True
+                break
+
+        if not connection_exists:
+            logger.info(f"No saved connection profile for {ssid}")
+            return False
+
+        # Try to activate the existing connection
+        returncode, _, stderr = await self._run_command(
+            ["nmcli", "connection", "up", ssid]
+        )
+
+        if returncode != 0:
+            logger.error(f"Failed to reconnect to {ssid}: {stderr}")
+            return False
+
+        # Wait for connection to establish
+        await asyncio.sleep(3)
+
+        # Verify connection
+        connection_info = await self.get_connection_info()
+        if connection_info and connection_info.get("ssid") == ssid:
+            logger.info(f"Successfully reconnected to {ssid}")
+            self._is_ap_mode = False
+            return True
+
+        logger.warning(f"Reconnection to {ssid} verification failed")
+        return False
+
     async def monitor_events(self) -> None:
         logger.info("Starting NetworkManager event monitor")
 
