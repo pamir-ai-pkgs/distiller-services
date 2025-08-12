@@ -21,8 +21,8 @@ class TunnelService:
         self._running = False
         self._refresh_task: asyncio.Task | None = None
         self._retry_count = 0
-        self._max_retries = 3
-        self._retry_delay = 30  # seconds - align with commit 0a86754
+        self._max_retries = settings.tunnel_max_retries
+        self._retry_delay = settings.tunnel_retry_delay
 
     async def check_network_connectivity(self) -> bool:
         """Check if network is connected (aligned with commit approach)."""

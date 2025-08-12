@@ -71,11 +71,10 @@ class Settings(BaseSettings):
     tunnel_ssh_port: int = Field(default=443, description="SSH port for tunnel connection")
 
     # Connection settings
-    connection_timeout: int = Field(default=30, description="WiFi connection timeout in seconds")
-
-    max_retries: int = Field(default=3, description="Maximum connection retry attempts")
-
-    retry_delay: int = Field(default=5, description="Delay between retries in seconds")
+    # Tunnel service configuration (used by TunnelService)
+    tunnel_max_retries: int = Field(default=3, description="Maximum tunnel connection retry attempts")
+    
+    tunnel_retry_delay: int = Field(default=30, description="Delay between tunnel retries in seconds")
 
     # Runtime settings
     debug: bool = Field(default=False, description="Enable debug logging")
