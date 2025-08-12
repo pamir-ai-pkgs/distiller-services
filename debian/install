@@ -7,9 +7,6 @@ core/*.py opt/distiller-cm5-services/core/
 # Service modules
 services/*.py opt/distiller-cm5-services/services/
 
-# API modules
-api/*.py opt/distiller-cm5-services/api/
-
 # Templates
 templates/*.html opt/distiller-cm5-services/templates/
 
@@ -19,15 +16,9 @@ static/js/*.js opt/distiller-cm5-services/static/js/
 static/images/*.svg opt/distiller-cm5-services/static/images/
 static/fonts/*.ttf opt/distiller-cm5-services/static/fonts/
 
-# Display module (if exists)
-display/*.py opt/distiller-cm5-services/display/
-
 # Systemd service
 distiller-wifi.service lib/systemd/system/
 
 # Python package files
 pyproject.toml opt/distiller-cm5-services/
 requirements.txt opt/distiller-cm5-services/
-
-# Configuration example
-.env.example opt/distiller-cm5-services/

@@ -19,18 +19,6 @@ override_dh_auto_install:
 	mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services/services
 	cp -r services/*.py debian/distiller-cm5-services/opt/distiller-cm5-services/services/
 	
-	# Install API modules (if exists)
-	if [ -d api ]; then \
-		mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services/api; \
-		cp -r api/*.py debian/distiller-cm5-services/opt/distiller-cm5-services/api/; \
-	fi
-	
-	# Install display modules (if exists)
-	if [ -d display ]; then \
-		mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services/display; \
-		cp -r display/*.py debian/distiller-cm5-services/opt/distiller-cm5-services/display/; \
-	fi
-	
 	# Install static files
 	mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services/static
 	cp -r static/* debian/distiller-cm5-services/opt/distiller-cm5-services/static/
@@ -62,11 +50,6 @@ override_dh_auto_install:
 	cp pyproject.toml debian/distiller-cm5-services/opt/distiller-cm5-services/
 	cp requirements.txt debian/distiller-cm5-services/opt/distiller-cm5-services/
 	
-	# Install .env.example for configuration reference
-	if [ -f .env.example ]; then \
-		cp .env.example debian/distiller-cm5-services/opt/distiller-cm5-services/; \
-	fi
-
 override_dh_installinit:
 	# Skip traditional init scripts, we use systemd
 
