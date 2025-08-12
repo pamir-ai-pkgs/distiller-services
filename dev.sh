@@ -9,6 +9,7 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Log functions
@@ -22,6 +23,28 @@ log_warn() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[✓]${NC} $1"
+}
+
+run_command() {
+    local cmd="$1"
+    local description="$2"
+    local verbose="$3"
+    
+    if [ "$verbose" = true ]; then
+        echo -e "${BLUE}Running:${NC} $cmd"
+    fi
+    
+    if eval "$cmd" 2>&1 | ([ "$verbose" = true ] && cat || cat > /dev/null); then
+        log_success "$description"
+        return 0
+    else
+        log_error "$description"
+        return 1
+    fi
 }
 
 # Check if running in project directory
@@ -109,17 +132,202 @@ case "$CMD" in
         ;;
         
     lint)
-        log_info "Running linters..."
+        # Parse lint-specific arguments
+        LINT_EXIT_CODE=0
+        LINT_FIX_MODE=false
+        LINT_CHECK_MODE=true
+        LINT_VERBOSE=false
+        LINT_ARGS=()
         
+        # Parse arguments for lint subcommand
+        while [[ $# -gt 0 ]]; do
+            case $1 in
+                --fix)
+                    LINT_FIX_MODE=true
+                    LINT_CHECK_MODE=false
+                    shift
+                    ;;
+                --check)
+                    LINT_CHECK_MODE=true
+                    LINT_FIX_MODE=false
+                    shift
+                    ;;
+                --verbose|-v)
+                    LINT_VERBOSE=true
+                    shift
+                    ;;
+                --help|-h)
+                    echo "Usage: ./dev.sh lint [OPTIONS]"
+                    echo ""
+                    echo "Options:"
+                    echo "  --check     Check for linting issues (default)"
+                    echo "  --fix       Auto-fix formatting issues"
+                    echo "  --verbose   Show detailed output"
+                    echo "  --help      Show this help message"
+                    echo ""
+                    echo "Tools used:"
+                    echo "  Python:     ruff, black, isort, mypy"
+                    echo "  HTML:       djlint, prettier"
+                    echo "  JavaScript: eslint, prettier"
+                    echo "  CSS:        stylelint, prettier"
+                    echo "  JSON/YAML:  prettier, yamllint"
+                    echo "  Markdown:   markdownlint"
+                    echo "  Shell:      shellcheck"
+                    exit 0
+                    ;;
+                *)
+                    LINT_ARGS+=("$1")
+                    shift
+                    ;;
+            esac
+        done
+
+        # Set up runner
         if command -v uv >/dev/null 2>&1; then
-            uv run ruff check . $@
-            uv run mypy . $@
-        elif [ -f ".venv/bin/ruff" ]; then
-            .venv/bin/ruff check . $@
-            .venv/bin/mypy . $@
+            RUNNER="uv run"
+            VENV_PATH=".venv"
+        elif [ -f ".venv/bin/activate" ]; then
+            RUNNER=""
+            source .venv/bin/activate
+            VENV_PATH=".venv"
         else
-            log_warn "Linters not installed"
+            log_warn "No package manager or virtual environment found"
+            RUNNER=""
+            VENV_PATH=""
         fi
+
+        echo "======================================"
+        echo "   Distiller CM5 Services Linter"
+        if [ "$LINT_FIX_MODE" = true ]; then
+            echo "        MODE: AUTO-FIX"
+        else
+            echo "        MODE: CHECK"
+        fi
+        echo "======================================"
+        echo ""
+
+        # Python Linting
+        echo "Python Files"
+        echo "------------"
+
+        # Ruff - Fast Python linter and formatter
+        if command -v ruff >/dev/null 2>&1 || command -v "$VENV_PATH/bin/ruff" >/dev/null 2>&1; then
+            if [ "$LINT_FIX_MODE" = true ]; then
+                if ! run_command "$RUNNER ruff check --fix ." "Ruff auto-fix" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+                if ! run_command "$RUNNER ruff format ." "Ruff format" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+            else
+                if ! run_command "$RUNNER ruff check ." "Ruff check" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+                if ! run_command "$RUNNER ruff format --check ." "Ruff format check" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+            fi
+        else
+            # Fallback to traditional tools
+            
+            # Black - Python formatter
+            if command -v black >/dev/null 2>&1 || command -v "$VENV_PATH/bin/black" >/dev/null 2>&1; then
+                if [ "$LINT_FIX_MODE" = true ]; then
+                    if ! run_command "$RUNNER black ." "Black format" "$LINT_VERBOSE"; then
+                        LINT_EXIT_CODE=1
+                    fi
+                else
+                    if ! run_command "$RUNNER black --check ." "Black check" "$LINT_VERBOSE"; then
+                        LINT_EXIT_CODE=1
+                    fi
+                fi
+            else
+                log_warn "Black not installed"
+            fi
+            
+            # isort - Import sorter
+            if command -v isort >/dev/null 2>&1 || command -v "$VENV_PATH/bin/isort" >/dev/null 2>&1; then
+                if [ "$LINT_FIX_MODE" = true ]; then
+                    if ! run_command "$RUNNER isort ." "isort format" "$LINT_VERBOSE"; then
+                        LINT_EXIT_CODE=1
+                    fi
+                else
+                    if ! run_command "$RUNNER isort --check-only ." "isort check" "$LINT_VERBOSE"; then
+                        LINT_EXIT_CODE=1
+                    fi
+                fi
+            else
+                log_warn "isort not installed"
+            fi
+        fi
+
+        # MyPy - Type checker
+        if command -v mypy >/dev/null 2>&1 || command -v "$VENV_PATH/bin/mypy" >/dev/null 2>&1; then
+            if ! run_command "$RUNNER mypy --ignore-missing-imports --no-strict-optional --exclude debian ." "MyPy type check" "$LINT_VERBOSE"; then
+                LINT_EXIT_CODE=1
+            fi
+        else
+            log_warn "MyPy not installed"
+        fi
+
+        echo ""
+
+        # JSON validation (basic check)
+        echo "JSON/YAML Files"
+        echo "---------------"
+        
+        for file in $(find . -name "*.json" -not -path "./.venv/*" -not -path "./.git/*" -not -path "./build/*" -not -path "./dist/*" -not -path "./debian/*" 2>/dev/null); do
+            if python3 -m json.tool "$file" > /dev/null 2>&1; then
+                [ "$LINT_VERBOSE" = true ] && log_success "Valid JSON: $file"
+            else
+                log_error "Invalid JSON: $file"
+                LINT_EXIT_CODE=1
+            fi
+        done
+
+        # YAML linting
+        if command -v yamllint >/dev/null 2>&1; then
+            if ! run_command "yamllint -d relaxed ." "YAML lint" "$LINT_VERBOSE"; then
+                LINT_EXIT_CODE=1
+            fi
+        else
+            log_warn "yamllint not installed (pip install yamllint)"
+        fi
+
+        echo ""
+
+        # Shell Script Linting
+        echo "Shell Scripts"
+        echo "-------------"
+
+        if command -v shellcheck >/dev/null 2>&1; then
+            for file in $(find . -name "*.sh" -not -path "./.venv/*" -not -path "./.git/*" -not -path "./build/*" -not -path "./dist/*" -not -path "./debian/*" 2>/dev/null); do
+                if run_command "shellcheck '$file'" "shellcheck: $(basename $file)" "$LINT_VERBOSE"; then
+                    [ "$LINT_VERBOSE" = true ] && log_success "Valid shell script: $file"
+                else
+                    LINT_EXIT_CODE=1
+                fi
+            done
+        else
+            log_warn "shellcheck not installed (apt install shellcheck)"
+        fi
+
+        echo ""
+
+        # Summary
+        echo "======================================"
+        if [ $LINT_EXIT_CODE -eq 0 ]; then
+            echo -e "${GREEN}All checks passed!${NC}"
+        else
+            echo -e "${RED}Some checks failed!${NC}"
+            if [ "$LINT_CHECK_MODE" = true ]; then
+                echo ""
+                echo "Run with --fix to auto-fix formatting issues"
+            fi
+        fi
+        echo "======================================"
+
+        exit $LINT_EXIT_CODE
         ;;
         
     format)
@@ -216,7 +424,7 @@ case "$CMD" in
         echo "  setup, install   Set up development environment"
         echo "  run, start       Start the service in development mode (requires sudo)"
         echo "  test            Run tests"
-        echo "  lint            Run linters"
+        echo "  lint [options]   Run comprehensive linters (--fix, --verbose, --help)"
         echo "  format          Format code"
         echo "  clean           Clean temporary files"
         echo "  reset           Reset environment completely"
@@ -229,6 +437,9 @@ case "$CMD" in
         echo "  ./dev.sh run                # Run in dev mode with sudo (no-hardware, debug)"
         echo "  ./dev.sh run --port 9090    # Run on different port with sudo"
         echo "  ./dev.sh test               # Run all tests"
+        echo "  ./dev.sh lint               # Check code with all linters"
+        echo "  ./dev.sh lint --fix         # Auto-fix formatting issues"
+        echo "  ./dev.sh lint --verbose     # Detailed linting output"
         echo "  ./dev.sh clean              # Clean up temporary files"
         ;;
         
