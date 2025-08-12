@@ -553,34 +553,6 @@ class DisplayService:
             except:
                 pass
 
-    def show_message(self, message: str, duration: int = 3):
-        """Show a temporary message on the display."""
-        if not self.display:
-            return
-
-        try:
-            image = Image.new("1", (self.width, self.height), 1)
-            draw = ImageDraw.Draw(image)
-
-            # Wrap and display message
-            font = self.fonts["small"]
-            lines = self._wrap_text(message, font, self.width - 20)
-
-            y_pos = (self.height - len(lines) * 12) // 2
-            for line in lines:
-                bbox = draw.textbbox((0, 0), line, font=font)
-                line_width = bbox[2] - bbox[0]
-                draw.text(((self.width - line_width) // 2, y_pos), line, font=font, fill=0)
-                y_pos += 12
-
-            # Send to display
-            temp_file = Path("/tmp/eink_message.png")
-            image.save(str(temp_file), "PNG")
-            self.display.display_image(str(temp_file), self.DisplayMode.PARTIAL)
-
-        except Exception as e:
-            logger.error(f"Failed to show message: {e}")
-
     def _wrap_text(self, text: str, font, max_width: int) -> list:
         """Wrap text to fit within max_width, breaking at word boundaries."""
         words = text.split()
