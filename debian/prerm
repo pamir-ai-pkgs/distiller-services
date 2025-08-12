@@ -1,27 +1,15 @@
-#!/bin/bash
-
+#!/bin/sh
 set -e
-
-# Log function for better debugging
-log() {
-	echo "[prerm] $1" >&2
-}
 
 case "$1" in
 remove | upgrade | deconfigure)
-	log "Called with argument: $1"
-	# Note: systemd service management is handled by dh_installsystemd
-	# This will automatically stop and disable services
-	log "Services will be stopped and disabled automatically by dh_installsystemd"
+	# Services handled by dh_installsystemd
 	;;
 
 failed-upgrade)
-	log "Called with argument: failed-upgrade"
-	# For failed upgrades, we don't need to do anything special
 	;;
 
 *)
-	log "Called with unknown argument: $1"
 	echo "prerm called with unknown argument \`$1'" >&2
 	exit 1
 	;;

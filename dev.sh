@@ -62,42 +62,36 @@ case "$CMD" in
         log_info "Setting up development environment..."
         
         # Check for uv
-        if command -v uv >/dev/null 2>&1; then
-            log_info "Using uv (fast mode)..."
-            
-            # Create virtual environment if not exists
-            if [ ! -d ".venv" ]; then
-                log_info "Creating virtual environment..."
-                uv venv
-            fi
-            
-            # Install dependencies
-            log_info "Installing dependencies..."
-            if [ -f "pyproject.toml" ]; then
-                uv sync
-            else
-                uv pip install -r requirements.txt
-            fi
-            
-            log_info "Setup complete! Use './dev.sh run' to start the service"
-            
-        else
-            log_warn "uv not found, falling back to pip..."
-            log_info "For faster setup, install uv: curl -LsSf https://astral.sh/uv/install.sh | sh"
-            
-            # Create virtual environment if not exists
-            if [ ! -d ".venv" ]; then
-                log_info "Creating virtual environment..."
-                python3 -m venv .venv
-            fi
-            
-            # Activate and install
-            source .venv/bin/activate
-            pip install --upgrade pip
-            pip install -r requirements.txt
-            
-            log_info "Setup complete! Use './dev.sh run' to start the service"
+        if ! command -v uv >/dev/null 2>&1; then
+            log_error "uv not found!"
+            log_info ""
+            log_info "uv is required for development. Please install it first:"
+            log_info "  curl -LsSf https://astral.sh/uv/install.sh | sh"
+            log_info ""
+            log_info "After installation, add it to your PATH:"
+            log_info "  export PATH=\"\$HOME/.cargo/bin:\$PATH\""
+            log_info ""
+            log_info "Then run this command again."
+            exit 1
         fi
+        
+        log_info "Using uv for dependency management..."
+        
+        # Create virtual environment if not exists
+        if [ ! -d ".venv" ]; then
+            log_info "Creating virtual environment..."
+            uv venv
+        fi
+        
+        # Install dependencies
+        log_info "Installing dependencies..."
+        if [ -f "pyproject.toml" ]; then
+            uv sync
+        else
+            uv pip install -r requirements.txt
+        fi
+        
+        log_info "Setup complete! Use './dev.sh run' to start the service"
         ;;
         
     run|start)

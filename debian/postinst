@@ -1,182 +1,61 @@
 #!/bin/sh
 set -e
 
-# Log function for better debugging
-log() {
-	echo "[postinst] $1" >&2
-}
+export PATH="/root/.local/bin:/root/.cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:$PATH"
 
 case "$1" in
 configure)
-	log "Starting configuration of Distiller WiFi service..."
-
-	# Create necessary directories
-	log "Creating system directories..."
+	# Create system directories
 	install -d -o root -g root -m 755 /var/lib/distiller
 	install -d -o root -g root -m 755 /var/log/distiller
 
-	# Setup Python dependencies
 	cd /opt/distiller-cm5-services
 
-	# Try to use uv first (preferred), fallback to pip
-	if command -v uv >/dev/null 2>&1; then
-		log "Using uv for dependency management (fast mode)..."
-
-		# Remove old virtual environment if exists
-		if [ -d ".venv" ]; then
-			log "Removing old virtual environment..."
-			rm -rf ".venv"
-		fi
-
-		# Create virtual environment and install dependencies with uv
-		log "Installing Python dependencies with uv..."
-		if ! uv venv --system-site-packages 2>/dev/null; then
-			# Fallback to no system-site-packages if option not supported
-			uv venv
-		fi
-
-		# Install dependencies
-		if [ -f pyproject.toml ]; then
-			uv sync || {
-				log "Warning: uv sync failed, trying uv pip install..."
-				uv pip install -r requirements.txt
-			}
-		else
-			uv pip install -r requirements.txt
-		fi
-
-		VENV_PATH="/opt/distiller-cm5-services/.venv"
-		VENV_PYTHON="$VENV_PATH/bin/python"
-
-	else
-		log "uv not found, falling back to pip..."
-
-		# Create virtual environment for Python dependencies
-		VENV_PATH="/opt/distiller-cm5-services/.venv"
-
-		# Remove old virtual environment if exists
-		if [ -d "$VENV_PATH" ]; then
-			log "Removing old virtual environment..."
-			rm -rf "$VENV_PATH"
-		fi
-
-		# Create new virtual environment
-		log "Creating Python virtual environment..."
-		if ! python3 -m venv "$VENV_PATH" --system-site-packages; then
-			log "Error: Failed to create virtual environment"
-			exit 1
-		fi
-
-		# Upgrade pip
-		log "Upgrading pip..."
-		"$VENV_PATH/bin/python" -m pip install --upgrade pip
-
-		# Install dependencies
-		log "Installing Python dependencies with pip..."
-		if [ -f requirements.txt ]; then
-			"$VENV_PATH/bin/pip" install -r requirements.txt || {
-				log "Failed to install from requirements.txt, installing packages individually..."
-				"$VENV_PATH/bin/pip" install "fastapi>=0.109.2" "uvicorn[standard]>=0.27.1"
-				"$VENV_PATH/bin/pip" install "pydantic>=2.6.1" "pydantic-settings>=2.1.0"
-				"$VENV_PATH/bin/pip" install "httpx>=0.25.0" "jinja2>=3.1.3"
-				"$VENV_PATH/bin/pip" install "pillow>=10.2.0" "qrcode[pil]>=7.4.2"
-				"$VENV_PATH/bin/pip" install "zeroconf>=0.147.0" "websockets>=12.0"
-				"$VENV_PATH/bin/pip" install "python-multipart>=0.0.9"
-			}
-		else
-			log "Installing Python packages directly..."
-			"$VENV_PATH/bin/pip" install "fastapi>=0.109.2" "uvicorn[standard]>=0.27.1"
-			"$VENV_PATH/bin/pip" install "pydantic>=2.6.1" "pydantic-settings>=2.1.0"
-			"$VENV_PATH/bin/pip" install "httpx>=0.25.0" "jinja2>=3.1.3"
-			"$VENV_PATH/bin/pip" install "pillow>=10.2.0" "qrcode[pil]>=7.4.2"
-			"$VENV_PATH/bin/pip" install "zeroconf>=0.147.0" "websockets>=12.0"
-			"$VENV_PATH/bin/pip" install "python-multipart>=0.0.9"
-		fi
-
-		# Install package in editable mode if pyproject.toml exists
-		if [ -f pyproject.toml ]; then
-			log "Installing package in development mode..."
-			"$VENV_PATH/bin/pip" install -e . || true
-		fi
-
-		VENV_PYTHON="$VENV_PATH/bin/python"
-	fi
-
-	# Install SDK package if available
-	if [ -d "/opt/distiller-cm5-sdk" ]; then
-		log "Installing distiller-cm5-sdk..."
-		"$VENV_PATH/bin/pip" install -e /opt/distiller-cm5-sdk || {
-			log "Warning: Failed to install SDK package, display functionality may not work"
-		}
-	fi
-
-	# Verify installation
-	VENV_PYTHON="$VENV_PATH/bin/python"
-	if [ ! -f "$VENV_PYTHON" ]; then
-		log "Error: Virtual environment setup failed - Python binary not found"
+	# Verify uv is available
+	if ! command -v uv >/dev/null 2>&1; then
+		echo "ERROR: uv not found in PATH" >&2
 		exit 1
 	fi
 
-	log "Virtual environment created successfully"
+	# Setup virtual environment
+	[ -d ".venv" ] && rm -rf ".venv"
+	uv venv --system-site-packages 2>/dev/null || uv venv
 
-	# Set proper ownership and permissions
-	log "Setting file permissions..."
-	find /opt/distiller-cm5-services -type f -name "*.py" -exec chmod 755 {} \;
-	find /opt/distiller-cm5-services -type d -exec chmod 755 {} \;
-	chmod +x /opt/distiller-cm5-services/distiller_wifi.py
-
-	# Update systemd service file to use virtual environment Python
-	if [ -f /lib/systemd/system/distiller-wifi.service ]; then
-		log "Updating systemd service to use virtual environment..."
-		sed -i "s|/usr/bin/python3|$VENV_PYTHON|g" /lib/systemd/system/distiller-wifi.service
+	# Install dependencies
+	if [ -f pyproject.toml ]; then
+		uv sync || uv pip install -r requirements.txt
+	else
+		uv pip install -r requirements.txt
 	fi
 
-	# Reload systemd daemon to pick up new service configuration
-	log "Reloading systemd daemon..."
-	systemctl daemon-reload 2>/dev/null || true
+	VENV_PATH="/opt/distiller-cm5-services/.venv"
 
-	# Enable service
-	log "Enabling distiller-wifi service..."
+	# Install SDK if available
+	if [ -d "/opt/distiller-cm5-sdk" ]; then
+		uv pip install -e /opt/distiller-cm5-sdk 2>/dev/null || true
+	fi
+
+	# Set permissions
+	find /opt/distiller-cm5-services -type d -exec chmod 755 {} \; \
+		-o -type f -name "*.py" -exec chmod 755 {} \;
+	chmod +x /opt/distiller-cm5-services/distiller_wifi.py
+
+	# Update systemd service
+	if [ -f /lib/systemd/system/distiller-wifi.service ]; then
+		sed -i "s|/usr/bin/python3|$VENV_PATH/bin/python|g" /lib/systemd/system/distiller-wifi.service
+	fi
+
+	# Reload systemd and enable service
+	systemctl daemon-reload 2>/dev/null || true
 	systemctl enable distiller-wifi.service 2>/dev/null || true
 
-	log ""
-	log "================================================================"
-	log " Distiller CM5 WiFi Service Installation Complete!"
-	log "================================================================"
-	log ""
-	log "The new unified service architecture is now installed."
-	log ""
-	log "To start the service:"
-	log "  sudo systemctl start distiller-wifi"
-	log ""
-	log "To check status:"
-	log "  sudo systemctl status distiller-wifi"
-	log ""
-	log "To view logs:"
-	log "  sudo journalctl -u distiller-wifi -f"
-	log ""
-	log "The device will create a WiFi hotspot:"
-	log "  SSID: Distiller-XXXX (unique per device)"
-	log "  Password: Dynamically generated on each startup"
-	log ""
-	log "To view the current AP password:"
-	log "  sudo journalctl -u distiller-wifi | grep 'AP PASSWORD'"
-	log ""
-	log "Connect and access: http://distiller-xxxx.local:8080"
-	log ""
-	log "Pinggy tunnel is enabled by default for remote access."
-	log "No authentication required - uses anonymous tunnels."
-	log ""
-	log "Logs are saved to: /var/log/distiller/distiller-wifi.log"
-	log "================================================================"
+	echo "Distiller WiFi service installed. Start with: systemctl start distiller-wifi"
 	;;
 
 abort-upgrade | abort-remove | abort-deconfigure)
-	log "Called with argument: $1"
 	;;
 
 *)
-	log "Called with unknown argument: $1"
 	echo "postinst called with unknown argument \`$1'" >&2
 	exit 1
 	;;

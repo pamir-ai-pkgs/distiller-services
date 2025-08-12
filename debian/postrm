@@ -1,113 +1,34 @@
-#!/bin/bash
-
+#!/bin/sh
 set -e
-
-# Log function for better debugging
-log() {
-	echo "[postrm] $1" >&2
-}
 
 case "$1" in
 purge)
-	log "Starting purge cleanup..."
-
-	# Remove wrapper scripts if any were created
-	log "Removing wrapper scripts..."
+	# Remove system files and directories
+	rm -rf /var/log/distiller /var/lib/distiller /opt/distiller-cm5-services
 	rm -f /usr/local/bin/distiller-wifi
-
-	# Remove permission configuration files
-	log "Removing permission configuration files..."
-	rm -f /etc/sudoers.d/distiller-system
-	rm -f /etc/polkit-1/rules.d/50-distiller-networkmanager.rules
-	rm -f /etc/udev/rules.d/99-distiller-hardware.rules
-
-	# Remove system directories
-	log "Removing system directories..."
-	rm -rf /var/log/distiller
-	rm -rf /var/lib/distiller
-
-	# Clean up installation directory
-	log "Removing installation directory..."
-	rm -rf /opt/distiller-cm5-services
-
-	# Clean up any potential log files in system directories
-	log "Cleaning up log files..."
-	rm -f /var/log/distiller-cm5-services.log
-	rm -f /var/log/distiller-wifi.log
-	rm -f /var/log/pinggy-tunnel.log
-	rm -f /var/log/mdns-service.log
-
-	# Clean up any potential PID files
-	log "Cleaning up PID files..."
-	rm -f /var/run/distiller-cm5-services.pid
-	rm -f /var/run/distiller-wifi.pid
-	rm -f /var/run/pinggy-tunnel.pid
-	rm -f /var/run/mdns-service.pid
-
-	# Clean up any potential lock files
-	log "Cleaning up lock files..."
-	rm -f /var/lock/distiller-cm5-services.lock
-	rm -f /var/lock/distiller-wifi.lock
-	rm -f /var/lock/pinggy-tunnel.lock
-	rm -f /var/lock/mdns-service.lock
-
-	# Clean up any potential temporary files in /tmp
-	log "Cleaning up temporary files..."
-	rm -f /tmp/distiller-cm5-services-*
-	rm -f /tmp/distiller-wifi-*
-	rm -f /tmp/pinggy-tunnel-*
-	rm -f /tmp/mdns-service-*
-
-	# Clean up any potential state files
-	log "Cleaning up state files..."
-	rm -f /var/lib/distiller-cm5-services/state.json
-	rm -f /var/lib/distiller-cm5-services/config.json
-	rm -f /var/lib/distiller/state.json
-	rm -f /var/lib/distiller/device_config.json
-	rm -f /var/lib/distiller/sessions.json
-	rm -rf /var/lib/distiller-cm5-services 2>/dev/null || true
-
-	# Clean up any potential cache directories
-	log "Cleaning up cache directories..."
-	rm -rf /var/cache/distiller-cm5-services 2>/dev/null || true
-
-	# Clean up any potential runtime directories
-	log "Cleaning up runtime directories..."
-	rm -rf /var/run/distiller-cm5-services 2>/dev/null || true
-
-	# Clean up NetworkManager connections created by the service
-	log "Cleaning up NetworkManager connections..."
+	
+	# Remove configuration files
+	rm -f /etc/sudoers.d/distiller-system \
+	      /etc/polkit-1/rules.d/50-distiller-networkmanager.rules \
+	      /etc/udev/rules.d/99-distiller-hardware.rules
+	
+	# Clean up temporary files
+	rm -f /tmp/distiller-* /var/run/distiller-* /var/lock/distiller-*
+	
+	# Remove NetworkManager connections
 	if command -v nmcli >/dev/null 2>&1; then
-		# Only remove connections that start with Distiller- (our AP connections)
-		nmcli connection show | grep -E "^Distiller-" | awk '{print $1}' | while read conn; do
-			if [ -n "$conn" ]; then
-				log "Removing NetworkManager connection: $conn"
-				nmcli connection delete "$conn" 2>/dev/null || true
-			fi
-		done
+		nmcli connection show 2>/dev/null | grep -E "^Distiller-" | awk '{print $1}' | \
+			xargs -r nmcli connection delete 2>/dev/null || true
 	fi
-
-	# Reload systemd daemon to ensure clean state
-	if systemctl is-system-running >/dev/null 2>&1; then
-		log "Reloading systemd daemon..."
-		systemctl daemon-reload || true
-
-		# Restart polkit to reload rules after removing permission files
-		log "Restarting polkit to reload permission rules..."
-		systemctl restart polkit 2>/dev/null || true
-	fi
-
-	log "Purge cleanup completed"
+	
+	# Reload systemd if running
+	systemctl daemon-reload 2>/dev/null || true
 	;;
 
 remove | upgrade | failed-upgrade | abort-install | abort-upgrade | disappear)
-	log "Called with argument: $1"
-	# For remove/upgrade, systemd services are handled by dh_installsystemd
-	log "Partial cleanup during $1"
 	;;
 
 *)
-	log "Called with unknown argument: $1"
 	echo "postrm called with unknown argument \`$1'" >&2
 	exit 1
 	;;

@@ -4,8 +4,7 @@ Priority: optional
 Maintainer: PamirAI Incorporated <support@pamir.ai>
 Build-Depends: debhelper-compat (= 13),
                dh-python,
-               python3-dev,
-               python3-setuptools
+               python3-dev
 Standards-Version: 4.6.2
 Homepage: https://github.com/Pamir-AI/distiller-cm5-services
 Vcs-Git: https://github.com/Pamir-AI/distiller-cm5-services.git
@@ -18,29 +17,13 @@ Depends: ${misc:Depends},
          python3 (>= 3.11),
          python3-venv,
          python3-dev,
-         python3-pip,
          systemd,
          network-manager,
          avahi-daemon,
          openssh-client
 Recommends: distiller-cm5-sdk
-Description: Modern async WiFi provisioning system for Distiller
- Unified async Python application for WiFi provisioning on Raspberry Pi CM5
- devices with e-ink displays.
- .
- Features:
-  * Single service architecture with FastAPI and async/await
-  * WebSocket real-time updates and session management
-  * Persistent mDNS advertising during network transitions
-  * Persistent device identity across restarts
-  * Monochrome UI with clean, modern design
-  * E-ink display support with QR codes
-  * Pinggy tunnel with automatic rotation (anonymous, no auth required)
-  * Always starts in AP mode for easy setup
-  * System hostname and /etc/hosts configuration
-  * File logging with rotation to /var/log/distiller/
-  * Automatic Avahi daemon restart for proper mDNS
- .
- The system provides seamless transitions between AP and client modes
- without dropping user connections, using modern Python async patterns
- throughout.
+Description: WiFi provisioning service for Raspberry Pi CM5 devices
+ Provides network configuration and management for Distiller devices
+ with support for access point mode, client mode, and remote access
+ via secure tunnels. Features e-ink display integration and web-based
+ configuration interface.
