@@ -178,6 +178,9 @@ class DeviceConfigManager:
 
     def _update_hosts_file(self) -> None:
         """Update /etc/hosts with proper entries for mDNS."""
+        import os
+        import tempfile
+
         if not self.identity:
             logger.error("No device identity to update /etc/hosts")
             return
@@ -188,41 +191,49 @@ class DeviceConfigManager:
             with open("/etc/hosts") as f:
                 lines = f.readlines()
 
-            # Remove old distiller entries
-            filtered_lines = []
+            # Update or add the 127.0.1.1 entry
+            updated_lines = []
+            found_127_0_1_1 = False
+
             for line in lines:
-                if "distiller-" not in line.lower() or line.strip().startswith("#"):
-                    filtered_lines.append(line)
+                # Skip old Distiller comment headers
+                if line.strip() == "# Distiller CM5 Device":
+                    continue
 
-            # Add new entries
-            new_entries = [
-                "\n# Distiller CM5 Device\n",
-                f"127.0.0.1\t{hostname}\n",
-                f"127.0.1.1\t{hostname}.local {hostname}\n",
-                f"::1\t\t{hostname}\n",
-            ]
+                # Update 127.0.1.1 line if it exists
+                if line.strip().startswith("127.0.1.1"):
+                    updated_lines.append(f"127.0.1.1\t{hostname}\n")
+                    found_127_0_1_1 = True
+                else:
+                    updated_lines.append(line)
 
-            # Find where to insert (after localhost entries)
-            insert_index = 0
-            for i, line in enumerate(filtered_lines):
-                if "127.0.0.1" in line and "localhost" in line:
-                    insert_index = i + 1
-                    break
+            # If 127.0.1.1 wasn't found, add it after localhost
+            if not found_127_0_1_1:
+                insert_index = 0
+                for i, line in enumerate(updated_lines):
+                    if "127.0.0.1" in line and "localhost" in line:
+                        insert_index = i + 1
+                        break
+                updated_lines.insert(insert_index, f"127.0.1.1\t{hostname}\n")
 
-            # Insert new entries
-            final_lines = (
-                filtered_lines[:insert_index] + new_entries + filtered_lines[insert_index:]
-            )
+            # Write to temp file with proper permissions
+            temp_fd, temp_path = tempfile.mkstemp(dir="/etc", prefix="hosts.")
+            try:
+                with os.fdopen(temp_fd, 'w') as f:
+                    f.writelines(updated_lines)
 
-            # Write back atomically
-            temp_file = Path("/etc/hosts.tmp")
-            with open(temp_file, "w") as f:
-                f.writelines(final_lines)
+                # Set proper permissions
+                os.chmod(temp_path, 0o644)
 
-            # Replace original file
-            temp_file.rename("/etc/hosts")
+                # Atomic replace
+                os.replace(temp_path, "/etc/hosts")
+                logger.info(f"Updated /etc/hosts with entry for {hostname}")
 
-            logger.info(f"Updated /etc/hosts with entries for {hostname}")
+            except Exception:
+                # Clean up temp file on failure
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                raise
 
         except Exception as e:
             logger.error(f"Failed to update /etc/hosts: {e}")
