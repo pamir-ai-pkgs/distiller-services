@@ -2,6 +2,7 @@
 Configuration management using Pydantic settings.
 """
 
+import secrets
 from functools import lru_cache
 from pathlib import Path
 
@@ -29,15 +30,10 @@ class Settings(BaseSettings):
 
     # Network configuration
     ap_ssid_prefix: str = Field(default="Distiller", description="Access Point SSID prefix")
-
-    ap_password: str = Field(default="setupwifi123", description="Access Point password")
-
-    # Consider generating a more secure default password in production:
-    # import secrets
-    # ap_password: str = Field(
-    #     default_factory=lambda: f"setup-{secrets.token_urlsafe(8)}",
-    #     description="Access Point password"
-    # )
+    ap_password: str = Field(
+        default_factory=lambda: f"setup-{secrets.token_urlsafe(8)}",
+        description="Access Point password",
+    )
 
     ap_ip: str = Field(default="192.168.4.1", description="Access Point IP address")
 
@@ -87,7 +83,7 @@ class Settings(BaseSettings):
     log_dir: Path = Field(default=Path("/var/log/distiller"), description="Log file directory")
 
     # Device configuration manager (lazy loaded)
-    _device_config: DeviceConfigManager = None
+    _device_config: DeviceConfigManager | None = None
 
     def _get_device_config(self) -> DeviceConfigManager:
         """Get or create device configuration manager."""

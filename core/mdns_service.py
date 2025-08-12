@@ -131,7 +131,7 @@ class MDNSService:
             # Get all network interfaces
             for interface in socket.getaddrinfo(socket.gethostname(), None):
                 if interface[0] == socket.AF_INET:  # IPv4
-                    ip = interface[4][0]
+                    ip = str(interface[4][0])
                     if ip != "127.0.0.1":  # Skip loopback
                         ip_addresses.append(socket.inet_aton(ip))
 

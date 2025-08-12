@@ -34,7 +34,7 @@ class NetworkManager:
         else:
             logger.warning("No WiFi device detected")
 
-    async def _run_command(self, cmd: list[str]) -> tuple[int, str, str]:
+    async def _run_command(self, cmd: list[str]) -> tuple[int | None, str, str]:
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE

@@ -37,7 +37,7 @@ class DeviceIdentity(BaseModel):
 
 
 class DeviceConfigManager:
-    def __init__(self, config_file: Path = None):
+    def __init__(self, config_file: Path | None = None):
         self.config_file = config_file or Path("/var/lib/distiller/device_config.json")
         self.identity: DeviceIdentity | None = None
 
@@ -75,6 +75,8 @@ class DeviceConfigManager:
             # Write atomically
             temp_file = self.config_file.with_suffix(".tmp")
             with open(temp_file, "w") as f:
+                if not self.identity:
+                    raise ValueError("No device identity to save")
                 json.dump(self.identity.model_dump(), f, indent=2)
             temp_file.rename(self.config_file)
 
@@ -101,6 +103,9 @@ class DeviceConfigManager:
 
     def _update_hostname(self) -> None:
         """Update system hostname."""
+        if not self.identity:
+            logger.error("No device identity to update hostname")
+            return
         hostname = self.identity.hostname
 
         try:
@@ -173,6 +178,9 @@ class DeviceConfigManager:
 
     def _update_hosts_file(self) -> None:
         """Update /etc/hosts with proper entries for mDNS."""
+        if not self.identity:
+            logger.error("No device identity to update /etc/hosts")
+            return
         hostname = self.identity.hostname
 
         try:
@@ -223,22 +231,22 @@ class DeviceConfigManager:
         """Get the persistent device ID."""
         if not self.identity:
             self.load_or_create()
-        return self.identity.device_id
+        return self.identity.device_id  # pyright: ignore[reportOptionalMemberAccess]
 
     def get_hostname(self) -> str:
         """Get the system hostname."""
         if not self.identity:
             self.load_or_create()
-        return self.identity.hostname
+        return self.identity.hostname  # pyright: ignore[reportOptionalMemberAccess]
 
     def get_ap_ssid(self) -> str:
         """Get the AP SSID."""
         if not self.identity:
             self.load_or_create()
-        return self.identity.ap_ssid
+        return self.identity.ap_ssid  # pyright: ignore[reportOptionalMemberAccess]
 
     def get_mdns_hostname(self) -> str:
         """Get the mDNS hostname (without .local)."""
         if not self.identity:
             self.load_or_create()
-        return self.identity.hostname
+        return self.identity.hostname  # pyright: ignore[reportOptionalMemberAccess]

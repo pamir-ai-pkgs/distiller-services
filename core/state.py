@@ -82,6 +82,8 @@ class StateManager:
     def _load_state(self) -> None:
         """Load state from file."""
         try:
+            if not self.state_file:
+                return
             with open(self.state_file) as f:
                 data = json.load(f)
                 # Convert datetime strings back to datetime objects
