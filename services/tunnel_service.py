@@ -208,9 +208,10 @@ class TunnelService:
 
         try:
             url_patterns = [
+                r"https://[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.free\.pinggy\.link",
+                r"http://[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.free\.pinggy\.link",
                 r"https://[a-zA-Z0-9\-]+\.free\.pinggy\.link",
                 r"http://[a-zA-Z0-9\-]+\.free\.pinggy\.link",
-                r"[a-zA-Z0-9\-]+\.free\.pinggy\.link",
             ]
 
             # Read stdout line by line
