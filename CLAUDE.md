@@ -82,9 +82,33 @@ wscat -c ws://localhost:8080/ws
 - State persistence: `/var/lib/distiller/state.json`
 - Service requires root for NetworkManager operations
 
+## Testing & Quality Assurance
+
+```bash
+# Testing (when test files exist)
+uv run pytest                    # Run all tests
+uv run pytest tests/test_state.py    # Run specific test file
+uv run pytest -v -s             # Verbose output with print statements
+uv run pytest --cov=core --cov=services    # With coverage
+
+# Quality checks
+uv run ruff format .             # Auto-format code
+uv run ruff check . --fix        # Fix linting issues
+uv run mypy --ignore-missing-imports --no-strict-optional .
+```
+
+## Security & Input Validation
+
+- **Input sanitization**: All user inputs (SSID, passwords) have validation patterns
+- **Command injection prevention**: Dangerous shell characters are blocked
+- **Session management**: Unique session tracking with automatic cleanup
+- **Password security**: WPA/WPA2 length requirements (8-63 chars) enforced
+
 ## Important Notes
 
-- **Tests**: No test files exist yet - use pytest when adding
+- **Tests**: No test files exist yet - use pytest when adding (see Testing section above)
 - **Root required**: Service needs sudo for NetworkManager and system directories
 - **Package manager**: Project prefers `uv` (10-100x faster than pip)
 - **Python 3.11+**: Minimum Python version requirement
+- **Event-driven**: State changes trigger callbacks across all services
+- **WebSocket real-time**: All UI updates happen via WebSocket, no polling

@@ -268,6 +268,7 @@ The service maintains a persistent device identity with the following features:
 - **AP SSID Generation**: Creates unique hotspot name `Distiller-XXXX`
 
 Device configuration is stored in `/var/lib/distiller/device_config.json` and includes:
+
 - Device ID
 - Hostname
 - AP SSID
@@ -286,6 +287,7 @@ For enhanced security, the service generates a new Access Point password on each
 - **Uses Python's `secrets` module** for secure randomness
 
 To view the current AP password:
+
 ```bash
 sudo journalctl -u distiller-wifi | grep "AP PASSWORD"
 ```
@@ -297,6 +299,7 @@ sudo journalctl -u distiller-wifi | grep "AP PASSWORD"
 The project includes comprehensive development tools:
 
 #### dev.sh - Development Helper Script
+
 ```bash
 ./dev.sh setup              # Install dependencies (prefers uv)
 ./dev.sh run                # Start with --no-hardware --debug
@@ -311,6 +314,7 @@ The project includes comprehensive development tools:
 ```
 
 #### lint.sh - Comprehensive Linting
+
 ```bash
 ./lint.sh --check           # Check for issues (default)
 ./lint.sh --fix             # Auto-fix formatting
@@ -318,6 +322,7 @@ The project includes comprehensive development tools:
 ```
 
 Supports:
+
 - Python: ruff, black, isort, mypy
 - HTML: djlint, prettier
 - JavaScript: eslint, prettier
@@ -327,11 +332,13 @@ Supports:
 - Shell: shellcheck
 
 #### generate_eink_previews.py - Display Preview Generator
+
 ```bash
 python generate_eink_previews.py
 ```
 
 Generates preview images of all E-ink display states:
+
 - Setup mode with QR code
 - Connecting animation
 - Connected status
