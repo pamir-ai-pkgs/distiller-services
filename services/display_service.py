@@ -83,8 +83,8 @@ class DisplayService:
         """Load fonts for rendering."""
         fonts = {}
 
-        # Use MartianMono font from static/fonts
-        font_path = Path(__file__).parent / "static" / "fonts" / "MartianMonoNerdFont-CondensedBold.ttf"
+        # Use MartianMono font from static/fonts (parent directory)
+        font_path = Path(__file__).parent.parent / "static" / "fonts" / "MartianMonoNerdFont-CondensedBold.ttf"
 
         try:
             # Load font at different sizes
