@@ -65,9 +65,9 @@ install_build_deps() {
         missing_deps+=("dh-python")
     fi
     
-    # Check for python3-all and python3-setuptools
-    if ! dpkg -l python3-all >/dev/null 2>&1; then
-        missing_deps+=("python3-all")
+    # Check for python3-dev and python3-setuptools
+    if ! dpkg -l python3-dev >/dev/null 2>&1; then
+        missing_deps+=("python3-dev")
     fi
     
     if ! dpkg -l python3-setuptools >/dev/null 2>&1; then
@@ -214,7 +214,7 @@ build_source() {
     print_status "Building source package..."
     
     # Create source package
-    CC="aarch64-linux-gnu-gcc" dpkg-buildpackage -S -us -uc -aarm64
+    CC="aarch64-linux-gnu-gcc" dpkg-buildpackage -S -us -uc -d -aarm64
     
     print_success "Source package built"
 }
@@ -222,7 +222,7 @@ build_source() {
 # Function to build binary package for specific architecture
 build_binary_for_arch() {
     # Try with dpkg-buildpackage first
-    CC="aarch64-linux-gnu-gcc" dpkg-buildpackage -b -us -uc -aarm64
+    CC="aarch64-linux-gnu-gcc" dpkg-buildpackage -b -us -uc -d -aarm64
 }
 
 # Function to build binary package for all target architectures
