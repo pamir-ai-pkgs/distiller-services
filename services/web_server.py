@@ -352,8 +352,6 @@ class WebServer:
             session_id=session_id,
             created_at=datetime.now(),
             last_seen=datetime.now(),
-            user_agent=request.headers.get("User-Agent"),
-            ip_address=request.client.host if request.client else None,
         )
         await self.state_manager.add_session(session)
 

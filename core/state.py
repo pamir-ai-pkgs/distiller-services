@@ -42,8 +42,6 @@ class SessionInfo(BaseModel):
     session_id: str
     created_at: datetime
     last_seen: datetime
-    user_agent: str | None = None
-    ip_address: str | None = None
 
 
 class SystemState(BaseModel):

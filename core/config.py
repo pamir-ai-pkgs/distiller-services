@@ -44,8 +44,6 @@ class Settings(BaseSettings):
 
     ap_ip: str = Field(default="192.168.4.1", description="Access Point IP address")
 
-    ap_subnet: str = Field(default="255.255.255.0", description="Access Point subnet mask")
-
     # mDNS configuration
     mdns_hostname_prefix: str = Field(default="distiller", description="mDNS hostname prefix")
 
@@ -124,11 +122,6 @@ class Settings(BaseSettings):
     def state_file(self) -> Path:
         """Path to state file."""
         return self.state_dir / "state.json"
-
-    @property
-    def session_file(self) -> Path:
-        """Path to session tracking file."""
-        return self.state_dir / "sessions.json"
 
     def ensure_directories(self) -> None:
         """Ensure required directories exist."""
