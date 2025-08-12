@@ -25,7 +25,6 @@ class NetworkManager:
         self._is_ap_mode = False
         self._last_scan_results = []
         self.ap_connection_name = "Distiller-AP"
-        self.client_connection_prefix = "wifi-"
 
     async def initialize(self) -> None:
         await self._detect_wifi_device()
@@ -224,7 +223,7 @@ class NetworkManager:
                 return False
 
         await self.stop_ap_mode()
-        connection_name = f"{self.client_connection_prefix}{ssid}"
+        connection_name = ssid
         await self._run_command(["nmcli", "connection", "delete", connection_name])
 
         if password:
@@ -322,10 +321,7 @@ class NetworkManager:
             if line.startswith("GENERAL.CONNECTION:"):
                 connection = line.split(":", 1)[1].strip()
                 if connection and connection != "--":
-                    if connection.startswith(self.client_connection_prefix):
-                        info["ssid"] = connection[len(self.client_connection_prefix) :]
-                    else:
-                        info["ssid"] = connection
+                    info["ssid"] = connection
             elif line.startswith("IP4.ADDRESS"):
                 ip_info = line.split(":", 1)[1].strip()
                 if "/" in ip_info:
