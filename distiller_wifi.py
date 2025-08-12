@@ -130,11 +130,9 @@ class DistillerWiFiApp:
             await self.mdns_service.switch_interface("all")
 
     async def run_web_server(self):
-        import logging as log
-
-        uvicorn_logger = log.getLogger("uvicorn.error")
+        uvicorn_logger = logging.getLogger("uvicorn.error")
         if not self.settings.debug:
-            uvicorn_logger.setLevel(log.ERROR)
+            uvicorn_logger.setLevel(logging.ERROR)
 
         config = uvicorn.Config(
             app=self.web_server.get_app(),

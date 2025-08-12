@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +51,6 @@ class NetworkManager:
             return (1, "", str(e))
 
     async def _detect_wifi_device(self) -> None:
-        import time
-
         current_time = time.time()
         if (
             self.wifi_device
