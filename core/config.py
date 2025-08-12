@@ -3,6 +3,7 @@ Configuration management using Pydantic settings.
 """
 
 import secrets
+import string
 from functools import lru_cache
 from pathlib import Path
 
@@ -10,6 +11,12 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .device_config import DeviceConfigManager
+
+
+def generate_secure_password(length: int = 12) -> str:
+    """Generate secure random password for AP mode."""
+    chars = string.ascii_letters + string.digits
+    return "".join(secrets.choice(chars) for _ in range(length))
 
 
 class Settings(BaseSettings):
@@ -31,7 +38,7 @@ class Settings(BaseSettings):
     # Network configuration
     ap_ssid_prefix: str = Field(default="Distiller", description="Access Point SSID prefix")
     ap_password: str = Field(
-        default_factory=lambda: f"setup-{secrets.token_urlsafe(8)}",
+        default_factory=lambda: f"setup-{generate_secure_password()}",
         description="Access Point password",
     )
 

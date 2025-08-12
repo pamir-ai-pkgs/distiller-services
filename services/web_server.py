@@ -3,8 +3,6 @@
 import asyncio
 import logging
 import re
-import secrets
-import string
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -15,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 
-from core.config import Settings
+from core.config import Settings, generate_secure_password
 from core.network_manager import NetworkManager
 from core.state import ConnectionState, NetworkInfo, SessionInfo, StateManager
 
@@ -446,16 +444,11 @@ class WebServer:
         except Exception as e:
             logger.error(f"Disconnect error: {e}")
 
-    def _generate_ap_password(self) -> str:
-        """Generate secure random password for AP mode."""
-        chars = string.ascii_letters + string.digits
-        return "".join(secrets.choice(chars) for _ in range(12))
-
     async def _restart_ap_mode(self) -> None:
         """Restart Access Point mode."""
         try:
             # Generate new password for AP mode
-            ap_password = self._generate_ap_password()
+            ap_password = generate_secure_password()
             logger.info("=" * 50)
             logger.info(f"NEW AP PASSWORD GENERATED: {ap_password}")
             logger.info("=" * 50)
