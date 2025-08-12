@@ -13,7 +13,7 @@ Vcs-Browser: https://github.com/Pamir-AI/distiller-cm5-services
 Rules-Requires-Root: no
 
 Package: distiller-cm5-services
-Architecture: all
+Architecture: any
 Depends: ${python3:Depends},
          ${misc:Depends},
          python3 (>= 3.11),
