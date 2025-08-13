@@ -179,6 +179,7 @@ class DeviceConfigManager:
     def _update_hosts_file(self) -> None:
         """Update /etc/hosts with proper entries for mDNS."""
         import os
+        import shutil
         import tempfile
 
         if not self.identity:
@@ -216,8 +217,8 @@ class DeviceConfigManager:
                         break
                 updated_lines.insert(insert_index, f"127.0.1.1\t{hostname}\n")
 
-            # Write to temp file with proper permissions
-            temp_fd, temp_path = tempfile.mkstemp(dir="/etc", prefix="hosts.")
+            # Write to temp file first
+            temp_fd, temp_path = tempfile.mkstemp(dir="/tmp", prefix="hosts.")
             try:
                 with os.fdopen(temp_fd, "w") as f:
                     f.writelines(updated_lines)
@@ -225,15 +226,35 @@ class DeviceConfigManager:
                 # Set proper permissions
                 os.chmod(temp_path, 0o644)
 
-                # Atomic replace
-                os.replace(temp_path, "/etc/hosts")
-                logger.info(f"Updated /etc/hosts with entry for {hostname}")
+                # Try atomic replace first (works on same filesystem)
+                try:
+                    os.replace(temp_path, "/etc/hosts")
+                    logger.info(f"Updated /etc/hosts with entry for {hostname} (atomic)")
+                except OSError as e:
+                    # If atomic replace fails (cross-filesystem or busy), use copy
+                    if e.errno == 16 or e.errno == 18:  # EBUSY or EXDEV (cross-device link)
+                        logger.debug(f"Atomic replace failed ({e}), using copy method")
+                        # Create backup first
+                        backup_path = "/etc/hosts.bak"
+                        shutil.copy2("/etc/hosts", backup_path)
+                        try:
+                            # Copy temp file content to /etc/hosts
+                            shutil.copy2(temp_path, "/etc/hosts")
+                            logger.info(f"Updated /etc/hosts with entry for {hostname} (copy)")
+                        except Exception:
+                            # Restore backup on failure
+                            shutil.copy2(backup_path, "/etc/hosts")
+                            raise
+                    else:
+                        raise
 
-            except Exception:
-                # Clean up temp file on failure
+            finally:
+                # Always clean up temp file
                 if os.path.exists(temp_path):
-                    os.unlink(temp_path)
-                raise
+                    try:
+                        os.unlink(temp_path)
+                    except Exception:
+                        pass
 
         except Exception as e:
             logger.error(f"Failed to update /etc/hosts: {e}")
