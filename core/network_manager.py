@@ -223,54 +223,91 @@ class NetworkManager:
 
         await self.stop_ap_mode()
         connection_name = ssid
-        await self._run_command(["nmcli", "connection", "delete", connection_name])
 
-        if password:
-            cmd = [
-                "nmcli",
-                "connection",
-                "add",
-                "type",
-                "wifi",
-                "con-name",
-                connection_name,
-                "ifname",
-                self.wifi_device,
-                "ssid",
-                ssid,
-                "802-11-wireless-security.key-mgmt",
-                "wpa-psk",
-                "802-11-wireless-security.psk",
-                password,
-            ]
-        else:
-            cmd = [
-                "nmcli",
-                "connection",
-                "add",
-                "type",
-                "wifi",
-                "con-name",
-                connection_name,
-                "ifname",
-                self.wifi_device,
-                "ssid",
-                ssid,
-            ]
-
-        returncode, _, stderr = await self._run_command(cmd)
-        if returncode != 0:
-            logger.error(f"Failed to create connection profile: {stderr}")
-            return False
-
-        returncode, _, stderr = await self._run_command(
-            ["nmcli", "connection", "up", connection_name]
+        # Check if connection profile already exists
+        returncode, stdout, _ = await self._run_command(
+            ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"]
         )
 
-        if returncode != 0:
-            logger.error(f"Failed to connect: {stderr}")
-            await self._run_command(["nmcli", "connection", "delete", connection_name])
-            return False
+        profile_exists = False
+        if returncode == 0:
+            for line in stdout.split("\n"):
+                if line.strip():
+                    parts = line.split(":")
+                    if len(parts) >= 2 and parts[0] == ssid and "wireless" in parts[1]:
+                        profile_exists = True
+                        logger.info(f"Found existing connection profile for {ssid}")
+                        break
+
+        # If profile exists, try to connect with it first
+        if profile_exists:
+            logger.info(f"Attempting to connect with existing profile: {ssid}")
+            returncode, _, stderr = await self._run_command(
+                ["nmcli", "connection", "up", connection_name]
+            )
+
+            if returncode == 0:
+                # Successfully connected with existing profile
+                await asyncio.sleep(3)
+                connection_info = await self.get_connection_info()
+                if connection_info:
+                    self._is_ap_mode = False
+                    logger.info(f"Connected to {ssid} using existing profile")
+                    return True
+            else:
+                # Existing profile failed, delete it and create new one
+                logger.warning(f"Failed to connect with existing profile: {stderr}")
+                await self._run_command(["nmcli", "connection", "delete", connection_name])
+                profile_exists = False
+
+        # Create new connection profile if it doesn't exist or failed
+        if not profile_exists:
+            if password:
+                cmd = [
+                    "nmcli",
+                    "connection",
+                    "add",
+                    "type",
+                    "wifi",
+                    "con-name",
+                    connection_name,
+                    "ifname",
+                    self.wifi_device,
+                    "ssid",
+                    ssid,
+                    "802-11-wireless-security.key-mgmt",
+                    "wpa-psk",
+                    "802-11-wireless-security.psk",
+                    password,
+                ]
+            else:
+                cmd = [
+                    "nmcli",
+                    "connection",
+                    "add",
+                    "type",
+                    "wifi",
+                    "con-name",
+                    connection_name,
+                    "ifname",
+                    self.wifi_device,
+                    "ssid",
+                    ssid,
+                ]
+
+            returncode, _, stderr = await self._run_command(cmd)
+            if returncode != 0:
+                logger.error(f"Failed to create connection profile: {stderr}")
+                return False
+
+            returncode, _, stderr = await self._run_command(
+                ["nmcli", "connection", "up", connection_name]
+            )
+
+            if returncode != 0:
+                logger.error(f"Failed to connect: {stderr}")
+                await self._run_command(["nmcli", "connection", "delete", connection_name])
+                return False
 
         await asyncio.sleep(3)
         connection_info = await self.get_connection_info()
@@ -335,6 +372,23 @@ class NetworkManager:
 
         return None
 
+    async def is_connected_to_network(self, ssid: str | None = None) -> bool:
+        """Check if currently connected to a WiFi network (optionally a specific SSID)."""
+        connection_info = await self.get_connection_info()
+        if not connection_info:
+            return False
+
+        current_ssid = connection_info.get("ssid")
+        if not current_ssid:
+            return False
+
+        # If specific SSID requested, check if it matches
+        if ssid:
+            return current_ssid == ssid
+
+        # Otherwise just check if we're connected to any network
+        return True
+
     async def reconnect_to_saved_network(self, ssid: str) -> bool:
         """Try to reconnect to a previously saved network connection."""
         if not self.wifi_device:
@@ -342,6 +396,11 @@ class NetworkManager:
             if not self.wifi_device:
                 logger.error("No WiFi device available for reconnection")
                 return False
+
+        # First check if we're already connected to this network
+        if await self.is_connected_to_network(ssid):
+            logger.info(f"Already connected to {ssid}")
+            return True
 
         logger.info(f"Attempting to reconnect to saved network: {ssid}")
 

@@ -89,7 +89,28 @@ class DistillerWiFiApp:
         saved_state = self.state_manager.get_state()
         reconnected = False
 
-        if saved_state.network_info and saved_state.network_info.ssid:
+        # First, check if we're already connected to any network
+        current_connection = await self.network_manager.get_connection_info()
+        if current_connection and current_connection.get("ssid"):
+            current_ssid = current_connection.get("ssid")
+            logger.info(f"Already connected to network: {current_ssid}")
+
+            # Update state with current connection
+            from core.state import NetworkInfo
+
+            network_info = NetworkInfo(
+                ssid=current_ssid,
+                ip_address=current_connection.get("ip_address"),
+            )
+            await self.state_manager.update_state(
+                connection_state=ConnectionState.CONNECTED,
+                network_info=network_info,
+                reset_retry=True,
+            )
+            reconnected = True
+
+        elif saved_state.network_info and saved_state.network_info.ssid:
+            # Not currently connected, but we have a saved network to try
             logger.info(f"Found saved network: {saved_state.network_info.ssid}")
             logger.info("Attempting to reconnect to saved network...")
 
@@ -119,7 +140,7 @@ class DistillerWiFiApp:
             else:
                 logger.info("Could not reconnect to saved network, starting AP mode...")
 
-        # Only start AP mode if we didn't reconnect to a saved network
+        # Only start AP mode if we're not connected to any network
         if not reconnected:
             # Generate dynamic password for AP mode
             ap_password = self.generate_ap_password()
