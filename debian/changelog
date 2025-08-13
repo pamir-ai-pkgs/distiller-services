@@ -1,3 +1,53 @@
+distiller-cm5-services (2.0.1-1) unstable; urgency=medium
+
+  [ utsavbalar1231 ]
+  * feat: Add github workflows for release and dependencies
+  * chore: Remove unused directories
+  * fix(debian): Remove unused files and directories
+  * fix(debian): Resolve dependencies
+  * chore(pyproject.toml): Add pyright configuration
+  * fix(display_service): Resolve invalid usage of state_manager
+  * feat(web_server): Migrate from pydantic V1 to pydantic V2
+  * fix(core): Resolve some pyright warnings
+  * chore(dev.sh): Consolidate lint.sh inside dev.sh
+  * docs: Sync with the codebase
+  * chore(network_manager): Remove `wifi-` from network connection names
+  * chore(debian): Use any for architecture
+  * chore(display_service): Remove unused show_message
+  * chore(config): Add common method to generate ap password
+  * chore: Remove unused variables and arguments
+  * chore(services): Use default max_retries and retry_delay from settings
+  * chore: Resolve imports usage
+  * chore(core): Rework hosts file updation logic
+  * feat(core): Add support for reconnection to saved network
+  * chore(debian): Remove unused python3:Depends
+  * fix(tunnel_service): Correct url_patterns for capturing pinggy tunnel links
+  * feat(services): Refactor eink display screens UI
+  * feat(static): Use Monorama NerdFont for web page
+  * chore: Run lint checks
+  * fix(display_service): Use correct font path
+  * chore(debian): Make packaging production ready
+  * chore(tunnel_service): Relax the wait timings for tunnel start
+  * fix(device_config): Resolve permissions for hosts file updation
+  * fix(network_manager): Always check connection profile before starting AP mode
+  * fix(services): Revert back eink display size to 128x250
+  * docs: Sync CLAUDE.md
+  * fix(security): prevent TOCTOU attacks in hosts file updates
+  * fix(security): sanitize SSID input to prevent command injection
+  * fix(security): secure backup file permissions and management
+  * fix(security): validate NetworkManager profiles before use
+  * fix(security): add strict hostname validation for hosts file
+  * fix: always verify and update system config on service restart
+  * refactor(mdns): Replace Zeroconf with Avahi service files
+  * feat(setup): Add password show/hide toggle
+  * fix(display_service): Always use full refresh mode for eink display
+  * chore(connecting): Enhance animations
+  * feat: Add support for persistent pinggy tunnel url
+  * chore(build-deb.sh): Remove changelog version updation logic
+  * chore(debian): Set minimum version requirement for distiller-cm5-sdk
+
+ -- PamirAI Incorporated <founders@pamir.ai>  Wed, 13 Aug 2025 23:42:44 +0530
+
 distiller-cm5-services (2.0.0-1) unstable; urgency=medium
 
   * Major refactoring to modern async Python architecture
