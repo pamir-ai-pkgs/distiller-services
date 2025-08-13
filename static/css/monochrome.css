@@ -461,6 +461,35 @@ p {
   box-shadow: inset 0 0 0 2px var(--black);
 }
 
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.password-input-wrapper .input-field {
+  flex: 1;
+}
+
+.password-toggle {
+  padding: 0.75rem 1rem;
+  border: var(--border-width) solid var(--black);
+  background: var(--white);
+  color: var(--black);
+  font-family: var(--font-semibold);
+  font-weight: bold;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.password-toggle:hover {
+  background: var(--black);
+  color: var(--white);
+}
+
 /* Status Pages */
 .status-card {
   text-align: center;

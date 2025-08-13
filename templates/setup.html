@@ -57,14 +57,19 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
       <div class="modal-body">
         <div class="form-field">
           <label for="passwordInput">PASSWORD</label>
-          <input
-            type="password"
-            id="passwordInput"
-            name="password"
-            class="input-field"
-            autocomplete="off"
-            placeholder="Enter WiFi password"
-          />
+          <div class="password-input-wrapper">
+            <input
+              type="password"
+              id="passwordInput"
+              name="password"
+              class="input-field"
+              autocomplete="off"
+              placeholder="Enter WiFi password"
+            />
+            <button type="button" class="password-toggle" onclick="togglePassword()" title="Show password">
+              <span id="toggleIcon">[SHOW]</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -100,6 +105,19 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
 
   function refreshNetworks() {
     location.reload();
+  }
+
+  function togglePassword() {
+    const passwordInput = document.getElementById('passwordInput');
+    const toggleIcon = document.getElementById('toggleIcon');
+    
+    if (passwordInput.type === 'password') {
+      passwordInput.type = 'text';
+      toggleIcon.textContent = '[HIDE]';
+    } else {
+      passwordInput.type = 'password';
+      toggleIcon.textContent = '[SHOW]';
+    }
   }
 
   // Handle escape key to close modal
