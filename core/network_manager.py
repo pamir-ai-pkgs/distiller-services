@@ -214,6 +214,68 @@ class NetworkManager:
         await asyncio.sleep(1)
         self._is_ap_mode = False
 
+    async def _validate_network_profile(self, profile_name: str) -> bool:
+        """Validate NetworkManager profile integrity and permissions."""
+        import os
+        import stat
+        
+        # Get profile path
+        profile_paths = [
+            f"/etc/NetworkManager/system-connections/{profile_name}.nmconnection",
+            f"/etc/NetworkManager/system-connections/{profile_name}",
+        ]
+        
+        profile_path = None
+        for path in profile_paths:
+            if os.path.exists(path):
+                profile_path = path
+                break
+        
+        if not profile_path:
+            logger.debug(f"Profile file not found for {profile_name}")
+            return True  # Profile managed by NetworkManager only
+        
+        try:
+            # Check file ownership and permissions
+            file_stat = os.stat(profile_path)
+            
+            # Should be owned by root
+            if file_stat.st_uid != 0:
+                logger.warning(f"Profile {profile_name} not owned by root (uid: {file_stat.st_uid})")
+                return False
+            
+            # Should have 0600 permissions (only root can read/write)
+            expected_mode = 0o600
+            actual_mode = stat.S_IMODE(file_stat.st_mode)
+            if actual_mode != expected_mode:
+                logger.warning(f"Profile {profile_name} has insecure permissions: {oct(actual_mode)}")
+                return False
+            
+            # Check for suspicious content
+            with open(profile_path, 'r') as f:
+                content = f.read()
+                
+                # Check for suspicious scripts or commands
+                suspicious_patterns = [
+                    'script=',
+                    'exec=',
+                    'system(',
+                    '$(', '`',
+                    '|', '&&', ';'
+                ]
+                
+                for pattern in suspicious_patterns:
+                    if pattern in content:
+                        logger.warning(f"Profile {profile_name} contains suspicious pattern: {pattern}")
+                        return False
+            
+            logger.debug(f"Profile {profile_name} validation passed")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to validate profile {profile_name}: {e}")
+            return False
+
     def _validate_ssid(self, ssid: str) -> bool:
         """Validate SSID to prevent injection attacks."""
         import re
@@ -270,13 +332,19 @@ class NetworkManager:
 
         # If profile exists, try to connect with it first
         if profile_exists:
-            logger.info(f"Attempting to connect with existing profile: {ssid}")
-            # Use the original SSID for nmcli commands (they handle escaping internally)
-            returncode, _, stderr = await self._run_command(
-                ["nmcli", "connection", "up", ssid]
-            )
+            # Validate profile integrity before using
+            if not await self._validate_network_profile(ssid):
+                logger.warning(f"Profile validation failed for {ssid}, recreating")
+                await self._run_command(["nmcli", "connection", "delete", ssid])
+                profile_exists = False
+            else:
+                logger.info(f"Attempting to connect with existing profile: {ssid}")
+                # Use the original SSID for nmcli commands (they handle escaping internally)
+                returncode, _, stderr = await self._run_command(
+                    ["nmcli", "connection", "up", ssid]
+                )
 
-            if returncode == 0:
+            if profile_exists and returncode == 0:
                 # Successfully connected with existing profile
                 await asyncio.sleep(3)
                 connection_info = await self.get_connection_info()
