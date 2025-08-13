@@ -19,13 +19,30 @@ class DeviceIdentity(BaseModel):
 
     @classmethod
     def generate(cls, prefix: str = "distiller") -> "DeviceIdentity":
+        import re
         import secrets
         from datetime import datetime
+
+        # Validate prefix to prevent hostname injection
+        if not re.match(r'^[a-z][a-z0-9-]{0,15}$', prefix):
+            logger.error(f"Invalid prefix for hostname: {prefix}")
+            prefix = "distiller"  # Use safe default
 
         # Use secrets for cryptographically secure random generation
         chars = string.ascii_lowercase + string.digits
         device_id = "".join(secrets.choice(chars) for _ in range(4))
+        
+        # Validate generated hostname (max 63 chars, alphanumeric and hyphens only)
         hostname = f"{prefix}-{device_id}"
+        if len(hostname) > 63:
+            hostname = hostname[:63]
+        
+        # Additional hostname validation
+        if not re.match(r'^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$', hostname):
+            logger.error(f"Generated hostname failed validation: {hostname}")
+            # Fallback to safe hostname
+            hostname = f"distiller-{device_id}"
+        
         ap_ssid = f"Distiller-{device_id.upper()}"
 
         return cls(
@@ -179,6 +196,7 @@ class DeviceConfigManager:
     def _update_hosts_file(self) -> None:
         """Update /etc/hosts with proper entries for mDNS."""
         import os
+        import re
         import shutil
         import stat
         import tempfile
@@ -186,7 +204,18 @@ class DeviceConfigManager:
         if not self.identity:
             logger.error("No device identity to update /etc/hosts")
             return
+        
         hostname = self.identity.hostname
+        
+        # Validate hostname before writing to hosts file
+        if not re.match(r'^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$', hostname):
+            logger.error(f"Invalid hostname for hosts file: {hostname}")
+            return
+        
+        # Additional check for special characters that could corrupt hosts file
+        if any(char in hostname for char in ['\t', '\n', '\r', ' ', '#']):
+            logger.error(f"Hostname contains invalid characters for hosts file: {hostname}")
+            return
 
         try:
             # Create secure temp directory if it doesn't exist
