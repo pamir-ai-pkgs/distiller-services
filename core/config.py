@@ -70,6 +70,10 @@ class Settings(BaseSettings):
 
     tunnel_ssh_port: int = Field(default=443, description="SSH port for tunnel connection")
 
+    pinggy_access_token: str | None = Field(
+        default=None, description="Pinggy access token for persistent tunnels"
+    )
+
     # Connection settings
     # Tunnel service configuration (used by TunnelService)
     tunnel_max_retries: int = Field(

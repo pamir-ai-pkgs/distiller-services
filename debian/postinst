@@ -8,6 +8,7 @@ configure)
 	# Create system directories
 	install -d -o root -g root -m 755 /var/lib/distiller
 	install -d -o root -g root -m 755 /var/log/distiller
+	install -d -o root -g root -m 755 /etc/distiller
 
 	cd /opt/distiller-cm5-services
 

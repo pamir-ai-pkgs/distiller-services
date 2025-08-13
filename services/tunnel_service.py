@@ -24,6 +24,18 @@ class TunnelService:
         self._max_retries = settings.tunnel_max_retries
         self._retry_delay = settings.tunnel_retry_delay
 
+        # Adjust refresh interval based on token presence
+        if settings.pinggy_access_token:
+            # Persistent tunnel - refresh less frequently (24 hours)
+            self.refresh_interval = 86400  # 24 hours
+            self.tunnel_type = "persistent"
+            logger.info("[PERSISTENT] Pinggy token detected - using persistent tunnels")
+        else:
+            # Free plan - refresh every 55 minutes
+            self.refresh_interval = settings.tunnel_refresh_interval
+            self.tunnel_type = "free"
+            logger.info("[FREE] No Pinggy token - using free tunnels (55min refresh)")
+
     async def check_network_connectivity(self) -> bool:
         """Check if network is connected (aligned with commit approach)."""
         state = self.state_manager.get_state()
@@ -75,28 +87,52 @@ class TunnelService:
                     f"Starting Pinggy tunnel... (attempt {self._retry_count + 1}/{self._max_retries})"
                 )
 
-                # Build SSH command for Pinggy tunnel
-                # Note: Pinggy.io accepts anonymous connections without authentication
-                cmd = [
-                    "ssh",
-                    "-o",
-                    "StrictHostKeyChecking=no",  # Required for automatic connections
-                    "-o",
-                    "ServerAliveInterval=30",
-                    "-o",
-                    "ServerAliveCountMax=3",
-                    "-o",
-                    "UserKnownHostsFile=/dev/null",  # Don't save host keys
-                    "-o",
-                    "LogLevel=ERROR",  # Reduce log verbosity
-                    "-R",
-                    f"0:localhost:{self.settings.web_port}",
-                    "-p",
-                    str(self.settings.tunnel_ssh_port),
-                    "a.pinggy.io",
-                ]
+                # Build SSH command for Pinggy tunnel based on token availability
+                if self.settings.pinggy_access_token:
+                    # Persistent tunnel with token authentication
+                    cmd = [
+                        "ssh",
+                        "-o",
+                        "StrictHostKeyChecking=no",  # Required for automatic connections
+                        "-o",
+                        "ServerAliveInterval=30",
+                        "-o",
+                        "ServerAliveCountMax=3",
+                        "-o",
+                        "UserKnownHostsFile=/dev/null",  # Don't save host keys
+                        "-o",
+                        "LogLevel=ERROR",  # Reduce log verbosity
+                        "-R",
+                        f"0:localhost:{self.settings.web_port}",
+                        "-p",
+                        str(self.settings.tunnel_ssh_port),
+                        f"{self.settings.pinggy_access_token}@a.pinggy.io",  # Token-based auth
+                    ]
+                    logger.info("[PERSISTENT] Starting persistent Pinggy tunnel with token")
+                else:
+                    # Free plan - anonymous connection
+                    cmd = [
+                        "ssh",
+                        "-o",
+                        "StrictHostKeyChecking=no",  # Required for automatic connections
+                        "-o",
+                        "ServerAliveInterval=30",
+                        "-o",
+                        "ServerAliveCountMax=3",
+                        "-o",
+                        "UserKnownHostsFile=/dev/null",  # Don't save host keys
+                        "-o",
+                        "LogLevel=ERROR",  # Reduce log verbosity
+                        "-R",
+                        f"0:localhost:{self.settings.web_port}",
+                        "-p",
+                        str(self.settings.tunnel_ssh_port),
+                        "a.pinggy.io",
+                    ]
+                    logger.info(
+                        "[FREE] Starting anonymous Pinggy tunnel (will get random unique URL)"
+                    )
 
-                logger.info("Starting anonymous Pinggy tunnel (will get random unique URL)")
                 logger.debug(f"SSH command: {' '.join(cmd)}")
 
                 # Start SSH process with unbuffered output and no stdin
@@ -206,12 +242,23 @@ class TunnelService:
             return
 
         try:
-            url_patterns = [
-                r"https://[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.free\.pinggy\.link",
-                r"http://[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.free\.pinggy\.link",
-                r"https://[a-zA-Z0-9\-]+\.free\.pinggy\.link",
-                r"http://[a-zA-Z0-9\-]+\.free\.pinggy\.link",
-            ]
+            # URL patterns for both free and persistent tunnels
+            if self.settings.pinggy_access_token:
+                # Persistent tunnel URLs (without .free subdomain)
+                url_patterns = [
+                    r"https://[a-zA-Z0-9\-]+\.pinggy\.link",
+                    r"http://[a-zA-Z0-9\-]+\.pinggy\.link",
+                    r"https://[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.pinggy\.link",
+                    r"http://[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.pinggy\.link",
+                ]
+            else:
+                # Free tunnel URLs (with .free subdomain)
+                url_patterns = [
+                    r"https://[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.free\.pinggy\.link",
+                    r"http://[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.free\.pinggy\.link",
+                    r"https://[a-zA-Z0-9\-]+\.free\.pinggy\.link",
+                    r"http://[a-zA-Z0-9\-]+\.free\.pinggy\.link",
+                ]
 
             # Read stdout line by line
             while self.process and self.process.returncode is None:
@@ -235,7 +282,12 @@ class TunnelService:
 
                                 if url != self.current_url:
                                     self.current_url = url
-                                    logger.info(f"New unique Pinggy tunnel URL: {url}")
+                                    prefix = (
+                                        "[PERSISTENT]"
+                                        if self.tunnel_type == "persistent"
+                                        else "[FREE]"
+                                    )
+                                    logger.info(f"{prefix} New Pinggy tunnel URL: {url}")
 
                                     # Update state with tunnel URL
                                     await self.state_manager.update_state(tunnel_url=url)
@@ -263,11 +315,17 @@ class TunnelService:
         """Periodically refresh tunnel before expiry (rotation as in commit)."""
         try:
             while self._running and self.process:
-                # Wait for refresh interval (55 minutes before 1 hour expiry)
+                # Calculate human-readable time
+                hours = self.refresh_interval // 3600
+                minutes = (self.refresh_interval % 3600) // 60
+                time_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+
+                # Wait for refresh interval
+                prefix = "[PERSISTENT]" if self.tunnel_type == "persistent" else "[FREE]"
                 logger.info(
-                    f"Next tunnel refresh in {self.settings.tunnel_refresh_interval} seconds"
+                    f"{prefix} Next tunnel refresh in {time_str} ({self.refresh_interval} seconds)"
                 )
-                await asyncio.sleep(self.settings.tunnel_refresh_interval)
+                await asyncio.sleep(self.refresh_interval)
 
                 if not self._running:
                     break
