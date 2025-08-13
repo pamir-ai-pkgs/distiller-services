@@ -1,7 +1,7 @@
 """
 E-ink Display Theme Configuration.
 
-Centralized design system for the 122x250 e-ink display.
+Centralized design system for the 128x250 e-ink display.
 All spacing, sizing, and styling constants in one place.
 """
 
@@ -13,7 +13,7 @@ class DisplayDimensions:
     """Display physical dimensions for horizontal layout."""
 
     width: int = 250  # Horizontal orientation
-    height: int = 122  # Horizontal orientation
+    height: int = 128  # Horizontal orientation
 
 
 @dataclass
@@ -156,7 +156,7 @@ class Layout:
 
     # Content area (display width minus margins)
     content_width: int = 238  # 250 - (2 * 6)
-    content_height: int = 110  # 122 - (2 * 6)
+    content_height: int = 116  # 128 - (2 * 6)
 
     # Column widths for two-column layout
     left_column_width: int = 95  # Left column for titles/icons/QR

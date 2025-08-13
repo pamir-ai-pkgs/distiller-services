@@ -39,7 +39,7 @@ class DisplayService:
     - Status messages and connection info
     - Async updates without blocking
     - Graceful degradation when hardware unavailable
-    - 122x250 pixel e-ink display support
+    - 128x250 pixel e-ink display support
     """
 
     def __init__(self, settings: Settings, state_manager: StateManager):
@@ -66,7 +66,7 @@ class DisplayService:
 
             # Verify display dimensions
             width, height = self.display.get_dimensions()
-            if width != 122 or height != 250:
+            if width != 128 or height != 250:
                 logger.warning(f"Unexpected display dimensions: {width}x{height}")
 
             logger.info(f"E-ink display initialized: {width}x{height}")
@@ -84,7 +84,12 @@ class DisplayService:
         fonts = {}
 
         # Use MartianMono font from static/fonts (parent directory)
-        font_path = Path(__file__).parent.parent / "static" / "fonts" / "MartianMonoNerdFont-CondensedBold.ttf"
+        font_path = (
+            Path(__file__).parent.parent
+            / "static"
+            / "fonts"
+            / "MartianMonoNerdFont-CondensedBold.ttf"
+        )
 
         try:
             # Load font at different sizes
@@ -205,12 +210,12 @@ class DisplayService:
             if state in [ConnectionState.AP_MODE, ConnectionState.CONNECTED]:
                 # Full refresh for important state changes
                 self.display.display_image_auto(
-                    str(temp_file), self.DisplayMode.FULL, rotate=1, flop=1
+                    str(temp_file), self.DisplayMode.FULL, rotate=True, flop=True
                 )
             else:
                 # Partial refresh for progress updates
                 self.display.display_image_auto(
-                    str(temp_file), self.DisplayMode.PARTIAL, rotate=1, flop=1
+                    str(temp_file), self.DisplayMode.PARTIAL, rotate=True, flop=True
                 )
 
             logger.debug(f"Display updated for state: {state}")
