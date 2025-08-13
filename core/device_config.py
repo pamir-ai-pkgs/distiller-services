@@ -180,6 +180,7 @@ class DeviceConfigManager:
         """Update /etc/hosts with proper entries for mDNS."""
         import os
         import shutil
+        import stat
         import tempfile
 
         if not self.identity:
@@ -188,6 +189,19 @@ class DeviceConfigManager:
         hostname = self.identity.hostname
 
         try:
+            # Create secure temp directory if it doesn't exist
+            secure_temp_dir = Path("/var/tmp/distiller")
+            secure_temp_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+            
+            # Verify directory ownership and permissions
+            dir_stat = secure_temp_dir.stat()
+            if dir_stat.st_uid != 0:  # Must be owned by root
+                logger.error("Secure temp directory has wrong ownership")
+                return
+            if dir_stat.st_mode & 0o077:  # Should not be accessible by others
+                logger.error("Secure temp directory has insecure permissions")
+                return
+
             # Read existing hosts file
             with open("/etc/hosts") as f:
                 lines = f.readlines()
@@ -217,13 +231,27 @@ class DeviceConfigManager:
                         break
                 updated_lines.insert(insert_index, f"127.0.1.1\t{hostname}\n")
 
-            # Write to temp file first
-            temp_fd, temp_path = tempfile.mkstemp(dir="/tmp", prefix="hosts.")
+            # Create temp file in secure directory with restricted permissions
+            temp_fd, temp_path = tempfile.mkstemp(
+                dir=str(secure_temp_dir), 
+                prefix="hosts.", 
+                suffix=".tmp"
+            )
+            
             try:
+                # Verify temp file is not a symlink
+                temp_stat = os.fstat(temp_fd)
+                path_stat = os.stat(temp_path)
+                if not stat.S_ISREG(temp_stat.st_mode) or temp_stat.st_ino != path_stat.st_ino:
+                    logger.error("Temp file security check failed - possible symlink attack")
+                    raise SecurityError("Temp file validation failed")
+                
+                # Write content with explicit file descriptor to prevent race conditions
                 with os.fdopen(temp_fd, "w") as f:
                     f.writelines(updated_lines)
-
-                # Set proper permissions
+                temp_fd = None  # Mark as closed
+                
+                # Set proper permissions before moving
                 os.chmod(temp_path, 0o644)
 
                 # Try atomic replace first (works on same filesystem)
@@ -249,6 +277,12 @@ class DeviceConfigManager:
                         raise
 
             finally:
+                # Clean up temp file descriptor if still open
+                if temp_fd is not None:
+                    try:
+                        os.close(temp_fd)
+                    except Exception:
+                        pass
                 # Always clean up temp file
                 if os.path.exists(temp_path):
                     try:
