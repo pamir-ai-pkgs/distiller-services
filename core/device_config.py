@@ -24,25 +24,25 @@ class DeviceIdentity(BaseModel):
         from datetime import datetime
 
         # Validate prefix to prevent hostname injection
-        if not re.match(r'^[a-z][a-z0-9-]{0,15}$', prefix):
+        if not re.match(r"^[a-z][a-z0-9-]{0,15}$", prefix):
             logger.error(f"Invalid prefix for hostname: {prefix}")
             prefix = "distiller"  # Use safe default
 
         # Use secrets for cryptographically secure random generation
         chars = string.ascii_lowercase + string.digits
         device_id = "".join(secrets.choice(chars) for _ in range(4))
-        
+
         # Validate generated hostname (max 63 chars, alphanumeric and hyphens only)
         hostname = f"{prefix}-{device_id}"
         if len(hostname) > 63:
             hostname = hostname[:63]
-        
+
         # Additional hostname validation
-        if not re.match(r'^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$', hostname):
+        if not re.match(r"^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$", hostname):
             logger.error(f"Generated hostname failed validation: {hostname}")
             # Fallback to safe hostname
             hostname = f"distiller-{device_id}"
-        
+
         ap_ssid = f"Distiller-{device_id.upper()}"
 
         return cls(
@@ -66,6 +66,14 @@ class DeviceConfigManager:
                     data = json.load(f)
                     self.identity = DeviceIdentity(**data)
                     logger.info(f"Loaded existing device identity: {self.identity.hostname}")
+                    
+                    # Always verify and update system configuration
+                    if self._verify_system_config():
+                        logger.debug("System configuration is correct")
+                    else:
+                        logger.info("System configuration needs update, reconfiguring...")
+                        self._configure_system()
+                    
                     return self.identity
             except Exception as e:
                 logger.error(f"Failed to load device config: {e}")
@@ -82,6 +90,51 @@ class DeviceConfigManager:
         self._configure_system()
 
         return self.identity
+
+    def _verify_system_config(self) -> bool:
+        """Verify that system configuration matches the saved identity."""
+        if not self.identity:
+            return False
+        
+        hostname = self.identity.hostname
+        
+        # Check if /etc/hostname matches
+        try:
+            with open("/etc/hostname") as f:
+                current_hostname = f.read().strip()
+                if current_hostname != hostname:
+                    logger.debug(f"Hostname mismatch: current={current_hostname}, expected={hostname}")
+                    return False
+        except Exception as e:
+            logger.debug(f"Failed to read /etc/hostname: {e}")
+            return False
+        
+        # Check if /etc/hosts has the correct entry
+        try:
+            with open("/etc/hosts") as f:
+                hosts_content = f.read()
+                # Look for the 127.0.1.1 entry with our hostname
+                expected_entry = f"127.0.1.1\t{hostname}"
+                if expected_entry not in hosts_content:
+                    logger.debug(f"Hostname entry missing or incorrect in /etc/hosts")
+                    return False
+        except Exception as e:
+            logger.debug(f"Failed to read /etc/hosts: {e}")
+            return False
+        
+        # Check if actual system hostname matches
+        import subprocess
+        try:
+            result = subprocess.run(["hostname"], capture_output=True, text=True, check=True)
+            system_hostname = result.stdout.strip()
+            if system_hostname != hostname:
+                logger.debug(f"System hostname mismatch: current={system_hostname}, expected={hostname}")
+                return False
+        except Exception as e:
+            logger.debug(f"Failed to check system hostname: {e}")
+            return False
+        
+        return True
 
     def _save_identity(self) -> None:
         """Save device identity to file."""
@@ -204,16 +257,16 @@ class DeviceConfigManager:
         if not self.identity:
             logger.error("No device identity to update /etc/hosts")
             return
-        
+
         hostname = self.identity.hostname
-        
+
         # Validate hostname before writing to hosts file
-        if not re.match(r'^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$', hostname):
+        if not re.match(r"^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$", hostname):
             logger.error(f"Invalid hostname for hosts file: {hostname}")
             return
-        
+
         # Additional check for special characters that could corrupt hosts file
-        if any(char in hostname for char in ['\t', '\n', '\r', ' ', '#']):
+        if any(char in hostname for char in ["\t", "\n", "\r", " ", "#"]):
             logger.error(f"Hostname contains invalid characters for hosts file: {hostname}")
             return
 
@@ -221,7 +274,7 @@ class DeviceConfigManager:
             # Create secure temp directory if it doesn't exist
             secure_temp_dir = Path("/var/tmp/distiller")
             secure_temp_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-            
+
             # Verify directory ownership and permissions
             dir_stat = secure_temp_dir.stat()
             if dir_stat.st_uid != 0:  # Must be owned by root
@@ -262,11 +315,9 @@ class DeviceConfigManager:
 
             # Create temp file in secure directory with restricted permissions
             temp_fd, temp_path = tempfile.mkstemp(
-                dir=str(secure_temp_dir), 
-                prefix="hosts.", 
-                suffix=".tmp"
+                dir=str(secure_temp_dir), prefix="hosts.", suffix=".tmp"
             )
-            
+
             try:
                 # Verify temp file is not a symlink
                 temp_stat = os.fstat(temp_fd)
@@ -274,12 +325,12 @@ class DeviceConfigManager:
                 if not stat.S_ISREG(temp_stat.st_mode) or temp_stat.st_ino != path_stat.st_ino:
                     logger.error("Temp file security check failed - possible symlink attack")
                     raise SecurityError("Temp file validation failed")
-                
+
                 # Write content with explicit file descriptor to prevent race conditions
                 with os.fdopen(temp_fd, "w") as f:
                     f.writelines(updated_lines)
                 temp_fd = None  # Mark as closed
-                
+
                 # Set proper permissions before moving
                 os.chmod(temp_path, 0o644)
 
@@ -291,16 +342,17 @@ class DeviceConfigManager:
                     # If atomic replace fails (cross-filesystem or busy), use copy
                     if e.errno == 16 or e.errno == 18:  # EBUSY or EXDEV (cross-device link)
                         logger.debug(f"Atomic replace failed ({e}), using copy method")
-                        
+
                         # Create secure backup directory if it doesn't exist
                         backup_dir = Path("/var/backups/distiller")
                         backup_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-                        
+
                         # Rotate backups (keep last 3)
                         import datetime
+
                         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                         backup_path = backup_dir / f"hosts.bak.{timestamp}"
-                        
+
                         # Remove old backups, keep only last 3
                         existing_backups = sorted(backup_dir.glob("hosts.bak.*"))
                         if len(existing_backups) >= 3:
@@ -310,12 +362,12 @@ class DeviceConfigManager:
                                     logger.debug(f"Removed old backup: {old_backup}")
                                 except Exception:
                                     pass
-                        
+
                         # Create new backup with secure permissions
                         shutil.copy2("/etc/hosts", str(backup_path))
                         os.chmod(str(backup_path), 0o600)  # Only root can read/write
                         logger.debug(f"Created secure backup: {backup_path}")
-                        
+
                         try:
                             # Copy temp file content to /etc/hosts
                             shutil.copy2(temp_path, "/etc/hosts")
