@@ -7,13 +7,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., v2.0.0)'
+        description: 'Release build'
         required: true
-        default: 'v2.0.0'
         type: string
 
 env:
   DEBIAN_FRONTEND: noninteractive
+  DEBFULLNAME: PamirAI Incorporated
+  DEBEMAILL: founders@pamir.ai
 
 permissions:
   contents: write
@@ -37,21 +38,27 @@ jobs:
           elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
           else
-            # For non-tag pushes, use default version
-            VERSION="v2.0.0"
+            echo "Error: No version provided. This workflow requires either:"
+            echo "  1. A git tag push (e.g., v2.0.1-1)"
+            echo "  2. Manual workflow dispatch with version input"
+            exit 1
           fi
 
           # Remove 'v' prefix if present and parse version format vX.Y.Z-A
           CLEAN_VERSION=${VERSION#v}
 
-          # Split version into semantic version and debian revision
+          # Strict version parsing - fail if format doesn't match
           if [[ "$CLEAN_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)$ ]]; then
             SEMANTIC_VERSION="${BASH_REMATCH[1]}"
             DEBIAN_REVISION="${BASH_REMATCH[2]}"
-          else
-            # Fallback for other formats
-            SEMANTIC_VERSION="$CLEAN_VERSION"
+          elif [[ "$CLEAN_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            SEMANTIC_VERSION="${BASH_REMATCH[1]}"
             DEBIAN_REVISION="1"
+          else
+            echo "Error: Invalid version format: $CLEAN_VERSION"
+            echo "Expected format: X.Y.Z or X.Y.Z-R"
+            echo "Examples: 2.0.1, 2.0.1-1"
+            exit 1
           fi
 
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
@@ -105,21 +112,6 @@ jobs:
           uv --version
           uname -m
           echo "Native ARM64 build environment ready"
-
-      - name: Update package version in debian/changelog
-        run: |
-          # Update version if different from current
-          if [[ "${{ steps.version.outputs.semantic_version }}" != "2.0.0" ]] || [[ "${{ steps.version.outputs.debian_revision }}" != "1" ]]; then
-            # Install devscripts if not available
-            which dch || sudo apt-get install -y devscripts
-            
-            # Update changelog
-            dch --newversion "${{ steps.version.outputs.semantic_version }}-${{ steps.version.outputs.debian_revision }}" --urgency medium "Release version ${{ steps.version.outputs.version }}"
-            dch --release ""
-          fi
-
-          echo "Updated changelog:"
-          head -5 debian/changelog
 
       - name: Build Debian package
         run: |
@@ -222,9 +214,8 @@ jobs:
             ```
 
             ## Access Points
-            - **WiFi AP**: Distiller-XXXX (password: setupwifi123)
+            - **WiFi AP**: Distiller-XXXX (dynamic password shown on device display)
             - **Web Interface**: http://distiller-xxxx.local:8080
-            - **mDNS**: distiller-xxxx.local
 
             ## Requirements
             - Raspberry Pi CM5 or compatible ARM64 device
@@ -251,7 +242,7 @@ jobs:
           echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY  
           echo "- **Package**: ${{ steps.version.outputs.package_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Architecture**: ARM64" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Status**: SUCCESS" >> $GITHUB_STEP_SUMMARY
 
           if [[ -f "dist/${{ steps.version.outputs.package_name }}" ]]; then
             PACKAGE_SIZE=$(du -h "dist/${{ steps.version.outputs.package_name }}" | cut -f1)
