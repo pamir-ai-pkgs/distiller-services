@@ -41,16 +41,15 @@ class TunnelService:
         self._running = True
         logger.info("Tunnel service started")
 
-        # Give WiFi setup service time to complete (as in commit)
-        logger.info("Waiting 60 seconds for WiFi setup to complete...")
-        await asyncio.sleep(60)
+        # Start checking for network connectivity immediately
+        logger.info("Checking for network connectivity...")
 
         while self._running:
             try:
                 # Check network connectivity first (as in commit)
                 if not await self.check_network_connectivity():
                     logger.warning("No network connectivity, waiting...")
-                    await asyncio.sleep(30)
+                    await asyncio.sleep(5)
                     continue
 
                 # Start tunnel if not running
@@ -58,11 +57,11 @@ class TunnelService:
                     await self.start_tunnel()
 
                 # Wait before checking again
-                await asyncio.sleep(10)
+                await asyncio.sleep(5)
 
             except Exception as e:
                 logger.error(f"Tunnel service error: {e}")
-                await asyncio.sleep(30)
+                await asyncio.sleep(10)
 
     async def start_tunnel(self):
         """Start SSH tunnel through Pinggy with retry logic."""
