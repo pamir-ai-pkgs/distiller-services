@@ -3,10 +3,18 @@ status %}CONNECTING{% endblock %} {% block content %}
 <div class="connecting-container">
   <div class="connection-card">
     <div class="progress-section">
-      <div class="spinner">
-        <div class="spinner-ring"></div>
-        <div class="spinner-ring"></div>
-        <div class="spinner-ring"></div>
+      <div class="retro-loader">
+        <div class="retro-blocks">
+          <span class="block"></span>
+          <span class="block"></span>
+          <span class="block"></span>
+          <span class="block"></span>
+          <span class="block"></span>
+          <span class="block"></span>
+          <span class="block"></span>
+          <span class="block"></span>
+        </div>
+        <div class="retro-text" id="loadingText">[CONNECTING]</div>
       </div>
 
       <h2>Connecting to Network</h2>
@@ -145,11 +153,25 @@ status %}CONNECTING{% endblock %} {% block content %}
     }
   }
 
+  // Retro loading text animation
+  const loadingTexts = ['[CONNECTING]', '[CONNECTING.]', '[CONNECTING..]', '[CONNECTING...]'];
+  let textIndex = 0;
+  
+  function animateLoadingText() {
+    const loadingElement = document.getElementById('loadingText');
+    if (loadingElement && progressValue < 100) {
+      loadingElement.textContent = loadingTexts[textIndex];
+      textIndex = (textIndex + 1) % loadingTexts.length;
+      setTimeout(animateLoadingText, 500);
+    }
+  }
+
   // Initialize
   document.addEventListener('DOMContentLoaded', () => {
     connectWebSocket();
     updateStep(1);
     setTimeout(animateProgress, 500);
+    setTimeout(animateLoadingText, 100);
   });
 
   // Fallback redirect after timeout
