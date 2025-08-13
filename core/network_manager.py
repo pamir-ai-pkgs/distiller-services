@@ -214,7 +214,37 @@ class NetworkManager:
         await asyncio.sleep(1)
         self._is_ap_mode = False
 
+    def _validate_ssid(self, ssid: str) -> bool:
+        """Validate SSID to prevent injection attacks."""
+        import re
+        
+        # Check length (WiFi spec: 1-32 chars)
+        if not ssid or len(ssid) > 32:
+            logger.error(f"Invalid SSID length: {len(ssid)}")
+            return False
+        
+        # Allow only safe characters: alphanumeric, spaces, hyphens, underscores, dots
+        # This regex prevents shell metacharacters and control characters
+        safe_ssid_pattern = re.compile(r'^[a-zA-Z0-9\s\-_.]+$')
+        if not safe_ssid_pattern.match(ssid):
+            logger.error(f"SSID contains invalid characters: {ssid}")
+            return False
+        
+        # Check for suspicious patterns that might indicate injection attempts
+        dangerous_patterns = ['$', '`', ';', '|', '&', '>', '<', '(', ')', '{', '}', '[', ']', '\\', '"', "'", '\n', '\r', '\t']
+        for pattern in dangerous_patterns:
+            if pattern in ssid:
+                logger.error(f"SSID contains potentially dangerous character: {pattern}")
+                return False
+        
+        return True
+
     async def connect_to_network(self, ssid: str, password: str | None) -> bool:
+        # Validate SSID to prevent injection attacks
+        if not self._validate_ssid(ssid):
+            logger.error(f"SSID validation failed for: {ssid}")
+            return False
+        
         if not self.wifi_device:
             await self._detect_wifi_device()
             if not self.wifi_device:
@@ -222,8 +252,7 @@ class NetworkManager:
                 return False
 
         await self.stop_ap_mode()
-        connection_name = ssid
-
+        
         # Check if connection profile already exists
         returncode, stdout, _ = await self._run_command(
             ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"]
@@ -242,8 +271,9 @@ class NetworkManager:
         # If profile exists, try to connect with it first
         if profile_exists:
             logger.info(f"Attempting to connect with existing profile: {ssid}")
+            # Use the original SSID for nmcli commands (they handle escaping internally)
             returncode, _, stderr = await self._run_command(
-                ["nmcli", "connection", "up", connection_name]
+                ["nmcli", "connection", "up", ssid]
             )
 
             if returncode == 0:
@@ -257,12 +287,17 @@ class NetworkManager:
             else:
                 # Existing profile failed, delete it and create new one
                 logger.warning(f"Failed to connect with existing profile: {stderr}")
-                await self._run_command(["nmcli", "connection", "delete", connection_name])
+                await self._run_command(["nmcli", "connection", "delete", ssid])
                 profile_exists = False
 
         # Create new connection profile if it doesn't exist or failed
         if not profile_exists:
             if password:
+                # Validate password if provided
+                if len(password) < 8 or len(password) > 63:
+                    logger.error(f"Invalid WPA password length: {len(password)}")
+                    return False
+                
                 cmd = [
                     "nmcli",
                     "connection",
@@ -270,7 +305,7 @@ class NetworkManager:
                     "type",
                     "wifi",
                     "con-name",
-                    connection_name,
+                    ssid,  # Use original SSID
                     "ifname",
                     self.wifi_device,
                     "ssid",
@@ -288,7 +323,7 @@ class NetworkManager:
                     "type",
                     "wifi",
                     "con-name",
-                    connection_name,
+                    ssid,  # Use original SSID
                     "ifname",
                     self.wifi_device,
                     "ssid",
@@ -301,12 +336,12 @@ class NetworkManager:
                 return False
 
             returncode, _, stderr = await self._run_command(
-                ["nmcli", "connection", "up", connection_name]
+                ["nmcli", "connection", "up", ssid]
             )
 
             if returncode != 0:
                 logger.error(f"Failed to connect: {stderr}")
-                await self._run_command(["nmcli", "connection", "delete", connection_name])
+                await self._run_command(["nmcli", "connection", "delete", ssid])
                 return False
 
         await asyncio.sleep(3)
@@ -391,6 +426,11 @@ class NetworkManager:
 
     async def reconnect_to_saved_network(self, ssid: str) -> bool:
         """Try to reconnect to a previously saved network connection."""
+        # Validate SSID to prevent injection attacks
+        if not self._validate_ssid(ssid):
+            logger.error(f"SSID validation failed for reconnection: {ssid}")
+            return False
+        
         if not self.wifi_device:
             await self._detect_wifi_device()
             if not self.wifi_device:
