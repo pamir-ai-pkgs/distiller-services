@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from PIL import Image, ImageDraw, ImageFont
 
 from core.state import NetworkInfo, SystemState
-from services.display_layouts import Caption, ProgressBar, QRCode, Space, Text
+from services.display_layouts import Caption, QRCode, Space, Text
 from services.display_screens import (
     create_connected_screen,
     create_connecting_screen,

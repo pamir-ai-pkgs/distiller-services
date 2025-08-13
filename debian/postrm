@@ -7,6 +7,9 @@ purge)
 	rm -rf /var/log/distiller /var/lib/distiller /opt/distiller-cm5-services
 	rm -f /usr/local/bin/distiller-wifi
 	
+	# Remove Avahi service file
+	rm -f /etc/avahi/services/distiller-wifi.service
+	
 	# Remove configuration files
 	rm -f /etc/sudoers.d/distiller-system \
 	      /etc/polkit-1/rules.d/50-distiller-networkmanager.rules \

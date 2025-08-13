@@ -66,14 +66,14 @@ class DeviceConfigManager:
                     data = json.load(f)
                     self.identity = DeviceIdentity(**data)
                     logger.info(f"Loaded existing device identity: {self.identity.hostname}")
-                    
+
                     # Always verify and update system configuration
                     if self._verify_system_config():
                         logger.debug("System configuration is correct")
                     else:
                         logger.info("System configuration needs update, reconfiguring...")
                         self._configure_system()
-                    
+
                     return self.identity
             except Exception as e:
                 logger.error(f"Failed to load device config: {e}")
@@ -95,20 +95,22 @@ class DeviceConfigManager:
         """Verify that system configuration matches the saved identity."""
         if not self.identity:
             return False
-        
+
         hostname = self.identity.hostname
-        
+
         # Check if /etc/hostname matches
         try:
             with open("/etc/hostname") as f:
                 current_hostname = f.read().strip()
                 if current_hostname != hostname:
-                    logger.debug(f"Hostname mismatch: current={current_hostname}, expected={hostname}")
+                    logger.debug(
+                        f"Hostname mismatch: current={current_hostname}, expected={hostname}"
+                    )
                     return False
         except Exception as e:
             logger.debug(f"Failed to read /etc/hostname: {e}")
             return False
-        
+
         # Check if /etc/hosts has the correct entry
         try:
             with open("/etc/hosts") as f:
@@ -116,24 +118,27 @@ class DeviceConfigManager:
                 # Look for the 127.0.1.1 entry with our hostname
                 expected_entry = f"127.0.1.1\t{hostname}"
                 if expected_entry not in hosts_content:
-                    logger.debug(f"Hostname entry missing or incorrect in /etc/hosts")
+                    logger.debug("Hostname entry missing or incorrect in /etc/hosts")
                     return False
         except Exception as e:
             logger.debug(f"Failed to read /etc/hosts: {e}")
             return False
-        
+
         # Check if actual system hostname matches
         import subprocess
+
         try:
             result = subprocess.run(["hostname"], capture_output=True, text=True, check=True)
             system_hostname = result.stdout.strip()
             if system_hostname != hostname:
-                logger.debug(f"System hostname mismatch: current={system_hostname}, expected={hostname}")
+                logger.debug(
+                    f"System hostname mismatch: current={system_hostname}, expected={hostname}"
+                )
                 return False
         except Exception as e:
             logger.debug(f"Failed to check system hostname: {e}")
             return False
-        
+
         return True
 
     def _save_identity(self) -> None:
@@ -193,55 +198,8 @@ class DeviceConfigManager:
             except (subprocess.CalledProcessError, FileNotFoundError):
                 logger.info(f"Updated hostname using legacy method: {hostname}")
 
-            # Required delay for hostname propagation (runs during init only)
-            import time
-
-            time.sleep(0.5)
-
-            # Clear Avahi cache and restart daemon to pick up new hostname
-            try:
-                # Stop Avahi daemon
-                subprocess.run(["systemctl", "stop", "avahi-daemon"], check=True)
-                logger.info("Stopped Avahi daemon")
-
-                # Clear Avahi cache files safely
-                import shutil
-
-                cache_dir = Path("/var/cache/avahi-daemon")
-                if cache_dir.exists():
-                    for item in cache_dir.iterdir():
-                        try:
-                            if item.is_file():
-                                item.unlink()
-                            elif item.is_dir():
-                                shutil.rmtree(item)
-                        except Exception:
-                            pass
-
-                # Start Avahi daemon fresh
-                subprocess.run(["systemctl", "start", "avahi-daemon"], check=True)
-                logger.info("Started Avahi daemon with new hostname")
-
-                # Brief delay for Avahi initialization (init only)
-                time.sleep(1)
-
-                # Verify the hostname is registered
-                try:
-                    result = subprocess.run(
-                        ["avahi-resolve", "-n", f"{hostname}.local"],
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                    )
-                    if result.returncode == 0:
-                        logger.info(f"Verified mDNS hostname: {hostname}.local")
-                    else:
-                        logger.warning("Could not verify mDNS hostname registration")
-                except (subprocess.TimeoutExpired, FileNotFoundError):
-                    pass
-
-            except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                logger.warning(f"Failed to restart Avahi daemon - mDNS may show old hostname: {e}")
+            # Let Avahi handle mDNS hostname conflicts automatically
+            # No need to restart or manipulate Avahi - it will detect the change
 
         except Exception as e:
             logger.error(f"Failed to update hostname: {e}")

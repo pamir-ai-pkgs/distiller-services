@@ -1,8 +1,8 @@
 [Unit]
 Description=Distiller WiFi Provisioning System
 Documentation=https://github.com/pamir-ai/distiller-cm5-services
-After=network-pre.target NetworkManager.service
-Wants=NetworkManager.service
+After=network-online.target NetworkManager.service avahi-daemon.service
+Wants=network-online.target NetworkManager.service avahi-daemon.service
 
 [Service]
 Type=simple

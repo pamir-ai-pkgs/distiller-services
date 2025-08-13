@@ -218,60 +218,60 @@ class NetworkManager:
         """Validate NetworkManager profile integrity and permissions."""
         import os
         import stat
-        
+
         # Get profile path
         profile_paths = [
             f"/etc/NetworkManager/system-connections/{profile_name}.nmconnection",
             f"/etc/NetworkManager/system-connections/{profile_name}",
         ]
-        
+
         profile_path = None
         for path in profile_paths:
             if os.path.exists(path):
                 profile_path = path
                 break
-        
+
         if not profile_path:
             logger.debug(f"Profile file not found for {profile_name}")
             return True  # Profile managed by NetworkManager only
-        
+
         try:
             # Check file ownership and permissions
             file_stat = os.stat(profile_path)
-            
+
             # Should be owned by root
             if file_stat.st_uid != 0:
-                logger.warning(f"Profile {profile_name} not owned by root (uid: {file_stat.st_uid})")
+                logger.warning(
+                    f"Profile {profile_name} not owned by root (uid: {file_stat.st_uid})"
+                )
                 return False
-            
+
             # Should have 0600 permissions (only root can read/write)
             expected_mode = 0o600
             actual_mode = stat.S_IMODE(file_stat.st_mode)
             if actual_mode != expected_mode:
-                logger.warning(f"Profile {profile_name} has insecure permissions: {oct(actual_mode)}")
+                logger.warning(
+                    f"Profile {profile_name} has insecure permissions: {oct(actual_mode)}"
+                )
                 return False
-            
+
             # Check for suspicious content
-            with open(profile_path, 'r') as f:
+            with open(profile_path) as f:
                 content = f.read()
-                
+
                 # Check for suspicious scripts or commands
-                suspicious_patterns = [
-                    'script=',
-                    'exec=',
-                    'system(',
-                    '$(', '`',
-                    '|', '&&', ';'
-                ]
-                
+                suspicious_patterns = ["script=", "exec=", "system(", "$(", "`", "|", "&&", ";"]
+
                 for pattern in suspicious_patterns:
                     if pattern in content:
-                        logger.warning(f"Profile {profile_name} contains suspicious pattern: {pattern}")
+                        logger.warning(
+                            f"Profile {profile_name} contains suspicious pattern: {pattern}"
+                        )
                         return False
-            
+
             logger.debug(f"Profile {profile_name} validation passed")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to validate profile {profile_name}: {e}")
             return False
@@ -279,26 +279,46 @@ class NetworkManager:
     def _validate_ssid(self, ssid: str) -> bool:
         """Validate SSID to prevent injection attacks."""
         import re
-        
+
         # Check length (WiFi spec: 1-32 chars)
         if not ssid or len(ssid) > 32:
             logger.error(f"Invalid SSID length: {len(ssid)}")
             return False
-        
+
         # Allow only safe characters: alphanumeric, spaces, hyphens, underscores, dots
         # This regex prevents shell metacharacters and control characters
-        safe_ssid_pattern = re.compile(r'^[a-zA-Z0-9\s\-_.]+$')
+        safe_ssid_pattern = re.compile(r"^[a-zA-Z0-9\s\-_.]+$")
         if not safe_ssid_pattern.match(ssid):
             logger.error(f"SSID contains invalid characters: {ssid}")
             return False
-        
+
         # Check for suspicious patterns that might indicate injection attempts
-        dangerous_patterns = ['$', '`', ';', '|', '&', '>', '<', '(', ')', '{', '}', '[', ']', '\\', '"', "'", '\n', '\r', '\t']
+        dangerous_patterns = [
+            "$",
+            "`",
+            ";",
+            "|",
+            "&",
+            ">",
+            "<",
+            "(",
+            ")",
+            "{",
+            "}",
+            "[",
+            "]",
+            "\\",
+            '"',
+            "'",
+            "\n",
+            "\r",
+            "\t",
+        ]
         for pattern in dangerous_patterns:
             if pattern in ssid:
                 logger.error(f"SSID contains potentially dangerous character: {pattern}")
                 return False
-        
+
         return True
 
     async def connect_to_network(self, ssid: str, password: str | None) -> bool:
@@ -306,7 +326,7 @@ class NetworkManager:
         if not self._validate_ssid(ssid):
             logger.error(f"SSID validation failed for: {ssid}")
             return False
-        
+
         if not self.wifi_device:
             await self._detect_wifi_device()
             if not self.wifi_device:
@@ -314,7 +334,7 @@ class NetworkManager:
                 return False
 
         await self.stop_ap_mode()
-        
+
         # Check if connection profile already exists
         returncode, stdout, _ = await self._run_command(
             ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"]
@@ -340,9 +360,7 @@ class NetworkManager:
             else:
                 logger.info(f"Attempting to connect with existing profile: {ssid}")
                 # Use the original SSID for nmcli commands (they handle escaping internally)
-                returncode, _, stderr = await self._run_command(
-                    ["nmcli", "connection", "up", ssid]
-                )
+                returncode, _, stderr = await self._run_command(["nmcli", "connection", "up", ssid])
 
             if profile_exists and returncode == 0:
                 # Successfully connected with existing profile
@@ -365,7 +383,7 @@ class NetworkManager:
                 if len(password) < 8 or len(password) > 63:
                     logger.error(f"Invalid WPA password length: {len(password)}")
                     return False
-                
+
                 cmd = [
                     "nmcli",
                     "connection",
@@ -403,9 +421,7 @@ class NetworkManager:
                 logger.error(f"Failed to create connection profile: {stderr}")
                 return False
 
-            returncode, _, stderr = await self._run_command(
-                ["nmcli", "connection", "up", ssid]
-            )
+            returncode, _, stderr = await self._run_command(["nmcli", "connection", "up", ssid])
 
             if returncode != 0:
                 logger.error(f"Failed to connect: {stderr}")
@@ -498,7 +514,7 @@ class NetworkManager:
         if not self._validate_ssid(ssid):
             logger.error(f"SSID validation failed for reconnection: {ssid}")
             return False
-        
+
         if not self.wifi_device:
             await self._detect_wifi_device()
             if not self.wifi_device:

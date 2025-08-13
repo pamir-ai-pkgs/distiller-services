@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import logging
 import secrets
+import socket
 import string
 import sys
 from logging.handlers import RotatingFileHandler
@@ -12,8 +13,8 @@ from pathlib import Path
 
 import uvicorn
 
+from core.avahi_service import AvahiService
 from core.config import Settings, get_settings
-from core.mdns_service import MDNSService
 from core.network_manager import NetworkManager
 from core.state import ConnectionState, StateManager
 from services.display_service import DisplayService
@@ -64,7 +65,7 @@ class DistillerWiFiApp:
 
         self.state_manager = StateManager(self.settings.state_file)
         self.network_manager = NetworkManager()
-        self.mdns_service = MDNSService(self.settings.mdns_hostname, self.settings.mdns_port)
+        self.avahi_service = AvahiService(self.settings.web_port)
         self.web_server = WebServer(self.settings, self.network_manager, self.state_manager)
         self.display_service = DisplayService(self.settings, self.state_manager)
         self.tunnel_service = TunnelService(self.settings, self.state_manager)
@@ -166,9 +167,9 @@ class DistillerWiFiApp:
             else:
                 logger.error("Failed to start Access Point mode")
                 raise RuntimeError("Cannot start without AP mode")
-
-        await self.mdns_service.start()
-        logger.info(f"mDNS service started: {self.settings.mdns_fqdn}:{self.settings.mdns_port}")
+        # Start Avahi service advertisement
+        self.avahi_service.start()
+        logger.info(f"Avahi service started on port {self.settings.web_port}")
 
         self.state_manager.on_state_change(self._handle_state_change)
 
@@ -176,15 +177,8 @@ class DistillerWiFiApp:
 
     async def _handle_state_change(self, old_state: ConnectionState, new_state: ConnectionState):
         logger.info(f"State transition: {old_state} -> {new_state}")
-
-        if new_state == ConnectionState.SWITCHING:
-            await self.mdns_service.keep_alive_during_transition()
-
-        elif new_state == ConnectionState.CONNECTED:
-            await self.mdns_service.restore_after_transition()
-
-        elif new_state == ConnectionState.AP_MODE:
-            await self.mdns_service.switch_interface("all")
+        # Avahi handles all network transitions automatically
+        # No need to manage mDNS state changes
 
     async def run_web_server(self):
         uvicorn_logger = logging.getLogger("uvicorn.error")
@@ -220,7 +214,6 @@ class DistillerWiFiApp:
             await self.initialize()
             self.tasks = [
                 asyncio.create_task(self.run_web_server()),
-                asyncio.create_task(self.mdns_service.run()),
                 asyncio.create_task(self.display_service.run()),
                 asyncio.create_task(self.tunnel_service.run()),
                 asyncio.create_task(self.run_session_cleanup()),
@@ -229,7 +222,31 @@ class DistillerWiFiApp:
             self.tasks.append(asyncio.create_task(self.run_network_monitor()))
 
             logger.info("All services started successfully")
-            logger.info(f"Web interface available at: {self.settings.get_web_url()}")
+
+            # Get the actual hostname (what Avahi is using)
+            actual_hostname = socket.gethostname()
+
+            # Display accessible URLs based on connection state
+            state = self.state_manager.get_state()
+            if (
+                state.connection_state == ConnectionState.CONNECTED
+                and state.network_info.ip_address
+            ):
+                logger.info("=" * 60)
+                logger.info("Web interface accessible at:")
+                logger.info(f"  - http://{state.network_info.ip_address}:{self.settings.web_port}")
+                logger.info(f"  - http://{actual_hostname}.local:{self.settings.web_port}")
+                logger.info("=" * 60)
+            elif state.connection_state == ConnectionState.AP_MODE:
+                logger.info("=" * 60)
+                logger.info("Web interface accessible at:")
+                logger.info(f"  - http://{self.settings.ap_ip}:{self.settings.web_port}")
+                logger.info(f"  - http://{actual_hostname}.local:{self.settings.web_port}")
+                logger.info("=" * 60)
+            else:
+                logger.info(
+                    f"Web interface available at: http://{actual_hostname}.local:{self.settings.web_port}"
+                )
 
             await asyncio.gather(*self.tasks, return_exceptions=True)
 
@@ -258,7 +275,7 @@ class DistillerWiFiApp:
                 logger.warning("Some tasks did not complete within timeout")
 
         try:
-            await self.mdns_service.stop()
+            self.avahi_service.stop()
             await self.display_service.stop()
             await self.tunnel_service.stop()
         except Exception as e:
