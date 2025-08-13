@@ -115,26 +115,6 @@ install_build_deps() {
     print_success "All build dependencies are available"
 }
 
-# Function to update version in changelog
-update_version() {
-    local version="$1"
-    local urgency="${2:-medium}"
-    
-    if [ -z "$version" ]; then
-        print_error "Version not specified"
-        exit 1
-    fi
-    
-    print_status "Updating version to $version"
-    
-    if command_exists dch; then
-        dch --newversion "$version" --urgency "$urgency" "Automated build"
-        dch --release ""
-    else
-        print_warning "dch not available, version not updated automatically"
-    fi
-}
-
 # Function to clean build artifacts
 clean_build() {
     print_status "Cleaning build artifacts..."
@@ -413,18 +393,12 @@ case "$COMMAND" in
     source)
         install_build_deps
         validate_package
-        if [ -n "$VERSION" ]; then
-            update_version "$VERSION"
-        fi
         build_source
         organize_artifacts
         ;;
     binary)
         install_build_deps
         validate_package
-        if [ -n "$VERSION" ]; then
-            update_version "$VERSION"
-        fi
         build_binary
         organize_artifacts
         run_lintian
@@ -432,9 +406,6 @@ case "$COMMAND" in
     full)
         install_build_deps
         validate_package
-        if [ -n "$VERSION" ]; then
-            update_version "$VERSION"
-        fi
         build_full
         organize_artifacts
         run_lintian
