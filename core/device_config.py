@@ -262,16 +262,39 @@ class DeviceConfigManager:
                     # If atomic replace fails (cross-filesystem or busy), use copy
                     if e.errno == 16 or e.errno == 18:  # EBUSY or EXDEV (cross-device link)
                         logger.debug(f"Atomic replace failed ({e}), using copy method")
-                        # Create backup first
-                        backup_path = "/etc/hosts.bak"
-                        shutil.copy2("/etc/hosts", backup_path)
+                        
+                        # Create secure backup directory if it doesn't exist
+                        backup_dir = Path("/var/backups/distiller")
+                        backup_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+                        
+                        # Rotate backups (keep last 3)
+                        import datetime
+                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        backup_path = backup_dir / f"hosts.bak.{timestamp}"
+                        
+                        # Remove old backups, keep only last 3
+                        existing_backups = sorted(backup_dir.glob("hosts.bak.*"))
+                        if len(existing_backups) >= 3:
+                            for old_backup in existing_backups[:-2]:
+                                try:
+                                    old_backup.unlink()
+                                    logger.debug(f"Removed old backup: {old_backup}")
+                                except Exception:
+                                    pass
+                        
+                        # Create new backup with secure permissions
+                        shutil.copy2("/etc/hosts", str(backup_path))
+                        os.chmod(str(backup_path), 0o600)  # Only root can read/write
+                        logger.debug(f"Created secure backup: {backup_path}")
+                        
                         try:
                             # Copy temp file content to /etc/hosts
                             shutil.copy2(temp_path, "/etc/hosts")
                             logger.info(f"Updated /etc/hosts with entry for {hostname} (copy)")
                         except Exception:
-                            # Restore backup on failure
-                            shutil.copy2(backup_path, "/etc/hosts")
+                            # Restore from backup on failure
+                            shutil.copy2(str(backup_path), "/etc/hosts")
+                            logger.error("Restored /etc/hosts from backup after failure")
                             raise
                     else:
                         raise
