@@ -206,17 +206,10 @@ class DisplayService:
             temp_file = Path("/tmp/eink_display.png")
             image.save(str(temp_file), "PNG")
 
-            # Display the image with full refresh for important states
-            if state in [ConnectionState.AP_MODE, ConnectionState.CONNECTED]:
-                # Full refresh for important state changes
-                self.display.display_image_auto(
-                    str(temp_file), self.DisplayMode.FULL, rotate=True, flop=True
-                )
-            else:
-                # Partial refresh for progress updates
-                self.display.display_image_auto(
-                    str(temp_file), self.DisplayMode.PARTIAL, rotate=True, flop=True
-                )
+            # Always use full refresh for better display quality
+            self.display.display_image_auto(
+                str(temp_file), self.DisplayMode.FULL, rotate=True, flop=True
+            )
 
             logger.debug(f"Display updated for state: {state}")
 
