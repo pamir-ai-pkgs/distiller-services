@@ -7,7 +7,7 @@ import logging
 import sys
 from pathlib import Path
 
-from PIL import ImageFont
+from PIL import Image, ImageFont
 
 from core.config import Settings
 from core.state import ConnectionState, StateManager
@@ -56,23 +56,28 @@ class DisplayService:
             self._init_hardware()
 
     def _init_hardware(self):
-        """Initialize e-ink display hardware."""
+        """Initialize e-ink display but don't hold it."""
         try:
             # Import the actual SDK
-            from distiller_cm5_sdk.hardware.eink.display import Display, DisplayMode
+            from distiller_cm5_sdk.hardware.eink.display import (
+                Display,
+                DisplayMode,
+                RotationMode,
+            )
 
-            self.display = Display(auto_init=True)
+            # Create display object but don't hold hardware
+            self.display = Display(auto_init=False)  # Don't auto-init
             self.DisplayMode = DisplayMode
+            self.RotationMode = RotationMode
 
-            # Verify display dimensions
+            # Test that we can acquire/release
+            self.display.reacquire_hardware()
             width, height = self.display.get_dimensions()
-            if width != 128 or height != 250:
-                logger.warning(f"Unexpected display dimensions: {width}x{height}")
+            logger.info(f"E-ink display ready: {width}x{height}")
 
-            logger.info(f"E-ink display initialized: {width}x{height}")
-
-            # Clear display on startup
+            # Clear display on startup then release
             self.display.clear()
+            self.display.release_hardware()  # Release immediately
 
         except ImportError as e:
             logger.warning(f"E-ink display SDK not available: {e}")
@@ -197,34 +202,52 @@ class DisplayService:
             logger.error(f"Failed to update display: {e}")
 
     async def _send_to_display(self, image, state):
-        """Send image to e-ink display."""
+        """Send image to e-ink display with acquire/release."""
         if not self.display:
             return
 
         try:
-            # Save to temporary file
-            temp_file = Path("/tmp/eink_display.png")
-            image.save(str(temp_file), "PNG")
+            # The UI creates a 250x128 landscape image, but the e-ink expects 128x250 portrait
+            # Rotate and flip the image to match the hardware orientation
+            rotated_image = image.rotate(-90, expand=True)  # -90 = 90° clockwise, creates 128x250
+            rotated_image = rotated_image.transpose(Image.FLIP_LEFT_RIGHT)  # Horizontal flip
 
-            # Always use full refresh for better display quality
-            self.display.display_image_auto(
-                str(temp_file), self.DisplayMode.FULL, rotate=True, flop=True
+            # Save the correctly oriented image
+            temp_file = Path("/tmp/eink_display.png")
+            rotated_image.save(str(temp_file), "PNG")
+
+            # Acquire hardware, display, then release
+            self.display.reacquire_hardware()
+
+            # Display the pre-rotated 128x250 image without additional transformations
+            self.display.display_image(
+                str(temp_file),
+                mode=self.DisplayMode.FULL,
             )
 
-            logger.debug(f"Display updated for state: {state}")
+            self.display.release_hardware()  # Release immediately after display
+
+            logger.debug(f"Display updated and released for state: {state}")
 
         except Exception as e:
             logger.error(f"Failed to send image to display: {e}")
+            # Try to release hardware even on error
+            try:
+                self.display.release_hardware()
+            except:
+                pass
 
     async def stop(self):
         """Stop the display service."""
         self._running = False
 
-        # Clear display on shutdown
+        # Clear and release display on shutdown
         if self.display:
             try:
+                self.display.reacquire_hardware()
                 self.display.clear()
                 self.display.sleep()
+                self.display.release_hardware()
             except:
                 pass
 
