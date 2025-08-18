@@ -1,4 +1,4 @@
-distiller-cm5-services (2.0.1-1) unstable; urgency=medium
+distiller-cm5-services (2.0.1) unstable; urgency=medium
 
   [ utsavbalar1231 ]
   * feat: Add github workflows for release and dependencies
@@ -48,7 +48,7 @@ distiller-cm5-services (2.0.1-1) unstable; urgency=medium
 
  -- PamirAI Incorporated <founders@pamir.ai>  Wed, 13 Aug 2025 23:42:44 +0530
 
-distiller-cm5-services (2.0.0-1) unstable; urgency=medium
+distiller-cm5-services (2.0.0) unstable; urgency=medium
 
   * Major refactoring to modern async Python architecture
   * Single unified service instead of four separate services
@@ -99,7 +99,7 @@ distiller-cm5-services (2.0.0-1) unstable; urgency=medium
 
  -- PamirAI Incorporated <support@pamir.ai>  Sun, 10 Aug 2025 21:00:00 +0000
 
-distiller-cm5-services (1.2.0-2) unstable; urgency=medium
+distiller-cm5-services (1.2.0) unstable; urgency=medium
 
   * Fix Debian Bookworm compatibility issues
   * Remove unavailable Python packages from system dependencies
@@ -110,7 +110,7 @@ distiller-cm5-services (1.2.0-2) unstable; urgency=medium
 
  -- PamirAI Incorporated <support@pamir.ai>  Thu, 03 Jul 2025 00:00:00 +0000
 
-distiller-cm5-services (0.0.1-1) unstable; urgency=medium
+distiller-cm5-services (0.0.1) unstable; urgency=medium
 
   * Initial release
   * WiFi setup service with web interface
