@@ -54,7 +54,7 @@ def create_setup_screen(ap_ssid: str, ap_password: str, mdns_hostname: str) -> H
             Label("Password:"),
             Value(ap_password),
             Space(height=theme.spacing.xs),
-            Value(f"OPEN: http://{mdns_hostname}.local"),
+            Value(f"OPEN: http://{mdns_hostname}.local:8080"),
         )
     )
 
