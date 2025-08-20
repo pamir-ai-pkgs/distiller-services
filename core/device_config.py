@@ -1,9 +1,16 @@
 """Device configuration and identity management."""
 
+import datetime
 import json
 import logging
+import os
+import re
+import secrets
+import shutil
+import stat
 import string
 import subprocess
+import tempfile
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -19,10 +26,6 @@ class DeviceIdentity(BaseModel):
 
     @classmethod
     def generate(cls, prefix: str = "distiller") -> "DeviceIdentity":
-        import re
-        import secrets
-        from datetime import datetime
-
         # Validate prefix to prevent hostname injection
         if not re.match(r"^[a-z][a-z0-9-]{0,15}$", prefix):
             logger.error(f"Invalid prefix for hostname: {prefix}")
@@ -49,7 +52,7 @@ class DeviceIdentity(BaseModel):
             device_id=device_id,
             hostname=hostname,
             ap_ssid=ap_ssid,
-            created_at=datetime.now().isoformat(),
+            created_at=datetime.datetime.now().isoformat(),
         )
 
 
@@ -125,8 +128,6 @@ class DeviceConfigManager:
             return False
 
         # Check if actual system hostname matches
-        import subprocess
-
         try:
             result = subprocess.run(["hostname"], capture_output=True, text=True, check=True)
             system_hostname = result.stdout.strip()
@@ -206,11 +207,6 @@ class DeviceConfigManager:
 
     def _update_hosts_file(self) -> None:
         """Update /etc/hosts with proper entries for mDNS."""
-        import os
-        import re
-        import shutil
-        import stat
-        import tempfile
 
         if not self.identity:
             logger.error("No device identity to update /etc/hosts")
@@ -306,8 +302,6 @@ class DeviceConfigManager:
                         backup_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
 
                         # Rotate backups (keep last 3)
-                        import datetime
-
                         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                         backup_path = backup_dir / f"hosts.bak.{timestamp}"
 

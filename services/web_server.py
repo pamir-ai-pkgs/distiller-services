@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, Response, WebSocket, WebSocketDisconnect, status
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
@@ -99,7 +99,6 @@ class WebServer:
             state = self.state_manager.get_state()
             if state.connection_state == ConnectionState.AP_MODE:
                 # Redirect to setup page to trigger captive portal
-                from fastapi.responses import RedirectResponse
 
                 return RedirectResponse(
                     url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
@@ -128,8 +127,6 @@ class WebServer:
         async def ios_success_check(request: Request):
             state = self.state_manager.get_state()
             if state.connection_state == ConnectionState.AP_MODE:
-                from fastapi.responses import PlainTextResponse
-
                 return PlainTextResponse(content="")
             return PlainTextResponse(content="success")
 
@@ -138,13 +135,10 @@ class WebServer:
         async def windows_ncsi_check(request: Request):
             state = self.state_manager.get_state()
             if state.connection_state == ConnectionState.AP_MODE:
-                from fastapi.responses import RedirectResponse
-
                 return RedirectResponse(
                     url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
                     status_code=302,
                 )
-            from fastapi.responses import PlainTextResponse
 
             return PlainTextResponse(content="Microsoft NCSI")
 
@@ -152,13 +146,10 @@ class WebServer:
         async def windows_connect_check(request: Request):
             state = self.state_manager.get_state()
             if state.connection_state == ConnectionState.AP_MODE:
-                from fastapi.responses import RedirectResponse
-
                 return RedirectResponse(
                     url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
                     status_code=302,
                 )
-            from fastapi.responses import PlainTextResponse
 
             return PlainTextResponse(content="Microsoft Connect Test")
 
@@ -167,8 +158,6 @@ class WebServer:
         async def firefox_captive_check(request: Request):
             state = self.state_manager.get_state()
             if state.connection_state == ConnectionState.AP_MODE:
-                from fastapi.responses import RedirectResponse
-
                 return RedirectResponse(
                     url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
                     status_code=302,
@@ -182,8 +171,6 @@ class WebServer:
         async def kindle_captive_check(request: Request):
             state = self.state_manager.get_state()
             if state.connection_state == ConnectionState.AP_MODE:
-                from fastapi.responses import RedirectResponse
-
                 return RedirectResponse(
                     url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
                     status_code=302,

@@ -2,6 +2,9 @@
 
 import asyncio
 import logging
+import os
+import re
+import stat
 import time
 
 logger = logging.getLogger(__name__)
@@ -216,8 +219,6 @@ class NetworkManager:
 
     async def _validate_network_profile(self, profile_name: str) -> bool:
         """Validate NetworkManager profile integrity and permissions."""
-        import os
-        import stat
 
         # Get profile path
         profile_paths = [
@@ -278,7 +279,6 @@ class NetworkManager:
 
     def _validate_ssid(self, ssid: str) -> bool:
         """Validate SSID to prevent injection attacks."""
-        import re
 
         # Check length (WiFi spec: 1-32 chars)
         if not ssid or len(ssid) > 32:

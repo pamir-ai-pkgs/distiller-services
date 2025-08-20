@@ -5,6 +5,7 @@ This script creates sample images showing what would appear on the 122x250 e-ink
 """
 
 import sys
+import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -263,7 +264,6 @@ if __name__ == "__main__":
         print("  # Or open in an image viewer")
     except Exception as e:
         print(f"Error generating previews: {e}")
-        import traceback
 
         traceback.print_exc()
         sys.exit(1)

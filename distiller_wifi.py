@@ -4,6 +4,7 @@
 import argparse
 import asyncio
 import logging
+import os
 import secrets
 import socket
 import string
@@ -16,7 +17,7 @@ import uvicorn
 from core.avahi_service import AvahiService
 from core.config import Settings, get_settings
 from core.network_manager import NetworkManager
-from core.state import ConnectionState, StateManager
+from core.state import ConnectionState, NetworkInfo, StateManager
 from services.display_service import DisplayService
 from services.tunnel_service import TunnelService
 from services.web_server import WebServer
@@ -97,7 +98,6 @@ class DistillerWiFiApp:
             logger.info(f"Already connected to network: {current_ssid}")
 
             # Update state with current connection
-            from core.state import NetworkInfo
 
             network_info = NetworkInfo(
                 ssid=current_ssid,
@@ -127,8 +127,6 @@ class DistillerWiFiApp:
                 # Get updated connection info
                 connection_info = await self.network_manager.get_connection_info()
                 if connection_info:
-                    from core.state import NetworkInfo
-
                     network_info = NetworkInfo(
                         ssid=connection_info.get("ssid"),
                         ip_address=connection_info.get("ip_address"),
@@ -313,8 +311,6 @@ class DistillerWiFiApp:
 
 
 def main():
-    import os
-
     if os.geteuid() != 0:
         print("Error: This application requires root privileges.")
         print("Please run with sudo:")
