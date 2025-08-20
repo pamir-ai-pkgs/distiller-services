@@ -159,8 +159,8 @@ class Layout:
     content_height: int = 116  # 128 - (2 * 6)
 
     # Column widths for two-column layout
-    left_column_width: int = 95  # Left column for titles/icons/QR
-    right_column_width: int = 133  # Right column for content
+    left_column_width: int = 115  # Left column for titles/icons/QR (increased for WiFi info)
+    right_column_width: int = 113  # Right column for content (reduced to compensate)
     column_gap: int = 10  # Gap between columns
 
     # Alignment

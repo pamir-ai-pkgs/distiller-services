@@ -154,6 +154,8 @@ class DisplayService:
                     ap_ssid=self.settings.ap_ssid,
                     ap_password=ap_password,
                     mdns_hostname=self.settings.mdns_hostname,
+                    ap_ip=self.settings.ap_ip,
+                    web_port=self.settings.web_port,
                 )
 
             elif state == ConnectionState.CONNECTING:

@@ -23,38 +23,39 @@ from .display_layouts import (
 from .display_theme import theme
 
 
-def create_setup_screen(ap_ssid: str, ap_password: str, mdns_hostname: str) -> HorizontalLayout:
+def create_setup_screen(ap_ssid: str, ap_password: str, mdns_hostname: str, ap_ip: str = "192.168.4.1", web_port: int = 8080) -> HorizontalLayout:
     """
-    Create WiFi setup screen with QR code.
+    Create WiFi setup screen with dual QR codes optimized for small display.
 
     Args:
         ap_ssid: Access point SSID
         ap_password: Access point password
         mdns_hostname: mDNS hostname for web interface
+        ap_ip: Access point IP address (default: 192.168.4.1)
+        web_port: Web server port (default: 8080)
 
     Returns:
         HorizontalLayout with setup screen components
     """
     # Generate WiFi connection string for QR code
     wifi_string = f"WIFI:T:WPA;S:{ap_ssid};P:{ap_password};;"
+    
+    # Generate web URL for second QR code (using IP since we're in AP mode)
+    web_url = f"http://{ap_ip}:{web_port}"
 
     return (
         HorizontalLayout()
         .add_left(
-            Title("WIFI SETUP"),
-            Space(height=theme.spacing.md),
+            Caption("1. Join Wifi"),
             QRCode(wifi_string, size="small"),  # 60x60 QR code
-            Space(height=theme.spacing.md),
-            Caption("Scan QR or connect"),
+            Caption(ap_ssid[:14]),  # Truncate if too long
+            Caption(ap_password[:14]),  # Truncate if too long
         )
         .add_right(
-            Label("Network:"),
-            Value(ap_ssid),
-            Space(height=theme.spacing.xs),
-            Label("Password:"),
-            Value(ap_password),
-            Space(height=theme.spacing.xs),
-            Value(f"OPEN: http://{mdns_hostname}.local:8080"),
+            Caption("2. Open this site"),
+            QRCode(web_url, size="small"),  # 60x60 QR code
+            Caption(ap_ip),
+            Caption(f":{web_port}"),
         )
     )
 
