@@ -54,6 +54,11 @@ class Settings(BaseSettings):
 
     web_port: int = Field(default=8080, description="Web server port")
 
+    # Captive portal configuration
+    enable_captive_portal: bool = Field(
+        default=True, description="Enable captive portal for automatic browser popup"
+    )
+
     # Display configuration
     display_enabled: bool = Field(default=True, description="Enable e-ink display updates")
 

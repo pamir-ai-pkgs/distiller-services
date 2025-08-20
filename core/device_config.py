@@ -282,7 +282,7 @@ class DeviceConfigManager:
                 path_stat = os.stat(temp_path)
                 if not stat.S_ISREG(temp_stat.st_mode) or temp_stat.st_ino != path_stat.st_ino:
                     logger.error("Temp file security check failed - possible symlink attack")
-                    raise SecurityError("Temp file validation failed")
+                    raise ValueError("Temp file validation failed")
 
                 # Write content with explicit file descriptor to prevent race conditions
                 with os.fdopen(temp_fd, "w") as f:

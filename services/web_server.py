@@ -7,12 +7,13 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, Form, Request, Response, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 
+from core.captive_portal import CaptivePortal
 from core.config import Settings, generate_secure_password
 from core.network_manager import NetworkManager
 from core.state import ConnectionState, NetworkInfo, SessionInfo, StateManager
@@ -66,6 +67,11 @@ class WebServer:
         self.settings = settings
         self.network_manager = network_manager
         self.state_manager = state_manager
+        self.captive_portal = CaptivePortal(
+            interface=self.network_manager.wifi_device or "wlan0",
+            gateway_ip=self.settings.ap_ip,
+            web_port=self.settings.web_port,
+        )
 
         self.app = FastAPI(
             title="Distiller WiFi Setup",
@@ -79,8 +85,110 @@ class WebServer:
         static_dir = Path(__file__).parent.parent / "static"
         self.app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
         self.websockets: dict[str, WebSocket] = {}
+        self._setup_captive_portal_routes()
         self._setup_routes()
         self._setup_websocket()
+
+    def _setup_captive_portal_routes(self):
+        """Setup routes for captive portal detection."""
+
+        # Android detection endpoints
+        @self.app.get("/generate_204")
+        @self.app.get("/gen_204")
+        async def android_captive_check(request: Request):
+            state = self.state_manager.get_state()
+            if state.connection_state == ConnectionState.AP_MODE:
+                # Redirect to setup page to trigger captive portal
+                from fastapi.responses import RedirectResponse
+
+                return RedirectResponse(
+                    url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
+                    status_code=302,
+                )
+            # If not in AP mode, return normal 204
+            return Response(status_code=204)
+
+        # iOS/macOS detection endpoints
+        @self.app.get("/hotspot-detect.html")
+        @self.app.get("/library/test/success.html")
+        async def ios_captive_check(request: Request):
+            state = self.state_manager.get_state()
+            if state.connection_state == ConnectionState.AP_MODE:
+                # Return non-success to trigger captive portal
+                return HTMLResponse(
+                    content="<HTML><HEAD><TITLE>Portal</TITLE></HEAD><BODY></BODY></HTML>"
+                )
+            # If not in AP mode, return success
+            return HTMLResponse(
+                content="<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>"
+            )
+
+        # iOS alternate
+        @self.app.get("/success.txt")
+        async def ios_success_check(request: Request):
+            state = self.state_manager.get_state()
+            if state.connection_state == ConnectionState.AP_MODE:
+                from fastapi.responses import PlainTextResponse
+
+                return PlainTextResponse(content="")
+            return PlainTextResponse(content="success")
+
+        # Windows detection endpoints
+        @self.app.get("/ncsi.txt")
+        async def windows_ncsi_check(request: Request):
+            state = self.state_manager.get_state()
+            if state.connection_state == ConnectionState.AP_MODE:
+                from fastapi.responses import RedirectResponse
+
+                return RedirectResponse(
+                    url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
+                    status_code=302,
+                )
+            from fastapi.responses import PlainTextResponse
+
+            return PlainTextResponse(content="Microsoft NCSI")
+
+        @self.app.get("/connecttest.txt")
+        async def windows_connect_check(request: Request):
+            state = self.state_manager.get_state()
+            if state.connection_state == ConnectionState.AP_MODE:
+                from fastapi.responses import RedirectResponse
+
+                return RedirectResponse(
+                    url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
+                    status_code=302,
+                )
+            from fastapi.responses import PlainTextResponse
+
+            return PlainTextResponse(content="Microsoft Connect Test")
+
+        # Firefox detection endpoint
+        @self.app.get("/canonical.html")
+        async def firefox_captive_check(request: Request):
+            state = self.state_manager.get_state()
+            if state.connection_state == ConnectionState.AP_MODE:
+                from fastapi.responses import RedirectResponse
+
+                return RedirectResponse(
+                    url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
+                    status_code=302,
+                )
+            return HTMLResponse(
+                content="<html><head><title>Success</title></head><body>Success</body></html>"
+            )
+
+        # Kindle detection endpoint
+        @self.app.get("/kindle-wifi/wifistub.html")
+        async def kindle_captive_check(request: Request):
+            state = self.state_manager.get_state()
+            if state.connection_state == ConnectionState.AP_MODE:
+                from fastapi.responses import RedirectResponse
+
+                return RedirectResponse(
+                    url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
+                    status_code=302,
+                )
+            return HTMLResponse(content="")
 
     def _setup_routes(self):
         @self.app.get("/", response_class=HTMLResponse)
@@ -480,3 +588,13 @@ class WebServer:
     def get_app(self) -> FastAPI:
         """Get the FastAPI application instance."""
         return self.app
+
+    async def enable_captive_portal(self):
+        """Enable captive portal functionality."""
+        if self.network_manager.wifi_device:
+            self.captive_portal.interface = self.network_manager.wifi_device
+        return await self.captive_portal.enable()
+
+    async def disable_captive_portal(self):
+        """Disable captive portal functionality."""
+        return await self.captive_portal.disable()

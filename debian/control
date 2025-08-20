@@ -20,6 +20,7 @@ Depends: ${misc:Depends},
          systemd,
          network-manager,
          avahi-daemon,
+         iptables,
          openssh-client
 Recommends: distiller-cm5-sdk (>= 0.2.0)
 Description: WiFi provisioning service for Raspberry Pi CM5 devices

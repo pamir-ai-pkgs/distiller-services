@@ -103,7 +103,7 @@ class TunnelService:
                         "-o",
                         "LogLevel=ERROR",  # Reduce log verbosity
                         "-R",
-                        f"0:localhost:4300",
+                        "0:localhost:4300",
                         "-p",
                         str(self.settings.tunnel_ssh_port),
                         f"{self.settings.pinggy_access_token}@a.pinggy.io",  # Token-based auth
@@ -124,7 +124,7 @@ class TunnelService:
                         "-o",
                         "LogLevel=ERROR",  # Reduce log verbosity
                         "-R",
-                        f"0:localhost:4300",
+                        "0:localhost:4300",
                         "-p",
                         str(self.settings.tunnel_ssh_port),
                         "a.pinggy.io",

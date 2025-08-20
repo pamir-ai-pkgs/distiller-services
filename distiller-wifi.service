@@ -17,7 +17,7 @@ TimeoutStopSec=15
 
 # Environment
 Environment=PYTHONUNBUFFERED=1
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 Environment=PYTHONPATH=/opt/distiller-cm5-services:/opt/distiller-cm5-sdk:/opt/distiller-cm5-sdk/src
 Environment=LD_LIBRARY_PATH=/opt/distiller-cm5-sdk/lib
 

@@ -1,12 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this
-repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-Unified WiFi provisioning service for Raspberry Pi CM5 devices with E-ink display support. Single
-async Python service using FastAPI, WebSocket, and persistent mDNS.
+Unified WiFi provisioning service for Raspberry Pi CM5 devices with E-ink display support. Single async Python service using FastAPI, WebSocket, and persistent mDNS.
 
 ## Essential Commands
 
@@ -40,16 +38,18 @@ core/
 ├── device_config.py       # Device configuration
 ├── state.py               # Event-driven state machine
 ├── network_manager.py     # Async NetworkManager wrapper
-└── mdns_service.py        # Zeroconf/mDNS
+├── avahi_service.py       # Avahi mDNS registration
+└── captive_portal.py      # Captive portal with iptables
 
 services/
 ├── web_server.py          # FastAPI + WebSocket
 ├── display_service.py     # E-ink display manager
+├── display_screens.py     # Display state renderers
 └── tunnel_service.py      # Pinggy SSH tunnels
 
-State Flow: AP_MODE → SWITCHING → CONNECTING → CONNECTED
-           ↑                           ↓            ↓
-           └─────────────← FAILED ←────────────────┘
+State Flow: INITIALIZING → SETUP_MODE → CONNECTING → CONNECTED
+                   ↑            ↓            ↓
+                   └────────────← FAILED ←────┘
 ```
 
 ## Key Patterns
@@ -61,6 +61,7 @@ State Flow: AP_MODE → SWITCHING → CONNECTING → CONNECTED
 - **State-driven**: Event callbacks on state transitions
 - **Monochrome UI**: Pure black (#000000) and white (#FFFFFF) only
 - **No emojis**: Clean professional code
+- **Captive Portal**: Automatic browser popup in AP mode via iptables
 
 ## Development & API Testing
 

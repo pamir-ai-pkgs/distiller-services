@@ -164,6 +164,17 @@ class DistillerWiFiApp:
                 logger.info(
                     f"Access Point started: {self.settings.ap_ssid} with password: {ap_password}"
                 )
+
+                # Enable captive portal for automatic browser popup
+                if self.settings.enable_captive_portal:
+                    logger.info("Enabling captive portal...")
+                    captive_enabled = await self.web_server.enable_captive_portal()
+                    if captive_enabled:
+                        logger.info("Captive portal enabled - devices will auto-open browser")
+                    else:
+                        logger.warning(
+                            "Failed to enable captive portal - manual browser navigation required"
+                        )
             else:
                 logger.error("Failed to start Access Point mode")
                 raise RuntimeError("Cannot start without AP mode")
@@ -177,6 +188,13 @@ class DistillerWiFiApp:
 
     async def _handle_state_change(self, old_state: ConnectionState, new_state: ConnectionState):
         logger.info(f"State transition: {old_state} -> {new_state}")
+
+        # Disable captive portal when leaving AP mode
+        if old_state == ConnectionState.AP_MODE and new_state != ConnectionState.AP_MODE:
+            if self.settings.enable_captive_portal:
+                logger.info("Disabling captive portal as we're leaving AP mode")
+                await self.web_server.disable_captive_portal()
+
         # Avahi handles all network transitions automatically
         # No need to manage mDNS state changes
 
@@ -275,6 +293,10 @@ class DistillerWiFiApp:
                 logger.warning("Some tasks did not complete within timeout")
 
         try:
+            # Disable captive portal if it was enabled
+            if self.settings.enable_captive_portal:
+                await self.web_server.disable_captive_portal()
+
             self.avahi_service.stop()
             await self.display_service.stop()
             await self.tunnel_service.stop()
