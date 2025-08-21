@@ -61,6 +61,31 @@ class DeviceConfigManager:
         self.config_file = config_file or Path("/var/lib/distiller/device_config.json")
         self.identity: DeviceIdentity | None = None
 
+    def _extract_from_hostname(self) -> DeviceIdentity | None:
+        """Extract device identity from existing hostname if it matches distiller-XXXX pattern."""
+        try:
+            # Get current hostname
+            result = subprocess.run(["hostname"], capture_output=True, text=True, check=True)
+            current_hostname = result.stdout.strip()
+            
+            # Check if it matches the distiller-XXXX pattern
+            match = re.match(r"^distiller-([a-z0-9]{4})$", current_hostname)
+            if match:
+                device_id = match.group(1)
+                logger.info(f"Found existing distiller hostname: {current_hostname}")
+                
+                # Create identity from existing hostname
+                return DeviceIdentity(
+                    device_id=device_id,
+                    hostname=current_hostname,
+                    ap_ssid=f"Distiller-{device_id.upper()}",
+                    created_at=datetime.datetime.now().isoformat(),
+                )
+        except Exception as e:
+            logger.debug(f"Failed to extract from hostname: {e}")
+        
+        return None
+
     def load_or_create(self) -> DeviceIdentity:
         """Load existing device identity or create a new one."""
         if self.config_file.exists():
@@ -80,7 +105,18 @@ class DeviceConfigManager:
                     return self.identity
             except Exception as e:
                 logger.error(f"Failed to load device config: {e}")
-                # Fall through to create new identity
+                # Fall through to check hostname
+
+        # Check if current hostname already matches distiller-XXXX pattern
+        self.identity = self._extract_from_hostname()
+        if self.identity:
+            logger.info(f"Using existing hostname: {self.identity.hostname}")
+            # Save to file for persistence
+            self._save_identity()
+            # Verify system configuration
+            if not self._verify_system_config():
+                self._configure_system()
+            return self.identity
 
         # Create new identity
         self.identity = DeviceIdentity.generate()
