@@ -222,6 +222,9 @@ class DisplayService:
             )
 
             logger.debug(f"Display updated for state: {state}")
+            await asyncio.sleep(2)  # Give time for the display to refresh
+            self.display.sleep()  # Put display to sleep after update
+            self.display.close()  # Close connection
 
         except Exception as e:
             logger.error(f"Failed to send image to display: {e}")
