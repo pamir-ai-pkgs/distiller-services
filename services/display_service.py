@@ -5,6 +5,7 @@ E-ink display service for visual feedback.
 import asyncio
 import logging
 import sys
+import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageFont
@@ -28,6 +29,15 @@ SDK_PATH = Path("/opt/distiller-cm5-sdk/src")
 if SDK_PATH.exists():
     sys.path.insert(0, str(SDK_PATH))
 
+# Try to import TemplateRenderer for custom UI templates
+try:
+    from distiller_cm5_sdk.hardware.eink.composer import TemplateRenderer
+
+    TEMPLATE_RENDERER_AVAILABLE = True
+except ImportError:
+    logger.debug("TemplateRenderer not available, will use hardcoded screens only")
+    TEMPLATE_RENDERER_AVAILABLE = False
+
 
 class DisplayService:
     """
@@ -48,6 +58,9 @@ class DisplayService:
         self.display = None
         self._running = False
 
+        # Template path for UI-generated templates
+        self.template_path = Path("/home/distiller/template/default/template.json")
+
         # Load fonts
         self.fonts = self.load_fonts()
 
@@ -62,8 +75,8 @@ class DisplayService:
             from distiller_cm5_sdk.hardware.eink.display import (
                 Display,
                 DisplayMode,
-                ScalingMethod,
                 DitheringMethod,
+                ScalingMethod,
             )
 
             # Create display object without auto-initialization
@@ -112,6 +125,50 @@ class DisplayService:
 
         return fonts
 
+    def _has_template(self) -> bool:
+        """Check if a custom UI template exists."""
+        if not TEMPLATE_RENDERER_AVAILABLE:
+            return False
+        return self.template_path.exists()
+
+    def _render_template(self, ip_address: str, tunnel_url: str) -> Image.Image | None:
+        """
+        Render custom UI template with dynamic data.
+
+        Args:
+            ip_address: Current IP address
+            tunnel_url: Tunnel URL for QR code
+
+        Returns:
+            PIL Image of rendered template or None on failure
+        """
+        if not TEMPLATE_RENDERER_AVAILABLE or not self._has_template():
+            return None
+
+        try:
+            # Create renderer with template
+            renderer = TemplateRenderer(str(self.template_path))
+
+            # Create temporary file for rendered output
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
+                temp_path = temp_file.name
+
+            # Render and save to temporary file
+            renderer.render_and_save(ip_address, tunnel_url, temp_path)
+
+            # Load as PIL Image
+            image = Image.open(temp_path)
+
+            # Clean up temp file
+            Path(temp_path).unlink(missing_ok=True)
+
+            logger.debug(f"Successfully rendered template with IP: {ip_address}, URL: {tunnel_url}")
+            return image
+
+        except Exception as e:
+            logger.error(f"Failed to render template: {e}")
+            return None
+
     async def run(self):
         """Main display update loop."""
         self._running = True
@@ -146,51 +203,71 @@ class DisplayService:
         try:
             # Get full state for additional info
             full_state = self.state_manager.get_state()
+            image = None
 
-            # Create appropriate screen based on state
-            if state == ConnectionState.AP_MODE:
-                # Setup screen with WiFi credentials
-                ap_password = full_state.ap_password or "setupwifi123"
-                layout = create_setup_screen(
-                    ap_ssid=self.settings.ap_ssid,
-                    ap_password=ap_password,
-                    mdns_hostname=self.settings.mdns_hostname,
-                    ap_ip=self.settings.ap_ip,
-                    web_port=self.settings.web_port,
-                )
+            # Try to use custom template for connected state with tunnel URL
+            if (
+                state == ConnectionState.CONNECTED
+                and full_state.tunnel_url
+                and self._has_template()
+            ):
+                # Get IP address for template rendering
+                ip_address = "127.0.0.1"
+                if full_state.network_info and full_state.network_info.ip_address:
+                    ip_address = full_state.network_info.ip_address
 
-            elif state == ConnectionState.CONNECTING:
-                # Connecting screen with progress
-                ssid = full_state.network_info.ssid if full_state.network_info else None
-                layout = create_connecting_screen(ssid=ssid, progress=0.4)
+                # Try to render custom template
+                image = self._render_template(ip_address, full_state.tunnel_url)
 
-            elif state == ConnectionState.CONNECTED:
-                # Check if we have a tunnel URL to show
-                if full_state.tunnel_url:
-                    layout = create_tunnel_screen(full_state.tunnel_url, full_state.network_info.ip_address)
-                else:
-                    # Regular connected screen
-                    network_info = full_state.network_info
-                    layout = create_connected_screen(
-                        ssid=network_info.ssid if network_info else None,
-                        ip_address=network_info.ip_address if network_info else None,
+                if image:
+                    logger.info("Using custom UI template for display")
+
+            # If no custom template or rendering failed, use hardcoded screens
+            if not image:
+                # Create appropriate screen based on state
+                if state == ConnectionState.AP_MODE:
+                    # Setup screen with WiFi credentials
+                    ap_password = full_state.ap_password or "setupwifi123"
+                    layout = create_setup_screen(
+                        ap_ssid=self.settings.ap_ssid,
+                        ap_password=ap_password,
                         mdns_hostname=self.settings.mdns_hostname,
+                        ap_ip=self.settings.ap_ip,
+                        web_port=self.settings.web_port,
                     )
 
-            elif state == ConnectionState.FAILED:
-                # Connection failed screen
-                network_info = full_state.network_info
-                layout = create_failed_screen(
-                    ssid=network_info.ssid if network_info else None,
-                    error_message=full_state.error_message,
-                )
+                elif state == ConnectionState.CONNECTING:
+                    # Connecting screen with progress
+                    ssid = full_state.network_info.ssid if full_state.network_info else None
+                    layout = create_connecting_screen(ssid=ssid, progress=0.4)
 
-            else:
-                # Default initializing screen
-                layout = create_initializing_screen()
+                elif state == ConnectionState.CONNECTED:
+                    # Check if we have a tunnel URL to show
+                    if full_state.tunnel_url:
+                        layout = create_tunnel_screen(full_state.tunnel_url, full_state.network_info.ip_address)
+                    else:
+                        # Regular connected screen
+                        network_info = full_state.network_info
+                        layout = create_connected_screen(
+                            ssid=network_info.ssid if network_info else None,
+                            ip_address=network_info.ip_address if network_info else None,
+                            mdns_hostname=self.settings.mdns_hostname,
+                        )
 
-            # Render the layout to an image
-            image = layout.render(self.fonts)
+                elif state == ConnectionState.FAILED:
+                    # Connection failed screen
+                    network_info = full_state.network_info
+                    layout = create_failed_screen(
+                        ssid=network_info.ssid if network_info else None,
+                        error_message=full_state.error_message,
+                    )
+
+                else:
+                    # Default initializing screen
+                    layout = create_initializing_screen()
+
+                # Render the layout to an image
+                image = layout.render(self.fonts)
 
             # Send to display
             if self.display:
