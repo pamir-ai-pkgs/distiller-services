@@ -62,22 +62,23 @@ class DisplayService:
             from distiller_cm5_sdk.hardware.eink.display import (
                 Display,
                 DisplayMode,
-                RotationMode,
+                ScalingMethod,
+                DitheringMethod,
             )
 
-            # Create display object but don't hold hardware
-            self.display = Display(auto_init=False)  # Don't auto-init
+            # Create display object without auto-initialization
+            self.display = Display(auto_init=False)
             self.DisplayMode = DisplayMode
-            self.RotationMode = RotationMode
+            self.ScalingMethod = ScalingMethod
+            self.DitheringMethod = DitheringMethod
 
-            # Test that we can acquire/release
-            self.display.reacquire_hardware()
+            # Initialize the display
+            self.display.initialize()
             width, height = self.display.get_dimensions()
             logger.info(f"E-ink display ready: {width}x{height}")
 
-            # Clear display on startup then release
+            # Clear display on startup
             self.display.clear()
-            self.display.release_hardware()  # Release immediately
 
         except ImportError as e:
             logger.warning(f"E-ink display SDK not available: {e}")
@@ -204,53 +205,38 @@ class DisplayService:
             logger.error(f"Failed to update display: {e}")
 
     async def _send_to_display(self, image, state):
-        """Send image to e-ink display with acquire/release."""
+        """Send image to e-ink display with built-in rotation."""
         if not self.display:
             return
 
         try:
-            # The UI creates a 250x128 landscape image, but the e-ink expects 128x250 portrait
-            # Rotate and flip the image to match the hardware orientation
-            rotated_image = image.rotate(-90, expand=True)  # -90 = 90° clockwise, creates 128x250
-            rotated_image = rotated_image.transpose(Image.FLIP_LEFT_RIGHT)  # Horizontal flip
-
-            # Save the correctly oriented image
             temp_file = Path("/tmp/eink_display.png")
-            rotated_image.save(str(temp_file), "PNG")
+            image.save(str(temp_file), "PNG")
 
-            # Acquire hardware, display, then release
-            self.display.reacquire_hardware()
-
-            # Display the pre-rotated 128x250 image without additional transformations
-            self.display.display_image(
+            # Display png image
+            self.display.display_png_auto(
                 str(temp_file),
                 mode=self.DisplayMode.FULL,
+                rotate=270,  # Rotate 90° CW: 250x128 → 128x250
+                flop=True,  # Mirror horizontally
             )
 
-            self.display.release_hardware()  # Release immediately after display
-
-            logger.debug(f"Display updated and released for state: {state}")
+            logger.debug(f"Display updated for state: {state}")
 
         except Exception as e:
             logger.error(f"Failed to send image to display: {e}")
-            # Try to release hardware even on error
-            try:
-                self.display.release_hardware()
-            except:
-                pass
 
     async def stop(self):
         """Stop the display service."""
         self._running = False
 
-        # Clear and release display on shutdown
+        # Clear and close display on shutdown
         if self.display:
             try:
-                self.display.reacquire_hardware()
                 self.display.clear()
                 self.display.sleep()
-                self.display.release_hardware()
-            except:
-                pass
+                self.display.close()
+            except Exception as e:
+                logger.error(f"Error during display shutdown: {e}")
 
         logger.info("Display service stopped")

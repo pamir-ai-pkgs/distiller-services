@@ -22,7 +22,7 @@ Depends: ${misc:Depends},
          avahi-daemon,
          iptables,
          openssh-client
-Recommends: distiller-cm5-sdk (>= 0.2.0)
+Recommends: distiller-cm5-sdk (>= 0.1.0)
 Description: WiFi provisioning service for Raspberry Pi CM5 devices
  Provides network configuration and management for Distiller devices
  with support for access point mode, client mode, and remote access
