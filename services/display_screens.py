@@ -131,7 +131,7 @@ def create_connected_screen(
     )
 
 
-def create_tunnel_screen(tunnel_url: str) -> HorizontalLayout:
+def create_tunnel_screen(tunnel_url: str, ip_address: str) -> HorizontalLayout:
     """
     Create tunnel/remote access screen with QR code.
 
@@ -146,15 +146,20 @@ def create_tunnel_screen(tunnel_url: str) -> HorizontalLayout:
         .add_left(
             Title("REMOTE ACCESS"),
             Space(),
-            QRCode(tunnel_url, size="small"),  # 60x60 QR code
+            Space(),
+            QRCode(tunnel_url, size="medium"),  # 60x60 QR code
         )
         .add_right(
-            Label("URL:"),
-            Value(tunnel_url),
+            # Label("URL:"),
+            # Value(tunnel_url),
             Space(height=theme.spacing.md),
-            Value("Valid for: 60 minutes"),
+            Space(height=theme.spacing.md),
+            Space(height=theme.spacing.md),
+            Value("QR valid only"),
+            Label("55 minutes"),
             Space(),  # Push to bottom
-            Value("Scan QR or open URL"),
+            Value(f"or visit"),
+            Label(f"{ip_address}  :3000"),
         )
     )
 

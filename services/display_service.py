@@ -167,7 +167,7 @@ class DisplayService:
             elif state == ConnectionState.CONNECTED:
                 # Check if we have a tunnel URL to show
                 if full_state.tunnel_url:
-                    layout = create_tunnel_screen(full_state.tunnel_url)
+                    layout = create_tunnel_screen(full_state.tunnel_url, full_state.network_info.ip_address)
                 else:
                     # Regular connected screen
                     network_info = full_state.network_info
