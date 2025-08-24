@@ -68,6 +68,9 @@ class DisplayService:
         if settings.display_enabled:
             self._init_hardware()
 
+        # Register for state changes
+        self.state_manager.on_state_change(self._on_state_change)
+
     def _init_hardware(self):
         """Initialize e-ink display but don't hold it."""
         try:
@@ -185,7 +188,7 @@ class DisplayService:
                 # Update display if state changed or tunnel URL changed
                 state_changed = last_state != current_state.connection_state
                 tunnel_changed = last_tunnel_url != current_state.tunnel_url
-
+                
                 if state_changed or tunnel_changed:
                     await self.update_display(current_state.connection_state)
                     last_state = current_state.connection_state
@@ -201,13 +204,15 @@ class DisplayService:
     async def update_display(self, state):
         """Update display based on current state using new component system."""
         try:
-            # Get full state for additional info
+            # Always get fresh state to ensure we have latest tunnel_url
             full_state = self.state_manager.get_state()
+            # Use fresh state for screen decision instead of stale parameter
+            current_state = full_state.connection_state
             image = None
 
             # Try to use custom template for connected state with tunnel URL
             if (
-                state == ConnectionState.CONNECTED
+                current_state == ConnectionState.CONNECTED
                 and full_state.tunnel_url
                 and self._has_template()
             ):
@@ -224,8 +229,8 @@ class DisplayService:
 
             # If no custom template or rendering failed, use hardcoded screens
             if not image:
-                # Create appropriate screen based on state
-                if state == ConnectionState.AP_MODE:
+                # Create appropriate screen based on fresh state
+                if current_state == ConnectionState.AP_MODE:
                     # Setup screen with WiFi credentials
                     ap_password = full_state.ap_password or "setupwifi123"
                     layout = create_setup_screen(
@@ -236,12 +241,12 @@ class DisplayService:
                         web_port=self.settings.web_port,
                     )
 
-                elif state == ConnectionState.CONNECTING:
+                elif current_state == ConnectionState.CONNECTING:
                     # Connecting screen with progress
                     ssid = full_state.network_info.ssid if full_state.network_info else None
                     layout = create_connecting_screen(ssid=ssid, progress=0.4)
 
-                elif state == ConnectionState.CONNECTED:
+                elif current_state == ConnectionState.CONNECTED:
                     # Check if we have a tunnel URL to show
                     if full_state.tunnel_url:
                         layout = create_tunnel_screen(full_state.tunnel_url, full_state.network_info.ip_address)
@@ -254,7 +259,7 @@ class DisplayService:
                             mdns_hostname=self.settings.mdns_hostname,
                         )
 
-                elif state == ConnectionState.FAILED:
+                elif current_state == ConnectionState.FAILED:
                     # Connection failed screen
                     network_info = full_state.network_info
                     layout = create_failed_screen(
@@ -271,7 +276,7 @@ class DisplayService:
 
             # Send to display
             if self.display:
-                await self._send_to_display(image, state)
+                await self._send_to_display(image, current_state)
             else:
                 # Save to file for debugging
                 debug_file = Path("/tmp/distiller_display.png")
@@ -279,7 +284,12 @@ class DisplayService:
                 logger.debug(f"Display image saved to: {debug_file}")
 
         except Exception as e:
-            logger.error(f"Failed to update display: {e}")
+            logger.error(f"Failed to update display: {e}", exc_info=True)
+
+    async def _on_state_change(self, old_state, new_state):
+        """Handle state changes via callback to force immediate display update."""
+        logger.info(f"State change callback: {old_state} -> {new_state}")
+        await self.update_display(new_state)
 
     async def _send_to_display(self, image, state):
         """Send image to e-ink display with built-in rotation."""

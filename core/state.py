@@ -76,6 +76,8 @@ class StateManager:
         # Load existing state if available
         if state_file and state_file.exists():
             self._load_state()
+            # Clear tunnel_url to prevent showing stale URLs on restart
+            self.state.tunnel_url = None
 
     def _load_state(self) -> None:
         """Load state from file."""
@@ -151,6 +153,7 @@ class StateManager:
         """Update system state and trigger callbacks."""
         async with self._lock:
             old_state = self.state.connection_state
+            old_tunnel_url = self.state.tunnel_url
 
             # Update fields
             if connection_state is not None:
@@ -180,8 +183,8 @@ class StateManager:
             # Save state
             await self._save_state()
 
-            # Trigger callbacks if state changed
-            if old_state != self.state.connection_state:
+            # Trigger callbacks if state or tunnel_url changed
+            if old_state != self.state.connection_state or old_tunnel_url != self.state.tunnel_url:
                 await self._trigger_callbacks(
                     "state_change", old_state, self.state.connection_state
                 )
