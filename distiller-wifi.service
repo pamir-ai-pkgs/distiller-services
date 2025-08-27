@@ -9,6 +9,7 @@ Type=simple
 User=root
 Group=root
 WorkingDirectory=/opt/distiller-cm5-services
+ExecStartPre=/opt/distiller-cm5-services/scripts/update-hostname.sh
 ExecStart=/opt/distiller-cm5-services/.venv/bin/python /opt/distiller-cm5-services/distiller_wifi.py
 Restart=always
 RestartSec=10
@@ -24,7 +25,9 @@ Environment=LD_LIBRARY_PATH=/opt/distiller-cm5-sdk/lib
 # Security settings - relaxed for network operations
 NoNewPrivileges=false
 ProtectSystem=false
-ReadWritePaths=/var/lib/distiller /etc/NetworkManager/system-connections /etc/hostname /etc/hosts /etc/avahi
+ProtectHostname=no
+PrivateTmp=no
+ReadWritePaths=/var/lib/distiller /etc/NetworkManager/system-connections /etc/hostname /etc/hosts /etc/avahi /tmp
 SupplementaryGroups=netdev
 
 # Logging

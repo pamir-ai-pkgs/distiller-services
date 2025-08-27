@@ -33,6 +33,58 @@ class AvahiService:
             # Get the device hostname
             hostname = socket.gethostname()
 
+            # Ensure avahi-daemon has the correct hostname
+            # This is critical for proper mDNS operation
+            try:
+                import subprocess
+                import time
+
+                # First try to get avahi's current hostname
+                avahi_hostname = None
+                try:
+                    result = subprocess.run(
+                        ["avahi-resolve", "--name", f"{hostname}.local"],
+                        capture_output=True,
+                        text=True,
+                        timeout=1,
+                    )
+                    if result.returncode == 0:
+                        # Extract hostname from output
+                        output = result.stdout.strip()
+                        if output:
+                            # Output format is usually "hostname.local\tIP"
+                            avahi_hostname = output.split()[0].replace(".local", "")
+                except Exception:
+                    pass
+
+                # If hostname doesn't match, update it
+                if avahi_hostname != hostname:
+                    logger.info(f"Updating avahi hostname from '{avahi_hostname}' to '{hostname}'")
+
+                    # Try avahi-set-host-name first (preferred)
+                    try:
+                        subprocess.run(
+                            ["avahi-set-host-name", hostname],
+                            check=True,
+                            capture_output=True,
+                            text=True,
+                        )
+                        logger.info(f"Successfully set avahi hostname to {hostname}")
+                        time.sleep(0.5)  # Give avahi a moment to update
+                    except FileNotFoundError:
+                        # avahi-set-host-name not available, fallback to restart
+                        logger.debug("avahi-set-host-name not found, restarting avahi-daemon")
+                        subprocess.run(["systemctl", "restart", "avahi-daemon"], check=False)
+                        time.sleep(1)  # Give avahi more time after restart
+                    except subprocess.CalledProcessError as e:
+                        # Command failed, try restart as fallback
+                        logger.warning(f"avahi-set-host-name failed: {e}, restarting avahi-daemon")
+                        subprocess.run(["systemctl", "restart", "avahi-daemon"], check=False)
+                        time.sleep(1)
+            except Exception as e:
+                # Hostname verification is important but not fatal
+                logger.warning(f"Could not verify/update avahi hostname: {e}")
+
             # Create the service XML
             service_xml = f"""<?xml version="1.0" standalone='no'?>
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">

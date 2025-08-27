@@ -26,6 +26,14 @@ class DeviceIdentity(BaseModel):
 
     @classmethod
     def generate(cls, prefix: str = "distiller") -> "DeviceIdentity":
+        """Generate device identity using MAC address if possible, fallback to random."""
+        # Try MAC-based generation first
+        try:
+            return cls.generate_from_mac(prefix=prefix)
+        except Exception as e:
+            logger.warning(f"MAC-based generation failed, using random: {e}")
+
+        # Fallback to random generation
         # Validate prefix to prevent hostname injection
         if not re.match(r"^[a-z][a-z0-9-]{0,15}$", prefix):
             logger.error(f"Invalid prefix for hostname: {prefix}")
@@ -55,6 +63,127 @@ class DeviceIdentity(BaseModel):
             created_at=datetime.datetime.now().isoformat(),
         )
 
+    @classmethod
+    def generate_from_mac(
+        cls, mac_address: str | None = None, prefix: str = "distiller"
+    ) -> "DeviceIdentity":
+        """Generate device identity from MAC address.
+
+        Args:
+            mac_address: MAC address string (e.g., "aa:bb:cc:dd:ee:ff") or None to auto-detect
+            prefix: Hostname prefix (default: "distiller")
+
+        Returns:
+            DeviceIdentity with MAC-based device_id
+
+        Raises:
+            ValueError: If MAC address cannot be detected or is invalid
+        """
+        # Validate prefix to prevent hostname injection
+        if not re.match(r"^[a-z][a-z0-9-]{0,15}$", prefix):
+            logger.error(f"Invalid prefix for hostname: {prefix}")
+            prefix = "distiller"  # Use safe default
+
+        if mac_address is None:
+            # Try network interface method first (more reliable)
+            mac_address = cls._get_primary_mac()
+            if mac_address is None:
+                # Fall back to uuid.getnode() if interface method fails
+                mac_address = cls._get_mac_from_uuid()
+                if mac_address is None:
+                    raise ValueError("Could not detect MAC address")
+
+        # Clean up MAC address (remove colons, convert to lowercase)
+        clean_mac = mac_address.lower().replace(":", "").replace("-", "")
+
+        # Validate MAC address format
+        if not re.match(r"^[0-9a-f]{12}$", clean_mac):
+            raise ValueError(f"Invalid MAC address format: {mac_address}")
+
+        # Use last 4 hex characters for device ID (converted to alphanumeric)
+        # This provides 65,536 unique combinations
+        mac_suffix = clean_mac[-4:]
+
+        # Ensure device_id is alphanumeric (some systems don't handle pure hex well in hostnames)
+        # Convert hex to a mix of letters and numbers for better compatibility
+        device_id = ""
+        for char in mac_suffix:
+            # Map hex chars to alphanumeric (0-9 -> 0-9, a-f -> a-f)
+            device_id += char
+
+        hostname = f"{prefix}-{device_id}"
+        ap_ssid = f"Distiller-{device_id.upper()}"
+
+        logger.info(f"Generated MAC-based identity: {hostname} from MAC {mac_address}")
+
+        return cls(
+            device_id=device_id,
+            hostname=hostname,
+            ap_ssid=ap_ssid,
+            created_at=datetime.datetime.now().isoformat(),
+        )
+
+    @staticmethod
+    def _get_mac_from_uuid() -> str | None:
+        """Get MAC address using uuid.getnode() for consistency."""
+        try:
+            import uuid
+
+            mac_num = uuid.getnode()
+            # Check if it's a real MAC (uuid.getnode() is deterministic)
+            # If it's not a real MAC, it would be random each time
+            mac_num2 = uuid.getnode()
+            if mac_num == mac_num2 and mac_num != 0:
+                # Convert to MAC address format
+                mac_hex = f"{mac_num:012x}"
+                mac = ":".join([mac_hex[i : i + 2] for i in range(0, 12, 2)])
+                logger.debug(f"Found MAC address {mac} using uuid.getnode()")
+                return mac
+        except Exception as e:
+            logger.debug(f"Failed to get MAC via uuid.getnode(): {e}")
+        return None
+
+    @staticmethod
+    def _read_mac_from_interface(interface: str) -> str | None:
+        """Read MAC address from a specific network interface."""
+        try:
+            mac_path = Path(f"/sys/class/net/{interface}/address")
+            if mac_path.exists():
+                mac = mac_path.read_text().strip().lower()
+                return mac
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _get_primary_mac() -> str | None:
+        """Get MAC address of primary network interface."""
+        # Priority order: physical ethernet first, then wireless
+        interfaces_priority = ["eth0", "end0", "enp0s3", "eno1", "wlan0", "wlp1s0"]
+
+        # First try priority interfaces
+        for interface in interfaces_priority:
+            mac = DeviceIdentity._read_mac_from_interface(interface)
+            if mac and mac != "00:00:00:00:00:00":
+                logger.info(f"Using MAC from {interface}: {mac}")
+                return mac
+
+        # Fallback: get first non-virtual interface
+        try:
+            for interface_path in Path("/sys/class/net").glob("*"):
+                interface = interface_path.name
+                # Skip virtual interfaces
+                if interface in ["lo"] or interface.startswith(("docker", "veth", "br-", "virbr")):
+                    continue
+                mac = DeviceIdentity._read_mac_from_interface(interface)
+                if mac and mac != "00:00:00:00:00:00":
+                    logger.info(f"Using MAC from {interface}: {mac}")
+                    return mac
+        except Exception as e:
+            logger.debug(f"Failed to scan network interfaces: {e}")
+
+        return None
+
 
 class DeviceConfigManager:
     def __init__(self, config_file: Path | None = None):
@@ -67,13 +196,13 @@ class DeviceConfigManager:
             # Get current hostname
             result = subprocess.run(["hostname"], capture_output=True, text=True, check=True)
             current_hostname = result.stdout.strip()
-            
+
             # Check if it matches the distiller-XXXX pattern
             match = re.match(r"^distiller-([a-z0-9]{4})$", current_hostname)
             if match:
                 device_id = match.group(1)
                 logger.info(f"Found existing distiller hostname: {current_hostname}")
-                
+
                 # Create identity from existing hostname
                 return DeviceIdentity(
                     device_id=device_id,
@@ -83,17 +212,32 @@ class DeviceConfigManager:
                 )
         except Exception as e:
             logger.debug(f"Failed to extract from hostname: {e}")
-        
+
         return None
 
     def load_or_create(self) -> DeviceIdentity:
-        """Load existing device identity or create a new one."""
+        """Load existing device identity or create a new one using MAC-based generation."""
+        # Always try to get MAC-based identity first for consistency
+        mac_identity = DeviceIdentity.generate_from_mac()
+
         if self.config_file.exists():
             try:
                 with open(self.config_file) as f:
                     data = json.load(f)
-                    self.identity = DeviceIdentity(**data)
-                    logger.info(f"Loaded existing device identity: {self.identity.hostname}")
+                    stored_identity = DeviceIdentity(**data)
+
+                    # Check if stored identity matches MAC-based identity
+                    if stored_identity.hostname == mac_identity.hostname:
+                        self.identity = stored_identity
+                        logger.info(f"Loaded existing MAC-based identity: {self.identity.hostname}")
+                    else:
+                        # MAC-based hostname differs from stored, update to MAC-based
+                        logger.info(
+                            f"Updating hostname from {stored_identity.hostname} "
+                            f"to MAC-based {mac_identity.hostname}"
+                        )
+                        self.identity = mac_identity
+                        self._save_identity()
 
                     # Always verify and update system configuration
                     if self._verify_system_config():
@@ -101,34 +245,84 @@ class DeviceConfigManager:
                     else:
                         logger.info("System configuration needs update, reconfiguring...")
                         self._configure_system()
+                        self._reload_avahi()
 
                     return self.identity
             except Exception as e:
                 logger.error(f"Failed to load device config: {e}")
-                # Fall through to check hostname
+                # Fall through to create new MAC-based identity
 
-        # Check if current hostname already matches distiller-XXXX pattern
-        self.identity = self._extract_from_hostname()
-        if self.identity:
-            logger.info(f"Using existing hostname: {self.identity.hostname}")
-            # Save to file for persistence
-            self._save_identity()
-            # Verify system configuration
-            if not self._verify_system_config():
-                self._configure_system()
-            return self.identity
-
-        # Create new identity
-        self.identity = DeviceIdentity.generate()
-        logger.info(f"Generated new device identity: {self.identity.hostname}")
+        # Check if current hostname already matches our MAC-based pattern
+        current_hostname = self._get_current_hostname()
+        if current_hostname == mac_identity.hostname:
+            logger.info(f"Current hostname already matches MAC-based: {current_hostname}")
+            self.identity = mac_identity
+        else:
+            # Use MAC-based identity
+            self.identity = mac_identity
+            logger.info(f"Generated new MAC-based device identity: {self.identity.hostname}")
 
         # Save to file
         self._save_identity()
 
         # Configure system (hostname, /etc/hosts)
         self._configure_system()
+        self._reload_avahi()
 
         return self.identity
+
+    def _get_current_hostname(self) -> str | None:
+        """Get the current system hostname."""
+        try:
+            result = subprocess.run(["hostname"], capture_output=True, text=True, check=True)
+            return result.stdout.strip()
+        except Exception as e:
+            logger.error(f"Failed to get current hostname: {e}")
+            return None
+
+    def _reload_avahi(self) -> None:
+        """Update avahi-daemon hostname using avahi-set-host-name or restart as fallback."""
+        if not self.identity:
+            logger.warning("No identity to set avahi hostname")
+            return
+
+        hostname = self.identity.hostname
+
+        try:
+            # First check if avahi-daemon is running
+            check_result = subprocess.run(
+                ["systemctl", "is-active", "avahi-daemon"], capture_output=True, text=True
+            )
+
+            if check_result.returncode != 0:
+                logger.debug("avahi-daemon is not active, skipping hostname update")
+                return
+
+            # Try using avahi-set-host-name (preferred method)
+            try:
+                subprocess.run(
+                    ["avahi-set-host-name", hostname], capture_output=True, text=True, check=True
+                )
+                logger.info(
+                    f"Successfully set avahi hostname to {hostname} using avahi-set-host-name"
+                )
+                return
+            except FileNotFoundError:
+                logger.debug("avahi-set-host-name not found, falling back to restart method")
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"avahi-set-host-name failed: {e.stderr}, falling back to restart")
+
+            # Fallback: restart avahi-daemon (less preferred but works)
+            try:
+                subprocess.run(["systemctl", "restart", "avahi-daemon"], check=True)
+                logger.info(f"Restarted avahi-daemon to pick up hostname {hostname}")
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"Failed to restart avahi-daemon: {e}")
+
+        except FileNotFoundError:
+            logger.debug("systemctl not found, skipping avahi reload")
+        except Exception as e:
+            logger.error(f"Unexpected error updating avahi hostname: {e}")
 
     def _verify_system_config(self) -> bool:
         """Verify that system configuration matches the saved identity."""
@@ -235,8 +429,8 @@ class DeviceConfigManager:
             except (subprocess.CalledProcessError, FileNotFoundError):
                 logger.info(f"Updated hostname using legacy method: {hostname}")
 
-            # Let Avahi handle mDNS hostname conflicts automatically
-            # No need to restart or manipulate Avahi - it will detect the change
+            # Reload avahi-daemon to ensure it picks up the new hostname immediately
+            self._reload_avahi()
 
         except Exception as e:
             logger.error(f"Failed to update hostname: {e}")

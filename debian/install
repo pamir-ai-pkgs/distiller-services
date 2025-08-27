@@ -7,6 +7,9 @@ core/*.py opt/distiller-cm5-services/core/
 # Service modules
 services/*.py opt/distiller-cm5-services/services/
 
+# Scripts (including update-hostname.sh)
+scripts/*.sh opt/distiller-cm5-services/scripts/
+
 # Templates
 templates/*.html opt/distiller-cm5-services/templates/
 
