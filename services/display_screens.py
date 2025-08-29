@@ -47,19 +47,19 @@ def create_setup_screen(
     wifi_string = f"WIFI:T:WPA;S:{ap_ssid};P:{ap_password};;"
     
     # Generate web URL for second QR code (using IP since we're in AP mode)
-    web_url = f"http://{ap_ip}:{web_port}"
+    web_url = f"http://{mdns_hostname}.local:{web_port}"
 
     return (
         LandscapeLayout()
         .add_left(
             Caption("1. Join Wifi"),
-            QRCode(wifi_string, size="small"),  # 60x60 QR code
-            Caption(ap_ssid[:14]),  # Truncate if too long
-            Caption(ap_password[:14]),  # Truncate if too long
+            QRCode(wifi_string, size="medium"),
+            Caption(ap_ssid),
+            Caption(ap_password),
         )
         .add_right(
             Caption("2. Open this site"),
-            QRCode(web_url, size="small"),  # 60x60 QR code
+            QRCode(web_url, size="medium"),
             Caption(ap_ip),
             Caption(f":{web_port}"),
         )
@@ -153,7 +153,7 @@ def create_tunnel_screen(tunnel_url: str, ip_address: str) -> LandscapeLayout:
             Title("REMOTE ACCESS"),
             Space(),
             Space(),
-            QRCode(tunnel_url, size="medium"),  # 60x60 QR code
+            QRCode(tunnel_url, size="medium"),
         )
         .add_right(
             # Label("URL:"),
