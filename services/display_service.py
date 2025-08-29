@@ -276,7 +276,15 @@ class DisplayService:
 
             # Send to display
             if self.display:
-                await self._send_to_display(image, current_state)
+                # Image is from template if it was rendered by _render_template
+                is_from_template = (
+                    TEMPLATE_RENDERER_AVAILABLE
+                    and self._has_template()
+                    and image is not None
+                    and current_state == ConnectionState.CONNECTED
+                    and full_state.tunnel_url
+                )
+                await self._send_to_display(image, current_state, is_template=is_from_template)
             else:
                 # Save to file for debugging
                 debug_file = Path("/tmp/distiller_display.png")
@@ -291,8 +299,8 @@ class DisplayService:
         logger.info(f"State change callback: {old_state} -> {new_state}")
         await self.update_display(new_state)
 
-    async def _send_to_display(self, image, state):
-        """Send image to e-ink display with built-in rotation."""
+    async def _send_to_display(self, image, state, is_template=False):
+        """Send image to e-ink display with conditional rotation for templates."""
         if not self.display:
             return
 
@@ -302,6 +310,7 @@ class DisplayService:
                 self.display.initialize()
                 width, height = self.display.get_dimensions()
                 logger.debug(f"Re-initialized display: {width}x{height}")
+
             temp_file = Path("/tmp/eink_display.png")
             image.save(str(temp_file), "PNG")
 
@@ -309,6 +318,9 @@ class DisplayService:
             self.display.display_png_auto(
                 str(temp_file),
                 mode=self.DisplayMode.FULL,
+                rotate=90 if is_template else 180,
+                flop=not is_template,
+                flip=is_template,
             )
 
             logger.debug(f"Display updated for state: {state}")
