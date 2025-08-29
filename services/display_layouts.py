@@ -476,18 +476,18 @@ class Layout:
         return self
 
 
-class HorizontalLayout:
-    """Layout manager for two-column horizontal layouts."""
+class LandscapeLayout:
+    """Layout manager for two-column landscape-oriented layouts."""
 
     def __init__(self):
-        """Create a horizontal layout with left and right columns."""
+        """Create a landscape layout with left and right columns."""
         self.left_components: list[Component] = []
         self.right_components: list[Component] = []
         self.left_width = theme.layout.left_column_width
         self.right_width = theme.layout.right_column_width
         self.column_gap = theme.layout.column_gap
 
-    def add_left(self, *components: Component) -> "HorizontalLayout":
+    def add_left(self, *components: Component) -> "LandscapeLayout":
         """
         Add components to the left column.
 
@@ -502,7 +502,7 @@ class HorizontalLayout:
                 self.left_components.append(component)
         return self
 
-    def add_right(self, *components: Component) -> "HorizontalLayout":
+    def add_right(self, *components: Component) -> "LandscapeLayout":
         """
         Add components to the right column.
 
@@ -527,15 +527,21 @@ class HorizontalLayout:
         Returns:
             PIL Image with rendered components
         """
-        # Create image
-        image = Image.new("1", (theme.display.width, theme.display.height), theme.colors.background)
+        # Landscape canvas
+        landscape_width = 250
+        landscape_height = 128
+        image = Image.new("1", (landscape_width, landscape_height), theme.colors.background)
         draw = ImageDraw.Draw(image)
         draw.fontmode = "L"
 
-        # Calculate column positions
-        left_x = theme.spacing.margin
-        right_x = theme.spacing.margin + self.left_width + self.column_gap
-        start_y = theme.spacing.margin
+        margin = 10
+        left_column_width = 100
+        right_column_width = 120
+        column_gap = 10
+
+        left_x = margin
+        right_x = margin + left_column_width + column_gap
+        start_y = margin
 
         # Render left column
         y = start_y
@@ -546,11 +552,10 @@ class HorizontalLayout:
                     y += theme.spacing.between_components
 
             # Render component
-            height = component.render(draw, left_x, y, self.left_width, fonts)
+            height = component.render(draw, left_x, y, left_column_width, fonts)
             y += height
 
-            # Stop if we exceed display height
-            if y > theme.display.height - theme.spacing.margin:
+            if y > landscape_height - margin:
                 break
 
         # Render right column
@@ -562,11 +567,11 @@ class HorizontalLayout:
                     y += theme.spacing.between_components
 
             # Render component
-            height = component.render(draw, right_x, y, self.right_width, fonts)
+            height = component.render(draw, right_x, y, right_column_width, fonts)
             y += height
 
-            # Stop if we exceed display height
-            if y > theme.display.height - theme.spacing.margin:
+            if y > landscape_height - margin:
                 break
 
-        return image
+        # Rotate for display hardware
+        return image.rotate(90, expand=True)

@@ -9,8 +9,8 @@ from .display_layouts import (
     Caption,
     Checklist,
     Dots,
-    HorizontalLayout,
     Label,
+    LandscapeLayout,
     Layout,
     ProgressBar,
     QRCode,
@@ -23,7 +23,13 @@ from .display_layouts import (
 from .display_theme import theme
 
 
-def create_setup_screen(ap_ssid: str, ap_password: str, mdns_hostname: str, ap_ip: str = "192.168.4.1", web_port: int = 8080) -> HorizontalLayout:
+def create_setup_screen(
+    ap_ssid: str,
+    ap_password: str,
+    mdns_hostname: str,
+    ap_ip: str = "192.168.4.1",
+    web_port: int = 8080,
+) -> LandscapeLayout:
     """
     Create WiFi setup screen with dual QR codes optimized for small display.
 
@@ -35,7 +41,7 @@ def create_setup_screen(ap_ssid: str, ap_password: str, mdns_hostname: str, ap_i
         web_port: Web server port (default: 8080)
 
     Returns:
-        HorizontalLayout with setup screen components
+        LandscapeLayout
     """
     # Generate WiFi connection string for QR code
     wifi_string = f"WIFI:T:WPA;S:{ap_ssid};P:{ap_password};;"
@@ -44,7 +50,7 @@ def create_setup_screen(ap_ssid: str, ap_password: str, mdns_hostname: str, ap_i
     web_url = f"http://{ap_ip}:{web_port}"
 
     return (
-        HorizontalLayout()
+        LandscapeLayout()
         .add_left(
             Caption("1. Join Wifi"),
             QRCode(wifi_string, size="small"),  # 60x60 QR code
@@ -60,7 +66,7 @@ def create_setup_screen(ap_ssid: str, ap_password: str, mdns_hostname: str, ap_i
     )
 
 
-def create_connecting_screen(ssid: str | None = None, progress: float = 0.4) -> HorizontalLayout:
+def create_connecting_screen(ssid: str | None = None, progress: float = 0.4) -> LandscapeLayout:
     """
     Create connecting screen with progress bar.
 
@@ -69,10 +75,10 @@ def create_connecting_screen(ssid: str | None = None, progress: float = 0.4) -> 
         progress: Connection progress (0.0 to 1.0)
 
     Returns:
-        HorizontalLayout with connecting screen components
+        LandscapeLayout
     """
     return (
-        HorizontalLayout()
+        LandscapeLayout()
         .add_left(
             Title("CONNECTING TO"),
             Space(height=theme.spacing.xxl),
@@ -98,7 +104,7 @@ def create_connected_screen(
     ssid: str | None = None,
     ip_address: str | None = None,
     mdns_hostname: str = "distiller",
-) -> HorizontalLayout:
+) -> LandscapeLayout:
     """
     Create connected screen showing network info.
 
@@ -108,10 +114,10 @@ def create_connected_screen(
         mdns_hostname: mDNS hostname for web interface
 
     Returns:
-        HorizontalLayout with connected screen components
+        LandscapeLayout
     """
     return (
-        HorizontalLayout()
+        LandscapeLayout()
         .add_left(
             Title("CONNECTED TO"),
             Space(height=theme.spacing.xxl),
@@ -131,7 +137,7 @@ def create_connected_screen(
     )
 
 
-def create_tunnel_screen(tunnel_url: str, ip_address: str) -> HorizontalLayout:
+def create_tunnel_screen(tunnel_url: str, ip_address: str) -> LandscapeLayout:
     """
     Create tunnel/remote access screen with QR code.
 
@@ -139,10 +145,10 @@ def create_tunnel_screen(tunnel_url: str, ip_address: str) -> HorizontalLayout:
         tunnel_url: Pinggy tunnel URL
 
     Returns:
-        HorizontalLayout with tunnel screen components
+        LandscapeLayout
     """
     return (
-        HorizontalLayout()
+        LandscapeLayout()
         .add_left(
             Title("REMOTE ACCESS"),
             Space(),
@@ -164,15 +170,15 @@ def create_tunnel_screen(tunnel_url: str, ip_address: str) -> HorizontalLayout:
     )
 
 
-def create_initializing_screen() -> HorizontalLayout:
+def create_initializing_screen() -> LandscapeLayout:
     """
     Create initializing/startup screen.
 
     Returns:
-        HorizontalLayout with initializing screen components
+        LandscapeLayout
     """
     return (
-        HorizontalLayout()
+        LandscapeLayout()
         .add_left(
             Title("DISTILLER"),
             Space(),
@@ -226,7 +232,7 @@ def create_error_screen(
 
 def create_failed_screen(
     ssid: str | None = None, error_message: str | None = None
-) -> HorizontalLayout:
+) -> LandscapeLayout:
     """
     Create connection failed screen.
 
@@ -235,11 +241,11 @@ def create_failed_screen(
         error_message: Failure reason
 
     Returns:
-        HorizontalLayout with failed screen components
+        LandscapeLayout
     """
     # Use "X" character for failure symbol
     return (
-        HorizontalLayout()
+        LandscapeLayout()
         .add_left(
             Title("CONNECTION"),
             Title("FAILED:"),

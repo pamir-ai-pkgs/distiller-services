@@ -10,15 +10,15 @@ from dataclasses import dataclass
 
 @dataclass
 class DisplayDimensions:
-    """Display physical dimensions for horizontal layout."""
+    """Display dimensions."""
 
-    width: int = 250  # Horizontal orientation
-    height: int = 128  # Horizontal orientation
+    width: int = 128
+    height: int = 250
 
 
 @dataclass
 class Spacing:
-    """Spacing system for horizontal layouts."""
+    """Spacing system."""
 
     # Base unit for spacing (all other spacing derived from this)
     unit: int = 4
@@ -26,7 +26,7 @@ class Spacing:
     # Margins
     margin: int = 6  # Safe margin on all sides
 
-    # Padding (reduced for horizontal layout)
+    # Padding
     xs: int = 2  # Extra small
     sm: int = 3  # Small
     md: int = 4  # Medium
@@ -34,7 +34,7 @@ class Spacing:
     xl: int = 8  # Extra large
     xxl: int = 12  # Double extra large
 
-    # Component spacing (optimized for horizontal)
+    # Component spacing
     between_components: int = 6  # Space between major components
     between_lines: int = 2  # Space between text lines
     after_title: int = 6  # Space after titles
@@ -108,15 +108,15 @@ class Typography:
 
 @dataclass
 class Components:
-    """Component size presets for horizontal layout."""
+    """Component sizes."""
 
-    # QR Code sizes (optimized for horizontal layout)
-    qr_small: int = 60
-    qr_medium: int = 70
-    qr_large: int = 80
+    # QR Code sizes
+    qr_small: int = 72
+    qr_medium: int = 84
+    qr_large: int = 96
 
-    # Progress bar (fits within right column)
-    progress_bar_width: int = 125
+    # Progress bar (fits within display width)
+    progress_bar_width: int = 100
     progress_bar_height: int = 14
     progress_bar_border: int = 2
 
@@ -152,15 +152,15 @@ class Colors:
 
 @dataclass
 class Layout:
-    """Layout configuration for horizontal display."""
+    """Layout configuration."""
 
     # Content area (display width minus margins)
-    content_width: int = 238  # 250 - (2 * 6)
-    content_height: int = 116  # 128 - (2 * 6)
+    content_width: int = 116  # 128 - (2 * 6)
+    content_height: int = 238  # 250 - (2 * 6)
 
-    # Column widths for two-column layout
-    left_column_width: int = 115  # Left column for titles/icons/QR (increased for WiFi info)
-    right_column_width: int = 113  # Right column for content (reduced to compensate)
+    # Column widths
+    left_column_width: int = 50
+    right_column_width: int = 56
     column_gap: int = 10  # Gap between columns
 
     # Alignment
@@ -176,7 +176,7 @@ class Layout:
     flow_horizontal: str = "horizontal"
 
     # Maximum text width for readability
-    max_text_width: int = 133  # Right column width
+    max_text_width: int = 56  # Right column width
 
 
 class Theme:

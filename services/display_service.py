@@ -304,8 +304,6 @@ class DisplayService:
             self.display.display_png_auto(
                 str(temp_file),
                 mode=self.DisplayMode.FULL,
-                rotate=270,  # Rotate 90° CW: 250x128 → 128x250
-                flop=True,  # Mirror horizontally
             )
 
             logger.debug(f"Display updated for state: {state}")

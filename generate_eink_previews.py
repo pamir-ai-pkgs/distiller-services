@@ -147,7 +147,9 @@ def generate_previews():
 
     # 4. Tunnel Active - Remote access QR
     print("\n4. Generating TUNNEL ACTIVE display...")
-    tunnel_layout = create_tunnel_screen(state_manager.state.tunnel_url)
+    tunnel_layout = create_tunnel_screen(
+        state_manager.state.tunnel_url, state_manager.state.network_info.ip_address
+    )
     tunnel_image = tunnel_layout.render(fonts)
     tunnel_path = output_dir / "eink_4_tunnel.png"
     tunnel_image.save(str(tunnel_path))
