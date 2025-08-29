@@ -297,6 +297,11 @@ class DisplayService:
             return
 
         try:
+            # Ensure display is initialized (re-initialize if closed)
+            if not self.display.is_initialized():
+                self.display.initialize()
+                width, height = self.display.get_dimensions()
+                logger.debug(f"Re-initialized display: {width}x{height}")
             temp_file = Path("/tmp/eink_display.png")
             image.save(str(temp_file), "PNG")
 
