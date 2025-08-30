@@ -53,13 +53,13 @@ def create_setup_screen(
         LandscapeLayout()
         .add_left(
             Caption("1. Join Wifi"),
-            QRCode(wifi_string, size="medium"),
+            QRCode(wifi_string, size="small"),
             Caption(ap_ssid),
             Caption(ap_password),
         )
         .add_right(
             Caption("2. Open this site"),
-            QRCode(web_url, size="medium"),
+            QRCode(web_url, size="small"),
             Caption(ap_ip),
             Caption(f":{web_port}"),
         )
@@ -152,8 +152,7 @@ def create_tunnel_screen(tunnel_url: str, ip_address: str) -> LandscapeLayout:
         .add_left(
             Title("REMOTE ACCESS"),
             Space(),
-            Space(),
-            QRCode(tunnel_url, size="medium"),
+            QRCode(tunnel_url, size="small"),
         )
         .add_right(
             # Label("URL:"),
