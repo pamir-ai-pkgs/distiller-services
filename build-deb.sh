@@ -388,24 +388,17 @@ case "$COMMAND" in
         exit 0
         ;;
     deps)
-        install_build_deps
         ;;
     source)
-        install_build_deps
-        validate_package
         build_source
         organize_artifacts
         ;;
     binary)
-        install_build_deps
-        validate_package
         build_binary
         organize_artifacts
         run_lintian
         ;;
     full)
-        install_build_deps
-        validate_package
         build_full
         organize_artifacts
         run_lintian
