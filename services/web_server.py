@@ -356,6 +356,7 @@ class WebServer:
                     "request": request,
                     "ssid": ssid,
                     "session_id": session_id,
+                    "device_name": self.settings.mdns_hostname,
                 },
             )
             response.set_cookie("session_id", session_id, max_age=3600)
