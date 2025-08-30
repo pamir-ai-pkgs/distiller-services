@@ -472,24 +472,76 @@ class NetworkManager:
             return None
 
         info = {}
+        connection_name = None
         for line in stdout.split("\n"):
             if line.startswith("GENERAL.CONNECTION:"):
                 connection = line.split(":", 1)[1].strip()
                 if connection and connection != "--":
-                    info["ssid"] = connection
+                    connection_name = connection
             elif line.startswith("IP4.ADDRESS"):
                 ip_info = line.split(":", 1)[1].strip()
                 if "/" in ip_info:
                     info["ip_address"] = ip_info.split("/")[0]
-            elif line.startswith("GENERAL.STATE:"):
-                state = line.split(":", 1)[1].strip()
-                if "100" in state:
-                    info["connected"] = True
+
+        # Check if this is our AP connection
+        if connection_name == self.ap_connection_name:
+            # This is our AP mode, not a regular network connection
+            logger.debug(f"Detected AP mode connection: {connection_name}")
+            return None
+
+        # For regular connections, get the actual SSID
+        if connection_name:
+            # Get the actual SSID from the connection profile
+            returncode, stdout, _ = await self._run_command(
+                [
+                    "nmcli",
+                    "-t",
+                    "-f",
+                    "802-11-wireless.ssid",
+                    "connection",
+                    "show",
+                    connection_name,
+                ]
+            )
+            if returncode == 0:
+                for line in stdout.split("\n"):
+                    if line.startswith("802-11-wireless.ssid:"):
+                        ssid = line.split(":", 1)[1].strip()
+                        if ssid:
+                            info["ssid"] = ssid
+                            break
 
         if "ssid" in info and "ip_address" in info:
             return info
 
         return None
+
+    async def is_in_ap_mode(self) -> bool:
+        """Check if currently running in AP mode."""
+        if not self.wifi_device:
+            return False
+
+        # Check if our AP connection is active
+        returncode, stdout, _ = await self._run_command(
+            [
+                "nmcli",
+                "-t",
+                "-f",
+                "GENERAL.CONNECTION",
+                "device",
+                "show",
+                self.wifi_device,
+            ]
+        )
+
+        if returncode == 0:
+            for line in stdout.split("\n"):
+                if line.startswith("GENERAL.CONNECTION:"):
+                    connection = line.split(":", 1)[1].strip()
+                    if connection == self.ap_connection_name:
+                        return True
+
+        return False
 
     async def is_connected_to_network(self, ssid: str | None = None) -> bool:
         """Check if currently connected to a WiFi network (optionally a specific SSID)."""
