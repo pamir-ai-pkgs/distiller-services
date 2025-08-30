@@ -91,7 +91,15 @@ class DistillerWiFiApp:
         saved_state = self.state_manager.get_state()
         reconnected = False
 
-        # First, check if we're already connected to any network
+        # First, check if we're in AP mode from a previous run
+        is_in_ap = await self.network_manager.is_in_ap_mode()
+        if is_in_ap:
+            logger.info("Detected existing AP mode connection, cleaning up...")
+            await self.network_manager.stop_ap_mode()
+            # Small delay to ensure cleanup completes
+            await asyncio.sleep(1)
+
+        # Now check if we're connected to a regular network
         current_connection = await self.network_manager.get_connection_info()
         if current_connection and current_connection.get("ssid"):
             current_ssid = current_connection.get("ssid")
