@@ -126,5 +126,70 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
       closePasswordModal();
     }
   });
+
+  // Override form submission to use AJAX instead of regular POST
+  document.getElementById('connectForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const ssid = document.getElementById('ssidInput').value;
+    const password = document.getElementById('passwordInput').value;
+    
+    // Replace modal content with connecting message (monochrome style)
+    document.getElementById('passwordModal').innerHTML = `
+      <div class="modal-dialog" style="margin-top: 100px;">
+        <div class="modal-header">
+          <h3 style="font-family: var(--font-heading);">CONNECTING TO WIFI</h3>
+        </div>
+        <div class="modal-body" style="text-align: center; padding: 3rem 2rem;">
+          <p style="font-size: 1.2rem; margin-bottom: 2rem;">
+            Network: <strong style="font-family: var(--font-semibold);">${ssid}</strong>
+          </p>
+          <div style="margin: 2rem 0;">
+            <div class="progress-bar" style="border: 2px solid #000; height: 8px; background: #fff; position: relative; overflow: hidden;">
+              <div style="position: absolute; left: 0; top: 0; height: 100%; width: 30%; background: #000; animation: progress 2s ease-in-out infinite;"></div>
+            </div>
+          </div>
+          <p style="margin: 1.5rem 0;">Please wait while we connect to your network...</p>
+          <p style="margin: 1rem 0; font-size: 0.9rem;">This may take up to 30 seconds.</p>
+          <hr style="border: none; border-top: 2px solid #000; margin: 2rem 0;">
+          <p style="font-size: 0.85rem; opacity: 0.7;">The device will restart its network connection.</p>
+          <p style="font-size: 0.85rem; opacity: 0.7;">You may need to reconnect to view the status.</p>
+        </div>
+      </div>
+      <style>
+        @keyframes progress {
+          0% { left: -30%; }
+          50% { left: 100%; }
+          100% { left: -30%; }
+        }
+      </style>
+    `;
+    
+    // Submit via AJAX
+    try {
+      const response = await fetch('/api/connect', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ssid, password})
+      });
+      
+      // Connection initiated - page stays loaded
+      // WebSocket will update when connection changes
+      
+      // Try to redirect after 10 seconds
+      setTimeout(() => {
+        window.location.href = '/status';
+      }, 10000);
+      
+    } catch (error) {
+      // Network dropped - this is expected behavior
+      console.log('Network connection changed, this is expected');
+      
+      // Still try to redirect after delay
+      setTimeout(() => {
+        window.location.href = '/status';
+      }, 15000);
+    }
+  });
 </script>
 {% endblock %}
