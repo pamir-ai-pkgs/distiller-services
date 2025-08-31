@@ -491,6 +491,54 @@ p {
   color: var(--white);
 }
 
+/* Manual Entry Section */
+.manual-entry-section {
+  margin: 2rem 0;
+  padding: 2rem;
+  border: var(--border-width) solid var(--black);
+  background: var(--white);
+}
+
+.manual-entry-form {
+  margin-top: 1.5rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.form-field-inline {
+  flex: 1;
+  min-width: 200px;
+  margin-bottom: 0;
+}
+
+.form-field-button {
+  flex: 0 0 auto;
+  min-width: 120px;
+  margin-bottom: 0;
+}
+
+.form-field-button .btn {
+  width: 100%;
+  margin-top: 0;
+}
+
+/* Divider */
+.divider {
+  margin: 3rem 0;
+  border-top: var(--border-width) dashed var(--black);
+  opacity: 0.3;
+}
+
+/* Network List */
+.network-list {
+  margin: 2rem 0;
+}
+
 /* Status Pages */
 .status-card {
   text-align: center;
@@ -872,6 +920,24 @@ code {
 
   .btn {
     width: 100%;
+  }
+
+  .manual-entry-section {
+    padding: 1rem;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .form-field-inline {
+    min-width: 100%;
+    margin-bottom: 1rem;
+  }
+
+  .form-field-button {
+    min-width: 100%;
   }
 }
 
