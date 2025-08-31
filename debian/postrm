@@ -6,30 +6,29 @@ purge)
 	# Remove system files and directories
 	rm -rf /var/log/distiller /var/lib/distiller /opt/distiller-cm5-services
 	rm -f /usr/local/bin/distiller-wifi
-	
+
 	# Remove Avahi service file
 	rm -f /etc/avahi/services/distiller-wifi.service
-	
+
 	# Remove configuration files
 	rm -f /etc/sudoers.d/distiller-system \
-	      /etc/polkit-1/rules.d/50-distiller-networkmanager.rules \
-	      /etc/udev/rules.d/99-distiller-hardware.rules
-	
+		/etc/polkit-1/rules.d/50-distiller-networkmanager.rules \
+		/etc/udev/rules.d/99-distiller-hardware.rules
+
 	# Clean up temporary files
 	rm -f /tmp/distiller-* /var/run/distiller-* /var/lock/distiller-*
-	
+
 	# Remove NetworkManager connections
 	if command -v nmcli >/dev/null 2>&1; then
-		nmcli connection show 2>/dev/null | grep -E "^Distiller-" | awk '{print $1}' | \
+		nmcli connection show 2>/dev/null | grep -E "^Distiller-" | awk '{print $1}' |
 			xargs -r nmcli connection delete 2>/dev/null || true
 	fi
-	
+
 	# Reload systemd if running
 	systemctl daemon-reload 2>/dev/null || true
 	;;
 
-remove | upgrade | failed-upgrade | abort-install | abort-upgrade | disappear)
-	;;
+remove | upgrade | failed-upgrade | abort-install | abort-upgrade | disappear) ;;
 
 *)
 	echo "postrm called with unknown argument \`$1'" >&2

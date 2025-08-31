@@ -4,13 +4,12 @@ set -e
 case "$1" in
 remove | upgrade | deconfigure)
 	# Services handled by dh_installsystemd
-	
+
 	# Clean up Avahi service file
 	rm -f /etc/avahi/services/distiller-wifi.service
 	;;
 
-failed-upgrade)
-	;;
+failed-upgrade) ;;
 
 *)
 	echo "prerm called with unknown argument \`$1'" >&2

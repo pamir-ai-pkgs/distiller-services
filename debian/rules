@@ -6,53 +6,6 @@
 %:
 	dh $@
 
-override_dh_auto_install:
-	# Install main application
-	mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services
-	cp distiller_wifi.py debian/distiller-cm5-services/opt/distiller-cm5-services/
-	
-	# Install core modules
-	mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services/core
-	cp -r core/*.py debian/distiller-cm5-services/opt/distiller-cm5-services/core/
-	
-	# Install service modules
-	mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services/services
-	cp -r services/*.py debian/distiller-cm5-services/opt/distiller-cm5-services/services/
-	
-	# Install static files
-	mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services/static
-	cp -r static/* debian/distiller-cm5-services/opt/distiller-cm5-services/static/
-	
-	# Install templates
-	mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services/templates
-	cp -r templates/*.html debian/distiller-cm5-services/opt/distiller-cm5-services/templates/
-
-	# Install systemd service file
-	mkdir -p debian/distiller-cm5-services/lib/systemd/system
-	cp distiller-wifi.service debian/distiller-cm5-services/lib/systemd/system/
-
-	# Install documentation
-	mkdir -p debian/distiller-cm5-services/usr/share/doc/distiller-cm5-services
-	cp README.md debian/distiller-cm5-services/usr/share/doc/distiller-cm5-services/
-
-	# Install lintian overrides (if they exist)
-	-mkdir -p debian/distiller-cm5-services/usr/share/lintian/overrides
-	-cp debian/distiller-cm5-services.lintian-overrides debian/distiller-cm5-services/usr/share/lintian/overrides/distiller-cm5-services
-
-	# Create fonts directory and copy MartianMono font
-	mkdir -p debian/distiller-cm5-services/opt/distiller-cm5-services/fonts
-	# Copy MartianMono font from static/fonts to fonts directory
-	if [ -f static/fonts/MartianMonoNerdFont-CondensedBold.ttf ]; then \
-		cp static/fonts/MartianMonoNerdFont-CondensedBold.ttf debian/distiller-cm5-services/opt/distiller-cm5-services/fonts/; \
-	fi
-
-	# Install pyproject.toml and requirements file for reference
-	cp pyproject.toml debian/distiller-cm5-services/opt/distiller-cm5-services/
-	cp requirements.txt debian/distiller-cm5-services/opt/distiller-cm5-services/
-	
-override_dh_installinit:
-	# Skip traditional init scripts, we use systemd
-
 override_dh_installsystemd:
 	dh_installsystemd --name=distiller-wifi
 
@@ -60,5 +13,5 @@ override_dh_fixperms:
 	dh_fixperms
 	# Make main script executable
 	chmod +x debian/distiller-cm5-services/opt/distiller-cm5-services/distiller_wifi.py
-	# Keep module files non-executable (they're imported, not run directly)
-	find debian/distiller-cm5-services/opt/distiller-cm5-services -name "__init__.py" -exec chmod -x {} \;
+	# Make all shell scripts executable
+	-find debian/distiller-cm5-services/opt/distiller-cm5-services/scripts -name "*.sh" -exec chmod +x {} \;

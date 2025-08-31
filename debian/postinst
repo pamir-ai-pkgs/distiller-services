@@ -5,26 +5,21 @@ export PATH="/root/.local/bin:/root/.cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin
 
 case "$1" in
 configure)
-	# Create system directories
-	install -d -o root -g root -m 755 /var/lib/distiller
-	install -d -o root -g root -m 755 /var/log/distiller
-	install -d -o root -g root -m 755 /etc/distiller
-
 	# Check if we're in a build environment (pi-gen, chroot, etc)
 	BUILD_ENV=0
-	
+
 	# Detection method 1: Check for pi-gen specific files
 	if [ -f /etc/pi-gen_id ] || [ -f /boot/pi-gen.txt ]; then
 		echo "Detected pi-gen build environment (marker files)"
 		BUILD_ENV=1
 	fi
-	
+
 	# Detection method 2: Check for pi-gen environment variables
 	if [ "$BUILD_ENV" -eq 0 ] && ([ -n "$PI_GEN" ] || [ -n "$STAGE" ] || [ -n "$STAGE_DIR" ]); then
 		echo "Detected pi-gen build environment (environment variables)"
 		BUILD_ENV=1
 	fi
-	
+
 	# Detection method 3: Check if we're in a chroot using systemd-detect-virt
 	if [ "$BUILD_ENV" -eq 0 ] && command -v systemd-detect-virt >/dev/null 2>&1; then
 		VIRT_TYPE=$(systemd-detect-virt 2>/dev/null || true)
@@ -33,13 +28,13 @@ configure)
 			BUILD_ENV=1
 		fi
 	fi
-	
+
 	# Detection method 4: Check for .dockerenv or other container markers
 	if [ "$BUILD_ENV" -eq 0 ] && [ -f /.dockerenv ]; then
 		echo "Detected Docker build environment"
 		BUILD_ENV=1
 	fi
-	
+
 	# Detection method 5: Check if we're in a chroot via /proc
 	if [ "$BUILD_ENV" -eq 0 ] && [ -f /proc/1/mountinfo ]; then
 		if ! grep -q " / / " /proc/1/mountinfo 2>/dev/null; then
@@ -47,7 +42,7 @@ configure)
 			BUILD_ENV=1
 		fi
 	fi
-	
+
 	# Detection method 6: Check if systemd is not running (common in build environments)
 	if [ "$BUILD_ENV" -eq 0 ]; then
 		if ! systemctl is-system-running >/dev/null 2>&1; then
@@ -55,7 +50,7 @@ configure)
 			BUILD_ENV=1
 		fi
 	fi
-	
+
 	# Detection method 7: Check for DEBIAN_FRONTEND=noninteractive with no network
 	if [ "$BUILD_ENV" -eq 0 ] && [ "$DEBIAN_FRONTEND" = "noninteractive" ]; then
 		# Additional check - see if network interfaces exist
@@ -64,7 +59,7 @@ configure)
 			BUILD_ENV=1
 		fi
 	fi
-	
+
 	# Set MAC-based hostname if not in build environment
 	if [ "$BUILD_ENV" -eq 0 ]; then
 		echo "Setting MAC-based hostname..."
@@ -79,22 +74,12 @@ configure)
 
 	cd /opt/distiller-cm5-services
 
-	# Verify uv is available
-	if ! command -v uv >/dev/null 2>&1; then
-		echo "ERROR: uv not found in PATH" >&2
-		exit 1
-	fi
-
 	# Setup virtual environment
 	[ -d ".venv" ] && rm -rf ".venv"
 	uv venv --system-site-packages 2>/dev/null || uv venv
 
 	# Install dependencies
-	if [ -f pyproject.toml ]; then
-		uv sync || uv pip install -r requirements.txt
-	else
-		uv pip install -r requirements.txt
-	fi
+	uv sync
 
 	VENV_PATH="/opt/distiller-cm5-services/.venv"
 
@@ -120,8 +105,7 @@ configure)
 	echo "Distiller WiFi service installed. Start with: systemctl start distiller-wifi"
 	;;
 
-abort-upgrade | abort-remove | abort-deconfigure)
-	;;
+abort-upgrade | abort-remove | abort-deconfigure) ;;
 
 *)
 	echo "postinst called with unknown argument \`$1'" >&2

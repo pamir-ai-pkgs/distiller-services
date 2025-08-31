@@ -12,7 +12,7 @@ Vcs-Browser: https://github.com/Pamir-AI/distiller-cm5-services
 Rules-Requires-Root: no
 
 Package: distiller-cm5-services
-Architecture: any
+Architecture: arm64
 Depends: ${misc:Depends},
          python3 (>= 3.11),
          python3-venv,
@@ -22,10 +22,10 @@ Depends: ${misc:Depends},
          avahi-daemon,
          avahi-utils,
          iptables,
-         openssh-client
-Recommends: distiller-cm5-sdk (>= 0.1.0)
-Description: WiFi provisioning service for Raspberry Pi CM5 devices
- Provides network configuration and management for Distiller devices
- with support for access point mode, client mode, and remote access
- via secure tunnels. Features e-ink display integration and web-based
- configuration interface.
+         openssh-client,
+         distiller-cm5-sdk (>= 0.1.0)
+Recommends:
+Description: WiFi provisioning service for Distiller by Pamir-AI
+ Provides network configuration and management with support for 
+ access point mode, client mode, and remote access via secure tunnels. 
+ Features e-ink display integration and web-based configuration interface.

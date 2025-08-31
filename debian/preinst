@@ -1,38 +1,91 @@
-#!/bin/sh
+#!/bin/bash
+# Debian package preinst script for distiller-cm5-services
+# Modern Debian packaging practices
+
 set -e
 
-export PATH="/root/.local/bin:/root/.cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:$PATH"
+# Architecture check
+check_architecture() {
+	local arch=$(dpkg --print-architecture)
+	if [ "$arch" != "arm64" ]; then
+		cat >&2 <<EOF
+ERROR: This package is only supported on arm64 architecture.
+Current architecture: $arch
+Installation cannot proceed.
+EOF
+		exit 1
+	fi
+}
 
+# Check for uv package manager
+check_uv() {
+	# Check common installation paths
+	local uv_found=false
+
+	if command -v uv >/dev/null 2>&1; then
+		uv_found=true
+	elif [ -f "/usr/local/bin/uv" ] && [ -x "/usr/local/bin/uv" ]; then
+		uv_found=true
+	elif [ -f "$HOME/.local/bin/uv" ] && [ -x "$HOME/.local/bin/uv" ]; then
+		uv_found=true
+	elif [ -f "/root/.local/bin/uv" ] && [ -x "/root/.local/bin/uv" ]; then
+		uv_found=true
+	fi
+
+	if [ "$uv_found" = false ]; then
+		cat >&2 <<EOF
+ERROR: uv package manager is required but not installed.
+
+Please install uv first by running:
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+
+Or if you prefer wget:
+  wget -qO- https://astral.sh/uv/install.sh | sh
+
+After installation, ensure uv is in your PATH and try again.
+EOF
+		exit 1
+	fi
+}
+
+# Check for distiller user
+check_distiller_user() {
+	if ! getent passwd distiller >/dev/null 2>&1; then
+		cat >&2 <<EOF
+ERROR: The 'distiller' user does not exist.
+
+Please create the distiller user and group first:
+  sudo groupadd --system distiller
+  sudo useradd --system --gid distiller --home /home/distiller --shell /bin/bash distiller
+  
+For hardware access, you may also want to add the user to these groups:
+  sudo usermod -a -G audio,video,spi,dialout,gpio,i2c distiller
+
+After creating the user, try installing the package again.
+EOF
+		exit 1
+	fi
+}
+
+# Main logic
 case "$1" in
 install | upgrade)
-	if ! command -v uv >/dev/null 2>&1; then
-		TEMP_DIR=$(mktemp -d)
-		trap 'rm -rf '"$TEMP_DIR" EXIT
-		
-		if curl -LsSf https://astral.sh/uv/install.sh -o "$TEMP_DIR/install.sh" 2>/dev/null || \
-		   wget -q https://astral.sh/uv/install.sh -O "$TEMP_DIR/install.sh" 2>/dev/null; then
-			if sh "$TEMP_DIR/install.sh" >/dev/null 2>&1; then
-				if ! command -v uv >/dev/null 2>&1; then
-					echo "Warning: uv installed but not in PATH" >&2
-				fi
-			else
-				echo "ERROR: uv package manager required but not installed" >&2
-				echo "Install with: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
-				exit 1
-			fi
-		else
-			echo "ERROR: Failed to download uv installer" >&2
-			echo "Install manually: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
-			exit 1
-		fi
-	fi
+	# Perform architecture check
+	check_architecture
+
+	# Check for uv package manager
+	check_uv
+
+	# Check for distiller user
+	check_distiller_user
 	;;
 
-abort-upgrade | abort-remove | abort-deconfigure)
+abort-upgrade)
+	# No action needed
 	;;
 
 *)
-	echo "preinst called with unknown argument \`$1'" >&2
+	echo "preinst called with unknown argument: $1" >&2
 	exit 1
 	;;
 esac
