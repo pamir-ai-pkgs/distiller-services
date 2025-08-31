@@ -50,6 +50,7 @@ class SystemState(BaseModel):
     connection_state: ConnectionState = ConnectionState.AP_MODE
     network_info: NetworkInfo = Field(default_factory=NetworkInfo)
     tunnel_url: str | None = None
+    tunnel_provider: str | None = None  # "frp" or "pinggy"
     ap_password: str | None = None  # Dynamic AP password for current session
     error_message: str | None = None
     retry_count: int = 0
@@ -145,6 +146,7 @@ class StateManager:
         connection_state: ConnectionState | None = None,
         network_info: NetworkInfo | None = None,
         tunnel_url: str | None = None,
+        tunnel_provider: str | None = None,
         ap_password: str | None = None,
         error_message: str | None = None,
         increment_retry: bool = False,
@@ -164,6 +166,9 @@ class StateManager:
 
             if tunnel_url is not None:
                 self.state.tunnel_url = tunnel_url
+            
+            if tunnel_provider is not None:
+                self.state.tunnel_provider = tunnel_provider
 
             if ap_password is not None:
                 self.state.ap_password = ap_password

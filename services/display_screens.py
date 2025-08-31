@@ -137,16 +137,46 @@ def create_connected_screen(
     )
 
 
-def create_tunnel_screen(tunnel_url: str, ip_address: str) -> LandscapeLayout:
+def create_tunnel_screen(tunnel_url: str, ip_address: str, provider: str = "pinggy") -> LandscapeLayout:
     """
     Create tunnel/remote access screen with QR code.
 
     Args:
-        tunnel_url: Pinggy tunnel URL
+        tunnel_url: Tunnel URL (FRP or Pinggy)
+        ip_address: Local IP address
+        provider: Tunnel provider ("frp" or "pinggy")
 
     Returns:
         LandscapeLayout
     """
+    # Build right side content based on provider
+    right_content = []
+    right_content.extend([
+        Space(height=theme.spacing.md),
+        Space(height=theme.spacing.md),
+        Space(height=theme.spacing.md),
+    ])
+    
+    if provider == "frp":
+        # FRP has permanent URLs, no expiration warning
+        # Show the URL without https:// prefix for better fit
+        display_url = tunnel_url.replace("https://", "").replace("http://", "")
+        right_content.extend([
+            Value(display_url),
+            Space(),  # Push to bottom
+            Value(f"or visit"),
+            Label(f"{ip_address}  :3000"),
+        ])
+    else:
+        # Pinggy has temporary URLs
+        right_content.extend([
+            Value("QR valid only"),
+            Label("55 minutes"),
+            Space(),  # Push to bottom
+            Value(f"or visit"),
+            Label(f"{ip_address}  :3000"),
+        ])
+    
     return (
         LandscapeLayout()
         .add_left(
@@ -154,18 +184,7 @@ def create_tunnel_screen(tunnel_url: str, ip_address: str) -> LandscapeLayout:
             Space(),
             QRCode(tunnel_url, size="small"),
         )
-        .add_right(
-            # Label("URL:"),
-            # Value(tunnel_url),
-            Space(height=theme.spacing.md),
-            Space(height=theme.spacing.md),
-            Space(height=theme.spacing.md),
-            Value("QR valid only"),
-            Label("55 minutes"),
-            Space(),  # Push to bottom
-            Value(f"or visit"),
-            Label(f"{ip_address}  :3000"),
-        )
+        .add_right(*right_content)
     )
 
 

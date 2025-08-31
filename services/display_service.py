@@ -249,7 +249,12 @@ class DisplayService:
                 elif current_state == ConnectionState.CONNECTED:
                     # Check if we have a tunnel URL to show
                     if full_state.tunnel_url:
-                        layout = create_tunnel_screen(full_state.tunnel_url, full_state.network_info.ip_address)
+                        provider = full_state.tunnel_provider or "pinggy"
+                        layout = create_tunnel_screen(
+                            full_state.tunnel_url, 
+                            full_state.network_info.ip_address,
+                            provider=provider
+                        )
                     else:
                         # Regular connected screen
                         network_info = full_state.network_info
@@ -319,8 +324,8 @@ class DisplayService:
                 str(temp_file),
                 mode=self.DisplayMode.FULL,
                 rotate=90 if is_template else 180,
-                flop=not is_template,
-                flip=is_template,
+                flop=False,
+                flip=True,
             )
 
             logger.debug(f"Display updated for state: {state}")

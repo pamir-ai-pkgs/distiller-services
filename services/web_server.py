@@ -195,6 +195,7 @@ class WebServer:
                         "ssid": state.network_info.ssid,
                         "ip_address": state.network_info.ip_address,
                         "tunnel_url": state.tunnel_url,
+                        "tunnel_provider": state.tunnel_provider,
                         "device_name": self.settings.mdns_hostname,
                         "port": self.settings.web_port,
                         "session_id": session_id,
@@ -393,6 +394,7 @@ class WebServer:
                     "ip_address": state.network_info.ip_address,
                     "signal_strength": state.network_info.signal_strength,
                     "tunnel_url": state.tunnel_url,
+                    "tunnel_provider": state.tunnel_provider,
                     "device_name": self.settings.mdns_hostname,
                     "port": self.settings.web_port,
                     "session_id": session_id,
@@ -423,6 +425,7 @@ class WebServer:
                         "ssid": state.network_info.ssid,
                         "ip_address": state.network_info.ip_address,
                         "tunnel_url": state.tunnel_url,
+                        "tunnel_provider": state.tunnel_provider,
                         "error": state.error_message,
                     }
                 )
@@ -460,6 +463,7 @@ class WebServer:
             "ssid": state.network_info.ssid,
             "ip_address": state.network_info.ip_address,
             "tunnel_url": state.tunnel_url,
+            "tunnel_provider": state.tunnel_provider,
             "error": state.error_message,
         }
 
