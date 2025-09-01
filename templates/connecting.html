@@ -156,7 +156,7 @@ status %}CONNECTING{% endblock %} {% block content %}
   // Retro loading text animation
   const loadingTexts = ['[CONNECTING]', '[CONNECTING.]', '[CONNECTING..]', '[CONNECTING...]'];
   let textIndex = 0;
-  
+
   function animateLoadingText() {
     const loadingElement = document.getElementById('loadingText');
     if (loadingElement && progressValue < 100) {

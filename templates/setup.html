@@ -49,7 +49,7 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
       <h2>Connect to Hidden Network</h2>
       <p class="description">Enter network details manually</p>
     </div>
-    
+
     <form id="manualConnectForm" class="manual-entry-form">
       <div class="form-row">
         <div class="form-field form-field-inline">
@@ -65,7 +65,7 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
             autocomplete="off"
           />
         </div>
-        
+
         <div class="form-field form-field-inline">
           <label for="manualPassword">PASSWORD</label>
           <div class="password-input-wrapper">
@@ -78,12 +78,17 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
               maxlength="63"
               autocomplete="off"
             />
-            <button type="button" class="password-toggle" onclick="toggleManualPassword()" title="Show password">
+            <button
+              type="button"
+              class="password-toggle"
+              onclick="toggleManualPassword()"
+              title="Show password"
+            >
               <span id="manualToggleIcon">[SHOW]</span>
             </button>
           </div>
         </div>
-        
+
         <div class="form-field form-field-button">
           <button type="submit" class="btn btn-primary">CONNECT</button>
         </div>
@@ -116,7 +121,12 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
               autocomplete="off"
               placeholder="Enter WiFi password"
             />
-            <button type="button" class="password-toggle" onclick="togglePassword()" title="Show password">
+            <button
+              type="button"
+              class="password-toggle"
+              onclick="togglePassword()"
+              title="Show password"
+            >
               <span id="toggleIcon">[SHOW]</span>
             </button>
           </div>
@@ -160,7 +170,7 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
   function togglePassword() {
     const passwordInput = document.getElementById('passwordInput');
     const toggleIcon = document.getElementById('toggleIcon');
-    
+
     if (passwordInput.type === 'password') {
       passwordInput.type = 'text';
       toggleIcon.textContent = '[HIDE]';
@@ -173,7 +183,7 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
   function toggleManualPassword() {
     const passwordInput = document.getElementById('manualPassword');
     const toggleIcon = document.getElementById('manualToggleIcon');
-    
+
     if (passwordInput.type === 'password') {
       passwordInput.type = 'text';
       toggleIcon.textContent = '[HIDE]';
@@ -192,7 +202,7 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
       modal.className = 'modal';
       document.body.appendChild(modal);
     }
-    
+
     modal.innerHTML = `
       <div class="modal-backdrop"></div>
       <div class="modal-dialog" style="margin-top: 100px;">
@@ -223,7 +233,7 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
         }
       </style>
     `;
-    
+
     modal.classList.remove('hidden');
   }
 
@@ -235,23 +245,23 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
   });
 
   // Handle manual network connection form
-  document.getElementById('manualConnectForm').addEventListener('submit', async function(e) {
+  document.getElementById('manualConnectForm').addEventListener('submit', async function (e) {
     e.preventDefault();
-    
+
     const ssid = document.getElementById('manualSsid').value.trim();
     const password = document.getElementById('manualPassword').value;
-    
+
     // Validate SSID
     if (!ssid || ssid.length === 0) {
       alert('Please enter a network name');
       return;
     }
-    
+
     if (!/^[a-zA-Z0-9\s\-_.]+$/.test(ssid)) {
       alert('Network name contains invalid characters');
       return;
     }
-    
+
     // Validate password if provided
     if (password) {
       if (password.length < 8 || password.length > 63) {
@@ -259,23 +269,22 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
         return;
       }
     }
-    
+
     // Show connecting modal
     showConnectingModal(ssid);
-    
+
     // Submit connection request
     try {
       const response = await fetch('/api/connect', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ssid, password: password || null})
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ssid, password: password || null }),
       });
-      
+
       // Try to redirect after 10 seconds
       setTimeout(() => {
         window.location.href = '/status';
       }, 10000);
-      
     } catch (error) {
       console.log('Network connection changed, this is expected');
       setTimeout(() => {
@@ -285,36 +294,35 @@ status %}SELECT NETWORK{% endblock %} {% block content %}
   });
 
   // Override form submission to use AJAX instead of regular POST
-  document.getElementById('connectForm').addEventListener('submit', async function(e) {
+  document.getElementById('connectForm').addEventListener('submit', async function (e) {
     e.preventDefault();
-    
+
     const ssid = document.getElementById('ssidInput').value;
     const password = document.getElementById('passwordInput').value;
-    
+
     // Show connecting modal
     closePasswordModal();
     showConnectingModal(ssid);
-    
+
     // Submit via AJAX
     try {
       const response = await fetch('/api/connect', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ssid, password})
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ssid, password }),
       });
-      
+
       // Connection initiated - page stays loaded
       // WebSocket will update when connection changes
-      
+
       // Try to redirect after 10 seconds
       setTimeout(() => {
         window.location.href = '/status';
       }, 10000);
-      
     } catch (error) {
       // Network dropped - this is expected behavior
       console.log('Network connection changed, this is expected');
-      
+
       // Still try to redirect after delay
       setTimeout(() => {
         window.location.href = '/status';

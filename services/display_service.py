@@ -188,7 +188,7 @@ class DisplayService:
                 # Update display if state changed or tunnel URL changed
                 state_changed = last_state != current_state.connection_state
                 tunnel_changed = last_tunnel_url != current_state.tunnel_url
-                
+
                 if state_changed or tunnel_changed:
                     await self.update_display(current_state.connection_state)
                     last_state = current_state.connection_state
@@ -251,9 +251,9 @@ class DisplayService:
                     if full_state.tunnel_url:
                         provider = full_state.tunnel_provider or "pinggy"
                         layout = create_tunnel_screen(
-                            full_state.tunnel_url, 
+                            full_state.tunnel_url,
                             full_state.network_info.ip_address,
-                            provider=provider
+                            provider=provider,
                         )
                     else:
                         # Regular connected screen

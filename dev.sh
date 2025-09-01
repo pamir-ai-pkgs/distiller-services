@@ -161,12 +161,14 @@ case "$CMD" in
                     echo ""
                     echo "Tools used:"
                     echo "  Python:     ruff, black, isort, mypy"
-                    echo "  HTML:       djlint, prettier"
+                    echo "  HTML:       htmlhint, djlint, prettier"
                     echo "  JavaScript: eslint, prettier"
                     echo "  CSS:        stylelint, prettier"
                     echo "  JSON/YAML:  prettier, yamllint"
-                    echo "  Markdown:   markdownlint"
+                    echo "  Markdown:   markdownlint, prettier"
                     echo "  Shell:      shellcheck"
+                    echo ""
+                    echo "Note: Run 'npm install' to install JavaScript/CSS/HTML linting tools"
                     exit 0
                     ;;
                 *)
@@ -266,11 +268,100 @@ case "$CMD" in
 
         echo ""
 
+        # HTML/Template Linting
+        echo "HTML/Template Files"
+        echo "-------------------"
+
+        # Check if Node.js is available for HTMLHint
+        if command -v node >/dev/null 2>&1 && [ -f "node_modules/.bin/htmlhint" ]; then
+            if [ "$LINT_FIX_MODE" = true ]; then
+                # HTMLHint doesn't have auto-fix, but we can format with Prettier
+                if ! run_command "npx prettier --write 'templates/**/*.html'" "Prettier HTML format" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+            else
+                if ! run_command "npx htmlhint templates/**/*.html" "HTMLHint check" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+            fi
+        else
+            # Fallback to djlint for Jinja2 templates
+            if command -v djlint >/dev/null 2>&1 || command -v "$VENV_PATH/bin/djlint" >/dev/null 2>&1; then
+                if [ "$LINT_FIX_MODE" = true ]; then
+                    if ! run_command "$RUNNER djlint templates/ --reformat" "djlint format templates" "$LINT_VERBOSE"; then
+                        LINT_EXIT_CODE=1
+                    fi
+                else
+                    if ! run_command "$RUNNER djlint templates/ --check" "djlint check templates" "$LINT_VERBOSE"; then
+                        LINT_EXIT_CODE=1
+                    fi
+                fi
+            else
+                log_warn "Neither HTMLHint nor djlint installed"
+            fi
+        fi
+
+        echo ""
+
+        # JavaScript Linting
+        echo "JavaScript Files"
+        echo "----------------"
+
+        # Check if Node.js is available for ESLint
+        if command -v node >/dev/null 2>&1 && [ -f "node_modules/.bin/eslint" ]; then
+            if [ "$LINT_FIX_MODE" = true ]; then
+                if ! run_command "npx eslint static/js/**/*.js --fix" "ESLint auto-fix" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+                if ! run_command "npx prettier --write 'static/js/**/*.js'" "Prettier JS format" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+            else
+                if ! run_command "npx eslint static/js/**/*.js" "ESLint check" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+                if ! run_command "npx prettier --check 'static/js/**/*.js'" "Prettier JS check" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+            fi
+        else
+            log_warn "ESLint not installed (run 'npm install' to install frontend tools)"
+        fi
+
+        echo ""
+
+        # CSS Linting
+        echo "CSS Files"
+        echo "---------"
+
+        # Check if Node.js is available for Stylelint
+        if command -v node >/dev/null 2>&1 && [ -f "node_modules/.bin/stylelint" ]; then
+            if [ "$LINT_FIX_MODE" = true ]; then
+                if ! run_command "npx stylelint 'static/css/**/*.css' --fix" "Stylelint auto-fix" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+                if ! run_command "npx prettier --write 'static/css/**/*.css'" "Prettier CSS format" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+            else
+                if ! run_command "npx stylelint 'static/css/**/*.css'" "Stylelint check" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+                if ! run_command "npx prettier --check 'static/css/**/*.css'" "Prettier CSS check" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+            fi
+        else
+            log_warn "Stylelint not installed (run 'npm install' to install frontend tools)"
+        fi
+
+        echo ""
+
         # JSON validation (basic check)
         echo "JSON/YAML Files"
         echo "---------------"
         
-        for file in $(find . -name "*.json" -not -path "./.venv/*" -not -path "./.git/*" -not -path "./build/*" -not -path "./dist/*" -not -path "./debian/*" 2>/dev/null); do
+        for file in $(find . -name "*.json" -not -path "./.venv/*" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./build/*" -not -path "./dist/*" -not -path "./debian/*" 2>/dev/null); do
             if python3 -m json.tool "$file" > /dev/null 2>&1; then
                 [ "$LINT_VERBOSE" = true ] && log_success "Valid JSON: $file"
             else
@@ -286,6 +377,46 @@ case "$CMD" in
             fi
         else
             log_warn "yamllint not installed (pip install yamllint)"
+        fi
+
+        # JSON/YAML formatting with Prettier (if available)
+        if command -v node >/dev/null 2>&1 && [ -f "node_modules/.bin/prettier" ]; then
+            if [ "$LINT_FIX_MODE" = true ]; then
+                if ! run_command "npx prettier --write '**/*.{json,yaml,yml}' --ignore-path .prettierignore" "Prettier JSON/YAML format" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+            else
+                if ! run_command "npx prettier --check '**/*.{json,yaml,yml}' --ignore-path .prettierignore" "Prettier JSON/YAML check" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+            fi
+        fi
+
+        echo ""
+
+        # Markdown Linting
+        echo "Markdown Files"
+        echo "--------------"
+
+        # Check if Node.js is available for markdownlint
+        if command -v node >/dev/null 2>&1 && [ -f "node_modules/.bin/markdownlint" ]; then
+            if [ "$LINT_FIX_MODE" = true ]; then
+                if ! run_command "npx markdownlint '**/*.md' --fix --ignore node_modules --ignore .venv --ignore debian" "Markdownlint auto-fix" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+                if ! run_command "npx prettier --write '**/*.md' --ignore-path .prettierignore" "Prettier Markdown format" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+            else
+                if ! run_command "npx markdownlint '**/*.md' --ignore node_modules --ignore .venv --ignore debian" "Markdownlint check" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+                if ! run_command "npx prettier --check '**/*.md' --ignore-path .prettierignore" "Prettier Markdown check" "$LINT_VERBOSE"; then
+                    LINT_EXIT_CODE=1
+                fi
+            fi
+        else
+            log_warn "Markdownlint not installed (run 'npm install' to install frontend tools)"
         fi
 
         echo ""

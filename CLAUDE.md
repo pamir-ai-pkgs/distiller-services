@@ -1,10 +1,12 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this
+repository.
 
 ## Project Overview
 
-Unified WiFi provisioning service for Raspberry Pi CM5 devices with E-ink display support. Single async Python service using FastAPI, WebSocket, and persistent mDNS.
+Unified WiFi provisioning service for Raspberry Pi CM5 devices with E-ink display support. Single
+async Python service using FastAPI, WebSocket, and persistent mDNS.
 
 ## Essential Commands
 

@@ -166,7 +166,7 @@ class StateManager:
 
             if tunnel_url is not None:
                 self.state.tunnel_url = tunnel_url
-            
+
             if tunnel_provider is not None:
                 self.state.tunnel_provider = tunnel_provider
 

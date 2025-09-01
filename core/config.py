@@ -68,18 +68,22 @@ class Settings(BaseSettings):
 
     # Tunnel configuration
     tunnel_enabled: bool = Field(default=True, description="Enable tunnel service (FRP/Pinggy)")
-    
-    tunnel_provider: str = Field(default="frp", description="Primary tunnel provider (frp or pinggy)")
-    
+
+    tunnel_provider: str = Field(
+        default="frp", description="Primary tunnel provider (frp or pinggy)"
+    )
+
     # FRP configuration
     devices_domain: str = Field(default="devices.pamir.ai", description="FRP devices domain")
-    
+
     frp_service_name: str = Field(default="frpc.service", description="FRP systemd service name")
-    
+
     device_serial: str | None = Field(default=None, description="Device serial number (override)")
-    
-    device_env_path: str = Field(default="/etc/pamir/device.env", description="Path to device env file")
-    
+
+    device_env_path: str = Field(
+        default="/etc/pamir/device.env", description="Path to device env file"
+    )
+
     # Pinggy configuration (backward compatibility)
     tunnel_refresh_interval: int = Field(
         default=3300, description="Tunnel refresh interval in seconds (55 minutes)"

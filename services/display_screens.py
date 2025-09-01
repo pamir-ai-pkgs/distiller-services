@@ -45,7 +45,7 @@ def create_setup_screen(
     """
     # Generate WiFi connection string for QR code
     wifi_string = f"WIFI:T:WPA;S:{ap_ssid};P:{ap_password};;"
-    
+
     # Generate web URL for second QR code (using IP since we're in AP mode)
     web_url = f"http://{mdns_hostname}.local:{web_port}"
 
@@ -137,7 +137,9 @@ def create_connected_screen(
     )
 
 
-def create_tunnel_screen(tunnel_url: str, ip_address: str, provider: str = "pinggy") -> LandscapeLayout:
+def create_tunnel_screen(
+    tunnel_url: str, ip_address: str, provider: str = "pinggy"
+) -> LandscapeLayout:
     """
     Create tunnel/remote access screen with QR code.
 
@@ -151,32 +153,38 @@ def create_tunnel_screen(tunnel_url: str, ip_address: str, provider: str = "ping
     """
     # Build right side content based on provider
     right_content = []
-    right_content.extend([
-        Space(height=theme.spacing.md),
-        Space(height=theme.spacing.md),
-        Space(height=theme.spacing.md),
-    ])
-    
+    right_content.extend(
+        [
+            Space(height=theme.spacing.md),
+            Space(height=theme.spacing.md),
+            Space(height=theme.spacing.md),
+        ]
+    )
+
     if provider == "frp":
         # FRP has permanent URLs, no expiration warning
         # Show the URL without https:// prefix for better fit
         display_url = tunnel_url.replace("https://", "").replace("http://", "")
-        right_content.extend([
-            Value(display_url),
-            Space(),  # Push to bottom
-            Value(f"or visit"),
-            Label(f"{ip_address}  :3000"),
-        ])
+        right_content.extend(
+            [
+                Value(display_url),
+                Space(),  # Push to bottom
+                Value("or visit"),
+                Label(f"{ip_address}  :3000"),
+            ]
+        )
     else:
         # Pinggy has temporary URLs
-        right_content.extend([
-            Value("QR valid only"),
-            Label("55 minutes"),
-            Space(),  # Push to bottom
-            Value(f"or visit"),
-            Label(f"{ip_address}  :3000"),
-        ])
-    
+        right_content.extend(
+            [
+                Value("QR valid only"),
+                Label("55 minutes"),
+                Space(),  # Push to bottom
+                Value("or visit"),
+                Label(f"{ip_address}  :3000"),
+            ]
+        )
+
     return (
         LandscapeLayout()
         .add_left(

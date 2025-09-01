@@ -1,0 +1,19 @@
+{
+  "indent": 2,
+  "profile": "jinja",
+  "format_attribute_template_tags": true,
+  "linter_output_format": "{code}: {message} {match}",
+  "max_line_length": 120,
+  "max_attribute_length": 100,
+  "use_gitignore": true,
+  "ignore": [
+    "H006",
+    "H030",
+    "H031"
+  ],
+  "extension": "html",
+  "custom_blocks": "script,style",
+  "custom_html": "meta,link",
+  "blank_line_after_tag": "load,extends,include",
+  "blank_line_before_tag": "load,extends,include"
+}

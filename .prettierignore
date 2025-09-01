@@ -56,3 +56,7 @@ htmlcov/
 *.pdf
 *.zip
 *.tar.gz
+
+# Lock files
+package-lock.json
+uv.lock

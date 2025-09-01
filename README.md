@@ -117,9 +117,11 @@ The service can be configured through environment variables or configuration fil
 
 ### Pinggy Persistent Tunnels
 
-To use persistent tunnels that don't expire, obtain a Pinggy access token from [pinggy.io](https://pinggy.io) and configure it:
+To use persistent tunnels that don't expire, obtain a Pinggy access token from
+[pinggy.io](https://pinggy.io) and configure it:
 
 #### Method 1: Environment Variable
+
 ```bash
 # Copy example file
 cp .env.example .env
@@ -129,6 +131,7 @@ DISTILLER_PINGGY_ACCESS_TOKEN=your_token_here
 ```
 
 #### Method 2: Configuration File
+
 ```bash
 # Edit tunnel_config.json and add your token
 {
@@ -137,11 +140,13 @@ DISTILLER_PINGGY_ACCESS_TOKEN=your_token_here
 ```
 
 With a token configured:
+
 - Tunnels persist without expiry
 - Refresh interval extends to 24 hours
 - URLs remain stable for reliable remote access
 
 Without a token:
+
 - Free tunnels expire after 60 minutes
 - Service auto-refreshes every 55 minutes
 - URLs change on each refresh

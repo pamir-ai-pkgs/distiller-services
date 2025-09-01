@@ -7,7 +7,6 @@ import logging
 import re
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 from core.config import Settings
 from core.state import ConnectionState, StateManager
@@ -17,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class TunnelProvider(Enum):
     """Tunnel provider types."""
+
     FRP = "frp"
     PINGGY = "pinggy"
 
@@ -34,11 +34,11 @@ class TunnelService:
         self._retry_count = 0
         self._max_retries = settings.tunnel_max_retries
         self._retry_delay = settings.tunnel_retry_delay
-        
+
         # Device serial for FRP
         self._device_serial: str | None = None
         self._init_device_serial()
-        
+
         # Pinggy tunnel type based on token
         if settings.pinggy_access_token:
             self.pinggy_refresh_interval = 86400  # 24 hours for persistent
@@ -54,20 +54,22 @@ class TunnelService:
             self._device_serial = self.settings.device_serial
             logger.info(f"Using configured device serial: {self._device_serial}")
             return
-        
+
         # Try to read from device.env file
         try:
             env_path = Path(self.settings.device_env_path)
             if env_path.exists():
-                with open(env_path, 'r') as f:
+                with open(env_path) as f:
                     for line in f:
-                        if line.startswith('SERIAL='):
-                            self._device_serial = line.split('=', 1)[1].strip()
+                        if line.startswith("SERIAL="):
+                            self._device_serial = line.split("=", 1)[1].strip()
                             logger.info(f"Found device serial in {env_path}: {self._device_serial}")
                             return
         except Exception as e:
-            logger.warning(f"Failed to read device serial from {self.settings.device_env_path}: {e}")
-        
+            logger.warning(
+                f"Failed to read device serial from {self.settings.device_env_path}: {e}"
+            )
+
         logger.info("No device serial found, will use Pinggy only")
 
     async def check_network_connectivity(self) -> bool:
@@ -86,21 +88,19 @@ class TunnelService:
         """Check if FRP service is healthy using systemctl."""
         if not self._device_serial:
             return False
-            
+
         try:
             cmd = ["systemctl", "is-active", self.settings.frp_service_name]
             proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL
             )
             stdout, _ = await proc.communicate()
-            
+
             is_active = stdout.decode().strip() == "active"
             if is_active:
                 logger.debug(f"FRP service {self.settings.frp_service_name} is active")
             return is_active
-            
+
         except Exception as e:
             logger.error(f"Failed to check FRP health: {e}")
             return False
@@ -116,19 +116,18 @@ class TunnelService:
         if not self._device_serial:
             logger.info("No device serial, cannot use FRP")
             return False
-        
+
         logger.info("Checking FRP service status...")
-        
+
         # Check if FRP service is running
         if await self.check_frp_health():
             self.current_provider = TunnelProvider.FRP
             self.current_url = self.get_frp_url()
             logger.info(f"FRP tunnel active: {self.current_url}")
-            
+
             # Update state with FRP URL
             await self.state_manager.update_state(
-                tunnel_url=self.current_url,
-                tunnel_provider="frp"
+                tunnel_url=self.current_url, tunnel_provider="frp"
             )
             return True
         else:
@@ -138,20 +137,27 @@ class TunnelService:
     async def start_pinggy_tunnel(self):
         """Start SSH tunnel through Pinggy."""
         try:
-            logger.info(f"Starting Pinggy tunnel...")
-            
+            logger.info("Starting Pinggy tunnel...")
+
             # Build SSH command for Pinggy tunnel
             if self.settings.pinggy_access_token:
                 # Persistent tunnel with token
                 cmd = [
                     "ssh",
-                    "-o", "StrictHostKeyChecking=no",
-                    "-o", "ServerAliveInterval=30",
-                    "-o", "ServerAliveCountMax=3",
-                    "-o", "UserKnownHostsFile=/dev/null",
-                    "-o", "LogLevel=ERROR",
-                    "-R", "0:localhost:3000",
-                    "-p", str(self.settings.tunnel_ssh_port),
+                    "-o",
+                    "StrictHostKeyChecking=no",
+                    "-o",
+                    "ServerAliveInterval=30",
+                    "-o",
+                    "ServerAliveCountMax=3",
+                    "-o",
+                    "UserKnownHostsFile=/dev/null",
+                    "-o",
+                    "LogLevel=ERROR",
+                    "-R",
+                    "0:localhost:3000",
+                    "-p",
+                    str(self.settings.tunnel_ssh_port),
                     f"{self.settings.pinggy_access_token}@a.pinggy.io",
                 ]
                 logger.info("[PERSISTENT] Starting persistent Pinggy tunnel with token")
@@ -159,49 +165,56 @@ class TunnelService:
                 # Free plan - anonymous connection
                 cmd = [
                     "ssh",
-                    "-o", "StrictHostKeyChecking=no",
-                    "-o", "ServerAliveInterval=30",
-                    "-o", "ServerAliveCountMax=3",
-                    "-o", "UserKnownHostsFile=/dev/null",
-                    "-o", "LogLevel=ERROR",
-                    "-R", "0:localhost:3000",
-                    "-p", str(self.settings.tunnel_ssh_port),
+                    "-o",
+                    "StrictHostKeyChecking=no",
+                    "-o",
+                    "ServerAliveInterval=30",
+                    "-o",
+                    "ServerAliveCountMax=3",
+                    "-o",
+                    "UserKnownHostsFile=/dev/null",
+                    "-o",
+                    "LogLevel=ERROR",
+                    "-R",
+                    "0:localhost:3000",
+                    "-p",
+                    str(self.settings.tunnel_ssh_port),
                     "a.pinggy.io",
                 ]
                 logger.info("[FREE] Starting anonymous Pinggy tunnel")
-            
+
             # Start SSH process
             self.process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                bufsize=0
+                bufsize=0,
             )
-            
+
             self.current_provider = TunnelProvider.PINGGY
-            
+
             # Start output reader task
             asyncio.create_task(self._read_pinggy_output())
-            
+
             # Wait for tunnel to establish
             logger.info("Waiting for Pinggy tunnel to establish...")
             await asyncio.sleep(5)
-            
+
             # Check if process is still running
             if self.process.returncode is not None:
                 logger.error(f"Pinggy process exited with code {self.process.returncode}")
                 self.process = None
                 return False
-            
+
             # Start refresh task for Pinggy
             if self._refresh_task:
                 self._refresh_task.cancel()
             self._refresh_task = asyncio.create_task(self._refresh_pinggy_tunnel())
-            
+
             logger.info("Pinggy tunnel started successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to start Pinggy tunnel: {e}")
             return False
@@ -212,21 +225,21 @@ class TunnelService:
             if self._refresh_task:
                 self._refresh_task.cancel()
                 self._refresh_task = None
-            
+
             if self.process and self.process.returncode is None:
                 logger.info("Stopping Pinggy tunnel...")
                 self.process.terminate()
-                
+
                 try:
                     await asyncio.wait_for(self.process.wait(), timeout=5.0)
                 except TimeoutError:
                     logger.warning("Pinggy tunnel didn't stop gracefully, killing...")
                     self.process.kill()
                     await self.process.wait()
-                
+
                 self.process = None
                 logger.info("Pinggy tunnel stopped")
-                
+
         except Exception as e:
             logger.error(f"Error stopping Pinggy tunnel: {e}")
 
@@ -234,7 +247,7 @@ class TunnelService:
         """Read and parse Pinggy tunnel output for URL."""
         if not self.process:
             return
-        
+
         try:
             # URL patterns for Pinggy
             if self.settings.pinggy_access_token:
@@ -251,18 +264,18 @@ class TunnelService:
                     r"http://[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.free\.pinggy\.link",
                     r"https://[a-zA-Z0-9\-]+\.free\.pinggy\.link",
                 ]
-            
+
             while self.process and self.process.returncode is None:
                 try:
                     line = await asyncio.wait_for(self.process.stdout.readline(), timeout=1.0)
-                    
+
                     if not line:
                         break
-                    
+
                     text = line.decode("utf-8").strip()
                     if text:
                         logger.debug(f"Pinggy output: {text}")
-                        
+
                         # Look for URL
                         for pattern in url_patterns:
                             match = re.search(pattern, text)
@@ -270,24 +283,23 @@ class TunnelService:
                                 url = match.group(0)
                                 if not url.startswith("http"):
                                     url = f"https://{url}"
-                                
+
                                 if url != self.current_url:
                                     self.current_url = url
                                     logger.info(f"New Pinggy tunnel URL: {url}")
-                                    
+
                                     # Update state with Pinggy URL
                                     await self.state_manager.update_state(
-                                        tunnel_url=url,
-                                        tunnel_provider="pinggy"
+                                        tunnel_url=url, tunnel_provider="pinggy"
                                     )
                                 break
-                                
+
                 except TimeoutError:
                     continue
                 except Exception as e:
                     logger.error(f"Error reading Pinggy output: {e}")
                     break
-                    
+
         except Exception as e:
             logger.error(f"Pinggy output reader error: {e}")
 
@@ -299,24 +311,24 @@ class TunnelService:
                 hours = self.pinggy_refresh_interval // 3600
                 minutes = (self.pinggy_refresh_interval % 3600) // 60
                 time_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
-                
+
                 logger.info(f"Next Pinggy refresh in {time_str}")
                 await asyncio.sleep(self.pinggy_refresh_interval)
-                
+
                 if not self._running:
                     break
-                
+
                 logger.info("Refreshing Pinggy tunnel...")
-                
+
                 # Stop current tunnel
                 await self.stop_pinggy_tunnel()
                 await asyncio.sleep(5)
-                
+
                 # Restart if still on Pinggy
                 if self.current_provider == TunnelProvider.PINGGY:
                     if await self.check_network_connectivity():
                         await self.start_pinggy_tunnel()
-                        
+
         except asyncio.CancelledError:
             logger.debug("Pinggy refresh task cancelled")
         except Exception as e:
@@ -327,18 +339,18 @@ class TunnelService:
         try:
             while self._running and self.current_provider == TunnelProvider.PINGGY:
                 await asyncio.sleep(60)  # Check every 60 seconds
-                
+
                 if await self.check_frp_health():
                     logger.info("FRP service is now active, switching from Pinggy to FRP")
-                    
+
                     # Stop Pinggy
                     await self.stop_pinggy_tunnel()
-                    
+
                     # Switch to FRP
                     if await self.start_frp_tunnel():
                         logger.info("Successfully switched to FRP tunnel")
                         break
-                        
+
         except asyncio.CancelledError:
             logger.debug("FRP monitor task cancelled")
         except Exception as e:
@@ -349,14 +361,14 @@ class TunnelService:
         if not self.settings.tunnel_enabled:
             logger.info("Tunnel service disabled in settings")
             return
-        
+
         # Try FRP first if we have a serial
         if self._device_serial and self.settings.tunnel_provider == "frp":
             if await self.start_frp_tunnel():
                 return  # FRP is working
             else:
                 logger.info("FRP not available, falling back to Pinggy")
-        
+
         # Fallback to Pinggy
         if await self.start_pinggy_tunnel():
             # Start monitoring FRP for recovery if we have a serial
@@ -375,7 +387,7 @@ class TunnelService:
         """Main tunnel service loop."""
         self._running = True
         logger.info("Tunnel service started")
-        
+
         while self._running:
             try:
                 # Check network connectivity
@@ -385,15 +397,15 @@ class TunnelService:
                         logger.warning("Lost network connectivity, clearing tunnel URL")
                         self.current_url = None
                         await self.state_manager.update_state(tunnel_url=None)
-                    
+
                     # Stop Pinggy if running
                     if self.current_provider == TunnelProvider.PINGGY:
                         await self.stop_pinggy_tunnel()
                         self.current_provider = None
-                    
+
                     await asyncio.sleep(5)
                     continue
-                
+
                 # Start tunnel if not running
                 if not self.current_url:
                     await self.start_tunnel()
@@ -402,9 +414,9 @@ class TunnelService:
                     if self.process and self.process.returncode is not None:
                         logger.warning("Pinggy process died, restarting...")
                         await self.start_tunnel()
-                
+
                 await asyncio.sleep(5)
-                
+
             except Exception as e:
                 logger.error(f"Tunnel service error: {e}")
                 await asyncio.sleep(10)
@@ -412,18 +424,18 @@ class TunnelService:
     async def stop(self):
         """Stop the tunnel service."""
         self._running = False
-        
+
         if self._refresh_task:
             self._refresh_task.cancel()
-        
+
         if self._frp_monitor_task:
             self._frp_monitor_task.cancel()
-        
+
         if self.current_provider == TunnelProvider.PINGGY:
             await self.stop_pinggy_tunnel()
-        
+
         self.current_url = None
         self.current_provider = None
         await self.state_manager.update_state(tunnel_url=None, tunnel_provider=None)
-        
+
         logger.info("Tunnel service stopped")

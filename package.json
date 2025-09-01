@@ -1,0 +1,42 @@
+{
+  "name": "distiller-cm5-services-frontend",
+  "version": "2.0.0",
+  "description": "Frontend tooling for Distiller CM5 Services",
+  "private": true,
+  "scripts": {
+    "lint": "npm run lint:js && npm run lint:css && npm run lint:html && npm run lint:md",
+    "lint:js": "eslint static/js/**/*.js",
+    "lint:css": "stylelint static/css/**/*.css",
+    "lint:html": "htmlhint templates/**/*.html --ignore 'templates/**/*.j2,templates/**/*.jinja,templates/**/*.jinja2'",
+    "lint:md": "markdownlint '**/*.md' --ignore node_modules --ignore .venv --ignore debian",
+    "format": "npm run format:js && npm run format:css && npm run format:html && npm run format:json && npm run format:md",
+    "format:js": "prettier --write 'static/js/**/*.js'",
+    "format:css": "prettier --write 'static/css/**/*.css'",
+    "format:html": "prettier --write 'templates/**/*.html'",
+    "format:json": "prettier --write '**/*.json' --ignore-path .prettierignore",
+    "format:md": "prettier --write '**/*.md' --ignore-path .prettierignore",
+    "format:check": "prettier --check '**/*.{js,css,html,json,md}' --ignore-path .prettierignore",
+    "lint:fix": "npm run lint:js -- --fix && npm run format",
+    "validate": "npm run lint && npm run format:check"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "htmlhint": "^1.1.4",
+    "markdownlint-cli": "^0.45.0",
+    "prettier": "^3.3.3",
+    "stylelint": "^16.8.1",
+    "stylelint-config-standard": "^36.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pamir-ai/distiller-cm5-services.git"
+  },
+  "author": "PamirAI Incorporated",
+  "license": "UNLICENSED"
+}
