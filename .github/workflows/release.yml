@@ -3,11 +3,11 @@ name: Release Build
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release build'
+        description: "Release build"
         required: true
         type: string
 
@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
 
@@ -65,13 +65,14 @@ jobs:
           echo "clean_version=${CLEAN_VERSION}" >> $GITHUB_OUTPUT
           echo "semantic_version=${SEMANTIC_VERSION}" >> $GITHUB_OUTPUT
           echo "debian_revision=${DEBIAN_REVISION}" >> $GITHUB_OUTPUT
-          echo "package_name=distiller-cm5-services_${SEMANTIC_VERSION}-${DEBIAN_REVISION}_arm64.deb" >> $GITHUB_OUTPUT
 
           echo "Building version: ${VERSION}"
           echo "Clean version: ${CLEAN_VERSION}"
+          echo "Semantic version: ${SEMANTIC_VERSION}"
+          echo "Debian revision: ${DEBIAN_REVISION}"
 
       - name: Cache APT packages
-        uses: actions/cache@v4
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: /var/cache/apt/archives
           key: ${{ runner.os }}-apt-${{ hashFiles('debian/control') }}
@@ -119,34 +120,53 @@ jobs:
           chmod +x build-deb.sh
 
           # Build the Debian package for ARM64
-          ./build-deb.sh -v "${{ steps.version.outputs.semantic_version }}-${{ steps.version.outputs.debian_revision }}" full
+          ./build-deb.sh
 
           echo "Build completed. Checking artifacts:"
           ls -la dist/
 
+      - name: Detect built package
+        id: package
+        run: |
+          # Find the actual .deb file created
+          PACKAGE_FILE=$(ls dist/*.deb 2>/dev/null | head -1)
+          
+          if [[ -z "$PACKAGE_FILE" ]]; then
+            echo "Error: No .deb package found in dist/"
+            ls -la dist/
+            exit 1
+          fi
+          
+          PACKAGE_NAME=$(basename "$PACKAGE_FILE")
+          echo "Found package: $PACKAGE_NAME"
+          echo "package_name=${PACKAGE_NAME}" >> $GITHUB_OUTPUT
+          echo "package_path=${PACKAGE_FILE}" >> $GITHUB_OUTPUT
+
       - name: Verify package integrity
         run: |
-          if [[ -f "dist/${{ steps.version.outputs.package_name }}" ]]; then
-            echo "Package found: dist/${{ steps.version.outputs.package_name }}"
-            
+          PACKAGE_PATH="${{ steps.package.outputs.package_path }}"
+          
+          if [[ -f "$PACKAGE_PATH" ]]; then
+            echo "Package found: $PACKAGE_PATH"
+
             # Check package metadata
-            dpkg -I "dist/${{ steps.version.outputs.package_name }}"
-            
+            dpkg -I "$PACKAGE_PATH"
+
             # Check package contents
             echo "Package contents (first 50 lines):"
-            dpkg -c "dist/${{ steps.version.outputs.package_name }}" | head -50
-            
+            dpkg -c "$PACKAGE_PATH" | head -50
+
             # Verify package architecture
-            ARCH=$(dpkg -f "dist/${{ steps.version.outputs.package_name }}" Architecture)
+            ARCH=$(dpkg -f "$PACKAGE_PATH" Architecture)
             echo "Package architecture: $ARCH"
-            
+
             if [[ "$ARCH" != "arm64" ]] && [[ "$ARCH" != "all" ]]; then
               echo "Error: Package architecture is not arm64 or all"
               exit 1
             fi
-            
+
           else
-            echo "Error: Expected package not found"
+            echo "Error: Package not found at $PACKAGE_PATH"
             echo "Available files in dist/:"
             ls -la dist/
             exit 1
@@ -154,13 +174,17 @@ jobs:
 
       - name: Run lintian checks
         run: |
-          if [[ -f "dist/${{ steps.version.outputs.package_name }}" ]]; then
-            echo "Running lintian checks..."
-            lintian "dist/${{ steps.version.outputs.package_name }}" || echo "Lintian warnings detected (non-fatal)"
+          PACKAGE_PATH="${{ steps.package.outputs.package_path }}"
+          
+          if [[ -f "$PACKAGE_PATH" ]]; then
+            echo "Running lintian checks on $PACKAGE_PATH..."
+            lintian "$PACKAGE_PATH" || echo "Lintian warnings detected (non-fatal)"
+          else
+            echo "Warning: Package not found for lintian check"
           fi
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: distiller-cm5-services-${{ steps.version.outputs.clean_version }}-arm64
           path: |
@@ -172,7 +196,7 @@ jobs:
 
       - name: Create Release
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Release ${{ steps.version.outputs.version }}
@@ -181,6 +205,7 @@ jobs:
 
             ## Package Information
             - **Version**: ${{ steps.version.outputs.clean_version }}
+            - **Package**: ${{ steps.package.outputs.package_name }}
             - **Architecture**: ARM64 (aarch64)
             - **Target Platform**: Raspberry Pi CM5, Distiller devices
 
@@ -197,10 +222,10 @@ jobs:
             ## Installation
             ```bash
             # Download the .deb package
-            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.package_name }}
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.package.outputs.package_name }}
 
             # Install the package
-            sudo dpkg -i ${{ steps.version.outputs.package_name }}
+            sudo dpkg -i ${{ steps.package.outputs.package_name }}
 
             # Install dependencies if needed
             sudo apt-get install -f
@@ -229,7 +254,7 @@ jobs:
 
             Built automatically with GitHub Actions.
           files: |
-            dist/${{ steps.version.outputs.package_name }}
+            ${{ steps.package.outputs.package_path }}
           draft: false
           prerelease: false
           generate_release_notes: true
@@ -239,20 +264,20 @@ jobs:
       - name: Build Summary
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY  
-          echo "- **Package**: ${{ steps.version.outputs.package_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Package**: ${{ steps.package.outputs.package_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Architecture**: ARM64" >> $GITHUB_STEP_SUMMARY
           echo "- **Build Status**: SUCCESS" >> $GITHUB_STEP_SUMMARY
 
-          if [[ -f "dist/${{ steps.version.outputs.package_name }}" ]]; then
-            PACKAGE_SIZE=$(du -h "dist/${{ steps.version.outputs.package_name }}" | cut -f1)
+          if [[ -f "${{ steps.package.outputs.package_path }}" ]]; then
+            PACKAGE_SIZE=$(du -h "${{ steps.package.outputs.package_path }}" | cut -f1)
             echo "- **Package Size**: $PACKAGE_SIZE" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Installation Commands" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "sudo dpkg -i ${{ steps.version.outputs.package_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "sudo dpkg -i ${{ steps.package.outputs.package_name }}" >> $GITHUB_STEP_SUMMARY
           echo "sudo apt-get install -f" >> $GITHUB_STEP_SUMMARY
           echo "sudo systemctl start distiller-wifi" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
