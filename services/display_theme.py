@@ -111,9 +111,9 @@ class Components:
     """Component sizes."""
 
     # QR Code sizes
-    qr_small: int = 72
-    qr_medium: int = 84
-    qr_large: int = 96
+    qr_small: int = 64
+    qr_medium: int = 78
+    qr_large: int = 90
 
     # Progress bar (fits within display width)
     progress_bar_width: int = 100
