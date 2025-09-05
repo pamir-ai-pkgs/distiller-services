@@ -1,3 +1,56 @@
+distiller-cm5-services (2.0.2) unstable; urgency=medium
+
+  [ UtsavBalar1231 ]
+  * fix(ui): use case-sensitive font for network names and passwords
+  * fix(display): add missing port 8080 to e-ink WiFi setup URL
+
+  [ Kevin Zhang ]
+  * (chore) changed wifi setup eink ui layout
+
+  [ utsavbalar1231 ]
+  * feat: Introduce a Wi-Fi captive portal access
+  * chore: Tidy up
+  * chore(tunnel_service): Hardcode 3000 as web_port for pinggy_tunnel
+  * fix(device_config): preserve existing hostname on reinstall
+  * fix(display_service): rollback SDK version to v0.1.0
+  * fix(display_service): Release eink display after displaying image
+
+  [ TianqiYe ]
+  * turn off captive for stable 1
+  * updated defualt tunnel screen
+
+  [ utsavbalar1231 ]
+  * feat: Introduce dynamic template rendering using UI-generated templates
+
+  [ TianqiYe ]
+  * fix(display): prevent stale tunnel URLs on restart
+
+  [ utsavbalar1231 ]
+  * feat: add MAC-based hostname synchronization
+  * refactor(display): Fix portrait orientation
+  * chore(display_screens): Improve setup page layout
+  * fix(display_service): Re-init eink display if required during _send_to_display
+  * chore(display_service): Add required transformations for TemplateRenderer image
+  * Parital Revert: chore(display_screens): Improve setup page layout
+  * build-deb: Relax dependencies
+  * fix(network): correctly detect AP mode vs regular network connections
+  * fix(startup): clean up existing AP mode on service restart
+  * fix(ui): prevent connection loss error during network transition
+  * fix(web_server): add missing device_name parameter to connecting template
+
+  [ Distiller Dev ]
+  * feat(tunnel): implement FRP-first tunnel service with Pinggy fallback
+
+  [ utsavbalar1231 ]
+  * feat(ui): add manual network connection
+  * refactor(debian): update for modern debian packaging
+  * feat(tooling): add comprehensive frontend linting and formatting infrastructure
+  * fix(ci): dynamically detect package name and update action versions
+  * chore(display_theme): reduce qr code size
+  * chore: Remove unused uv.lock file
+
+ -- PamirAI Incorporated <support@pamir.ai>  Fri, 05 Sep 2025 08:53:19 +0000
+
 distiller-cm5-services (2.0.1) unstable; urgency=medium
 
   [ utsavbalar1231 ]
