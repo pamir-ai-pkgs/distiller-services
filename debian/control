@@ -24,7 +24,7 @@ Depends: ${misc:Depends},
          avahi-utils,
          iptables,
          openssh-client,
-         distiller-cm5-sdk (>= 0.1.0)
+         distiller-cm5-sdk (>= 0.1.0) | distiller-sdk (>= 2.0.0),
 Recommends:
 Description: WiFi provisioning service for Distiller by Pamir-AI
  Provides network configuration and management with support for 
