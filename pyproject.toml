@@ -46,9 +46,6 @@ include = ["distiller_cm5_services*", "network*"]
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.toml", "*.txt", "*.md", "*.py", "*.sh", "*.html", "*.css", "*.js", "*.svg", "*.ttf"]
 
-[tool.uv]
-dev-dependencies = []
-
 [tool.ruff]
 line-length = 100
 target-version = "py311"
