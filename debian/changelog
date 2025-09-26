@@ -1,3 +1,16 @@
+distiller-cm5-services (2.1.0) unstable; urgency=medium
+
+  [ utsavbalar1231 ]
+  * fix(debian): Add dnsmasq to package dependencies
+  * fix(pyproject.toml): Remove unused dev dependencies
+  * chore(debian): Add multiplatform distiller-sdk to dependencies
+  * chore(debian): simplify hostname updation on build environments
+  * refactor(scripts): rewrite hostname update script
+  * chore(debian): improve packaging scripts error handling and logging
+  * chore: Update linting configuration and dev dependencies
+
+ -- PamirAI Incorporated <founders@pamir.ai>  Sat, 27 Sep 2025 00:55:29 +0530
+
 distiller-cm5-services (2.0.2) unstable; urgency=medium
 
   [ UtsavBalar1231 ]
