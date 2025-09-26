@@ -5,71 +5,12 @@ export PATH="/root/.local/bin:/root/.cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin
 
 case "$1" in
 configure)
-	# Check if we're in a build environment (pi-gen, chroot, etc)
-	BUILD_ENV=0
-
-	# Detection method 1: Check for pi-gen specific files
-	if [ -f /etc/pi-gen_id ] || [ -f /boot/pi-gen.txt ]; then
-		echo "Detected pi-gen build environment (marker files)"
-		BUILD_ENV=1
-	fi
-
-	# Detection method 2: Check for pi-gen environment variables
-	if [ "$BUILD_ENV" -eq 0 ] && ([ -n "$PI_GEN" ] || [ -n "$STAGE" ] || [ -n "$STAGE_DIR" ]); then
-		echo "Detected pi-gen build environment (environment variables)"
-		BUILD_ENV=1
-	fi
-
-	# Detection method 3: Check if we're in a chroot using systemd-detect-virt
-	if [ "$BUILD_ENV" -eq 0 ] && command -v systemd-detect-virt >/dev/null 2>&1; then
-		VIRT_TYPE=$(systemd-detect-virt 2>/dev/null || true)
-		if [ "$VIRT_TYPE" = "chroot" ] || [ "$VIRT_TYPE" = "docker" ] || [ "$VIRT_TYPE" = "lxc" ]; then
-			echo "Detected build environment: $VIRT_TYPE"
-			BUILD_ENV=1
-		fi
-	fi
-
-	# Detection method 4: Check for .dockerenv or other container markers
-	if [ "$BUILD_ENV" -eq 0 ] && [ -f /.dockerenv ]; then
-		echo "Detected Docker build environment"
-		BUILD_ENV=1
-	fi
-
-	# Detection method 5: Check if we're in a chroot via /proc
-	if [ "$BUILD_ENV" -eq 0 ] && [ -f /proc/1/mountinfo ]; then
-		if ! grep -q " / / " /proc/1/mountinfo 2>/dev/null; then
-			echo "Detected chroot environment"
-			BUILD_ENV=1
-		fi
-	fi
-
-	# Detection method 6: Check if systemd is not running (common in build environments)
-	if [ "$BUILD_ENV" -eq 0 ]; then
-		if ! systemctl is-system-running >/dev/null 2>&1; then
-			echo "Detected build environment (systemd not running)"
-			BUILD_ENV=1
-		fi
-	fi
-
-	# Detection method 7: Check for DEBIAN_FRONTEND=noninteractive with no network
-	if [ "$BUILD_ENV" -eq 0 ] && [ "$DEBIAN_FRONTEND" = "noninteractive" ]; then
-		# Additional check - see if network interfaces exist
-		if [ ! -d /sys/class/net/eth0 ] && [ ! -d /sys/class/net/wlan0 ] && [ ! -d /sys/class/net/end0 ]; then
-			echo "Detected build environment (no network interfaces)"
-			BUILD_ENV=1
-		fi
-	fi
-
-	# Set MAC-based hostname if not in build environment
-	if [ "$BUILD_ENV" -eq 0 ]; then
+	# Set MAC-based hostname only on target device
+	if [ -f /boot/armbianEnv.txt ] || [ -f /boot/firmware/config.txt ]; then
 		echo "Setting MAC-based hostname..."
 		if [ -x /opt/distiller-cm5-services/scripts/update-hostname.sh ]; then
 			/opt/distiller-cm5-services/scripts/update-hostname.sh || true
-		else
-			echo "Warning: update-hostname.sh not found or not executable"
 		fi
-	else
-		echo "Skipping hostname configuration in build environment"
 	fi
 
 	cd /opt/distiller-cm5-services
