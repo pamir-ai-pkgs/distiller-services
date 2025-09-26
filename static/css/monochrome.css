@@ -215,6 +215,23 @@ p {
   color: var(--white);
 }
 
+.security-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: var(--black);
+  color: var(--white);
+  font-family: var(--font-semibold);
+  font-size: 0.75rem;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+}
+
+.security-badge.open {
+  background: var(--white);
+  color: var(--black);
+  border: 1px solid var(--black);
+}
+
 .network-card:hover .security-badge {
   background: var(--white);
   color: var(--black);
@@ -231,23 +248,6 @@ p {
   font-family: MartianMono, monospace;
   font-weight: bold;
   font-size: 1.1rem;
-}
-
-.security-badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  background: var(--black);
-  color: var(--white);
-  font-family: var(--font-semibold);
-  font-size: 0.75rem;
-  font-weight: bold;
-  letter-spacing: 0.05em;
-}
-
-.security-badge.open {
-  background: var(--white);
-  color: var(--black);
-  border: 1px solid var(--black);
 }
 
 .network-signal {

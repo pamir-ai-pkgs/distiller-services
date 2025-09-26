@@ -11,7 +11,7 @@
   "plugins": ["prettier"],
   "rules": {
     "prettier/prettier": "error",
-    "indent": ["error", 2],
+    "indent": "off",
     "linebreak-style": ["error", "unix"],
     "quotes": ["error", "single"],
     "semi": ["error", "always"],
@@ -29,6 +29,7 @@
     "array-bracket-spacing": ["error", "never"]
   },
   "globals": {
-    "io": "readonly"
+    "io": "readonly",
+    "refreshNetworks": "readonly"
   }
 }

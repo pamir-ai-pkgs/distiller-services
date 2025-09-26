@@ -33,7 +33,7 @@ sudo journalctl -u distiller-wifi -f
 
 ## Architecture
 
-```
+```text
 distiller_wifi.py           # Main orchestrator
 core/
 ├── config.py              # Pydantic settings

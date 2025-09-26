@@ -194,7 +194,7 @@ open http://localhost:8080
 
 ## Project Structure
 
-```
+```text
 distiller-cm5-services/
 ├── distiller_wifi.py           # Main application entry point
 ├── core/                       # Core modules
@@ -264,7 +264,7 @@ ws.onmessage = (event) => {
 
 The service uses a state machine with the following states:
 
-```
+```text
 INITIALIZING → SETUP_MODE → CONNECTING → CONNECTED
                    ↑            ↓            ↓
                    └────────────←────────────┘

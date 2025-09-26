@@ -16,7 +16,6 @@ function initWebSocket() {
   globalWs = new WebSocket(wsUrl);
 
   globalWs.onopen = function () {
-    console.log('Global WebSocket connected');
     clearTimeout(reconnectTimer);
   };
 
@@ -34,7 +33,6 @@ function initWebSocket() {
   };
 
   globalWs.onclose = function () {
-    console.log('WebSocket disconnected');
     globalWs = null;
 
     // Attempt reconnection after 3 seconds
@@ -74,90 +72,6 @@ function handleGlobalStatusUpdate(data) {
     }
     statusElement.textContent = `[ ${statusText} ]`;
   }
-}
-
-// Fetch current status via API
-async function fetchStatus() {
-  try {
-    const response = await fetch('/api/status');
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Failed to fetch status:', error);
-    return null;
-  }
-}
-
-// Fetch available networks
-async function fetchNetworks() {
-  try {
-    const response = await fetch('/api/networks');
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Failed to fetch networks:', error);
-    return [];
-  }
-}
-
-// Connect to a network
-async function connectToNetwork(ssid, password) {
-  try {
-    const response = await fetch('/api/connect', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ ssid, password }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Failed to connect to network:', error);
-    return null;
-  }
-}
-
-// Disconnect from current network
-async function disconnectFromNetwork() {
-  try {
-    const response = await fetch('/api/disconnect', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Failed to disconnect from network:', error);
-    return null;
-  }
-}
-
-// Format signal strength bars
-function formatSignalBars(signal) {
-  if (signal > 80) return '████';
-  if (signal > 60) return '███░';
-  if (signal > 40) return '██░░';
-  if (signal > 20) return '█░░░';
-  return '░░░░';
 }
 
 // Session ID management

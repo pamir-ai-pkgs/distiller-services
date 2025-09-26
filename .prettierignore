@@ -10,6 +10,11 @@ env/
 __pycache__/
 *.pyc
 
+# Python cache directories
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
 # Node modules
 node_modules/
 
@@ -19,6 +24,13 @@ node_modules/
 
 # Git
 .git/
+
+# User settings and configs
+.claude/
+
+# Linter configs (don't format these)
+.htmlhintrc
+.stylelintrc.json
 
 # Debian packaging
 debian/
