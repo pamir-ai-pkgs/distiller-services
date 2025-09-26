@@ -1,13 +1,13 @@
 #!/bin/sh
 set -e
 
-export PATH="/root/.local/bin:/root/.cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:$PATH"
+export PATH="/root/.local/bin:/root/.cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 case "$1" in
 configure)
 	# Set MAC-based hostname only on target device
 	if [ -f /boot/armbianEnv.txt ] || [ -f /boot/firmware/config.txt ]; then
-		echo "Setting MAC-based hostname..."
+		echo "INFO: Setting MAC-based hostname..."
 		if [ -x /opt/distiller-cm5-services/scripts/update-hostname.sh ]; then
 			/opt/distiller-cm5-services/scripts/update-hostname.sh || true
 		fi
@@ -17,7 +17,13 @@ configure)
 
 	# Setup virtual environment
 	[ -d ".venv" ] && rm -rf ".venv"
-	uv venv --system-site-packages 2>/dev/null || uv venv
+	if ! uv venv --system-site-packages 2>/dev/null; then
+		echo "INFO: Creating venv without system-site-packages..."
+		uv venv || {
+			echo "WARNING: Failed to create virtual environment with uv"
+			exit 1
+		}
+	fi
 
 	# Install dependencies
 	uv sync
@@ -25,9 +31,8 @@ configure)
 	VENV_PATH="/opt/distiller-cm5-services/.venv"
 
 	# Install SDK if available
-	if [ -d "/opt/distiller-cm5-sdk" ]; then
-		uv pip install -e /opt/distiller-cm5-sdk 2>/dev/null || true
-	fi
+	[ -d "/opt/distiller-cm5-sdk" ] &&
+		uv pip install -e /opt/distiller-cm5-sdk
 
 	# Set permissions
 	find /opt/distiller-cm5-services -type d -exec chmod 755 {} \; \
@@ -43,13 +48,13 @@ configure)
 	systemctl daemon-reload 2>/dev/null || true
 	systemctl enable distiller-wifi.service 2>/dev/null || true
 
-	echo "Distiller WiFi service installed. Start with: systemctl start distiller-wifi"
+	echo "INFO: Distiller WiFi service installed."
 	;;
 
 abort-upgrade | abort-remove | abort-deconfigure) ;;
 
 *)
-	echo "postinst called with unknown argument \`$1'" >&2
+	echo "ERROR: postinst called with unknown argument \`$1'" >&2
 	exit 1
 	;;
 esac

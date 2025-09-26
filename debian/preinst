@@ -85,7 +85,7 @@ abort-upgrade)
 	;;
 
 *)
-	echo "preinst called with unknown argument: $1" >&2
+	echo "ERROR: preinst called with unknown argument: $1" >&2
 	exit 1
 	;;
 esac
