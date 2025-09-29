@@ -163,9 +163,13 @@ class DistillerWiFiApp:
                 ssid=self.settings.ap_ssid,
                 password=ap_password,
                 ip_address=self.settings.ap_ip,
+                channel=self.settings.ap_channel,
             )
 
             if success:
+                logger.debug("Waiting for DHCP/DNS services to be ready...")
+                await asyncio.sleep(3)
+
                 await self.state_manager.update_state(connection_state=ConnectionState.AP_MODE)
                 logger.info(
                     f"Access Point started: {self.settings.ap_ssid} with password: {ap_password}"

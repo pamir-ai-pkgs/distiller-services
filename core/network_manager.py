@@ -152,7 +152,7 @@ class NetworkManager:
             logger.error(f"Network scan error: {e}")
             return self._last_scan_results
 
-    async def start_ap_mode(self, ssid: str, password: str, ip_address: str) -> bool:
+    async def start_ap_mode(self, ssid: str, password: str, ip_address: str, channel: int = 6) -> bool:
         if not self._is_ap_mode and not self._last_scan_results:
             logger.info("Performing network scan before entering AP mode...")
             await self.scan_networks()
@@ -183,7 +183,7 @@ class NetworkManager:
             "802-11-wireless.band",
             "bg",
             "802-11-wireless.channel",
-            "6",
+            str(channel),
             "802-11-wireless-security.key-mgmt",
             "wpa-psk",
             "802-11-wireless-security.psk",
@@ -192,6 +192,8 @@ class NetworkManager:
             "shared",
             "ipv4.addresses",
             f"{ip_address}/24",
+            "ipv6.method",
+            "disabled",
         ]
 
         returncode, _, stderr = await self._run_command(cmd)

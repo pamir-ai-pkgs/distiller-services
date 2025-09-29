@@ -6,29 +6,39 @@ repository.
 ## Project Overview
 
 Unified WiFi provisioning service for Raspberry Pi CM5 devices with E-ink display support. Single
-async Python service using FastAPI, WebSocket, and persistent mDNS.
+async Python service using FastAPI, WebSocket, and persistent mDNS with captive portal support.
 
 ## Essential Commands
 
 ```bash
-# Development (requires sudo for NetworkManager)
-./dev.sh setup              # Install dependencies (prefers uv)
-./dev.sh run                # Start with --no-hardware --debug
+# Development Helper Script (Preferred)
+./dev.sh setup              # Install dependencies with uv
+./dev.sh run                # Start with --no-hardware --debug (requires sudo)
 ./dev.sh run --port 9090    # Custom port
-./dev.sh status             # Check environment
-
-# Linting & Type Checking
+./dev.sh test               # Run tests (when available)
 ./dev.sh lint --check       # Comprehensive linting (default)
 ./dev.sh lint --fix         # Auto-fix formatting issues
+./dev.sh clean              # Clean temporary files
+./dev.sh reset              # Reset environment
+./dev.sh shell              # Start development shell
+./dev.sh status             # Check environment status
+
+# Direct Commands
+sudo uv run python distiller_wifi.py --no-hardware --debug
 uv run ruff check .         # Fast Python linting
 uv run ruff format .        # Auto-format code
 uv run mypy --ignore-missing-imports --no-strict-optional .
+uv run pyright              # Type checking with pyright
 
 # Build & Deploy
 ./build-deb.sh              # Build Debian package for arm64 + all architectures
 sudo dpkg -i dist/*.deb     # Install package
 sudo systemctl start distiller-wifi
 sudo journalctl -u distiller-wifi -f
+
+# Debugging
+sudo journalctl -u distiller-wifi | grep "AP PASSWORD"  # View current AP password
+wscat -c ws://localhost:8080/ws                        # Test WebSocket connection
 ```
 
 ## Architecture
@@ -63,7 +73,8 @@ State Flow: INITIALIZING → SETUP_MODE → CONNECTING → CONNECTED
 - **State-driven**: Event callbacks on state transitions
 - **Monochrome UI**: Pure black (#000000) and white (#FFFFFF) only
 - **No emojis**: Clean professional code
-- **Captive Portal**: Automatic browser popup in AP mode via iptables
+- **Captive Portal**: Automatic browser popup in AP mode via iptables redirect
+- **Session Persistence**: User sessions maintained across network transitions
 
 ## Development & API Testing
 
@@ -95,18 +106,24 @@ uv run python generate_eink_previews.py
 ## Quality Assurance
 
 ```bash
-# Code quality checks
-uv run ruff format .             # Auto-format code
-uv run ruff check . --fix        # Fix linting issues
+# Code quality checks (in order of speed)
+uv run ruff check .              # Fast linting (seconds)
+uv run ruff format --check .     # Format check (seconds)
 uv run mypy --ignore-missing-imports --no-strict-optional --exclude debian .
-uv run pyright                   # Type checking with pyright config
+uv run pyright                   # Full type checking (slower)
+
+# Auto-fix issues
+uv run ruff check . --fix        # Fix linting issues
+uv run ruff format .             # Auto-format code
 
 # Tests (Note: No test files exist yet)
 # When adding tests, use pytest:
-# uv run pytest                    # Run all tests
-# uv run pytest tests/test_state.py    # Run specific test file
-# uv run pytest -v -s             # Verbose output with print statements
-# uv run pytest --cov=core --cov=services    # With coverage
+# uv run pytest                               # Run all tests
+# uv run pytest tests/test_state.py          # Run specific test file
+# uv run pytest -k "test_connect"             # Run tests matching pattern
+# uv run pytest -v -s                         # Verbose with print statements
+# uv run pytest --cov=core --cov=services    # With coverage report
+# uv run pytest --lf                          # Run only last failed tests
 ```
 
 ## Security & Input Validation
@@ -126,3 +143,5 @@ uv run pyright                   # Type checking with pyright config
 - **WebSocket real-time**: All UI updates happen via WebSocket, no polling
 - **Debian build**: Targets arm64 and all architectures for Raspberry Pi CM5
 - **No test files yet**: Test infrastructure is configured but no tests written
+- **Captive Portal**: Uses iptables for HTTP redirect in AP mode
+- **Dynamic Password**: New AP password generated on each startup (check logs)

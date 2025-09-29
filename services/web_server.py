@@ -559,6 +559,7 @@ class WebServer:
                 ssid=self.settings.ap_ssid,
                 password=ap_password,
                 ip_address=self.settings.ap_ip,
+                channel=self.settings.ap_channel,
             )
 
             if success:
