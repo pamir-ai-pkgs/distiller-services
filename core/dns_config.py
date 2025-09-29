@@ -49,7 +49,9 @@ class DNSConfigurator:
 
             self.config_file_path.write_text(self._generate_config_content(), encoding="utf-8")
             self.config_file_path.chmod(0o644)
-            logger.info(f"Created DNS configuration with {len(self.CONNECTIVITY_DOMAINS)} overrides")
+            logger.info(
+                f"Created DNS configuration with {len(self.CONNECTIVITY_DOMAINS)} overrides"
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to create DNS configuration: {e}")

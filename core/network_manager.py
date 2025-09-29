@@ -24,10 +24,10 @@ class WiFiNetwork:
 class NetworkManager:
     def __init__(self):
         self.wifi_device: str | None = None
-        self._device_cache_time = 0
+        self._device_cache_time = 0.0
         self._device_cache_timeout = 300
         self._is_ap_mode = False
-        self._last_scan_results = []
+        self._last_scan_results: list[WiFiNetwork] = []
         self.ap_connection_name = "Distiller-AP"
 
     async def initialize(self) -> None:
@@ -152,7 +152,9 @@ class NetworkManager:
             logger.error(f"Network scan error: {e}")
             return self._last_scan_results
 
-    async def start_ap_mode(self, ssid: str, password: str, ip_address: str, channel: int = 6) -> bool:
+    async def start_ap_mode(
+        self, ssid: str, password: str, ip_address: str, channel: int = 6
+    ) -> bool:
         if not self._is_ap_mode and not self._last_scan_results:
             logger.info("Performing network scan before entering AP mode...")
             await self.scan_networks()

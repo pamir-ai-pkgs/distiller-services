@@ -28,7 +28,7 @@ def setup_logging(debug: bool = False):
     log_level = logging.DEBUG if debug else logging.INFO
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
-    handlers = [
+    handlers: list[logging.Handler] = [
         logging.StreamHandler(sys.stdout),
     ]
 
@@ -72,8 +72,8 @@ class DistillerWiFiApp:
         self.web_server = WebServer(self.settings, self.network_manager, self.state_manager)
         self.display_service = DisplayService(self.settings, self.state_manager)
         self.tunnel_service = TunnelService(self.settings, self.state_manager)
-        self.tasks = []
-        self.server = None
+        self.tasks: list[asyncio.Task] = []
+        self.server: uvicorn.Server | None = None
 
     def generate_ap_password(self) -> str:
         """Generate secure random password for AP mode."""
@@ -227,6 +227,7 @@ class DistillerWiFiApp:
             access_log=self.settings.debug,
         )
         self.server = uvicorn.Server(config)
+        assert self.server is not None
         await self.server.serve()
 
     async def run_session_cleanup(self):

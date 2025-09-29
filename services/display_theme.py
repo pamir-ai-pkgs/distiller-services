@@ -207,7 +207,7 @@ class Theme:
 
     def get_text_style(self, style_name: str) -> dict:
         """Get text style configuration by name."""
-        return self.typography.styles.get(style_name, self.typography.styles["body"])
+        return self.typography.styles.get(style_name, self.typography.styles["body"])  # type: ignore[no-any-return]
 
     def get_qr_size(self, size: str = "medium") -> int:
         """Get QR code size by name."""
@@ -216,7 +216,7 @@ class Theme:
             "medium": self.components.qr_medium,
             "large": self.components.qr_large,
         }
-        return sizes.get(size, self.components.qr_medium)
+        return sizes.get(size, self.components.qr_medium)  # type: ignore[no-any-return]
 
 
 # Global theme instance

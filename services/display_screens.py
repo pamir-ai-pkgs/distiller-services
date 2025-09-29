@@ -167,21 +167,21 @@ def create_tunnel_screen(
         display_url = tunnel_url.replace("https://", "").replace("http://", "")
         right_content.extend(
             [
-                Value(display_url),
+                Value(display_url),  # type: ignore[list-item]
                 Space(),  # Push to bottom
-                Value("or visit"),
-                Label(f"{ip_address}  :3000"),
+                Value("or visit"),  # type: ignore[list-item]
+                Label(f"{ip_address}  :3000"),  # type: ignore[list-item]
             ]
         )
     else:
         # Pinggy has temporary URLs
         right_content.extend(
             [
-                Value("QR valid only"),
-                Label("55 minutes"),
+                Value("QR valid only"),  # type: ignore[list-item]
+                Label("55 minutes"),  # type: ignore[list-item]
                 Space(),  # Push to bottom
-                Value("or visit"),
-                Label(f"{ip_address}  :3000"),
+                Value("or visit"),  # type: ignore[list-item]
+                Label(f"{ip_address}  :3000"),  # type: ignore[list-item]
             ]
         )
 

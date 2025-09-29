@@ -7,6 +7,7 @@ import logging
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from PIL import Image, ImageFont
 
@@ -55,7 +56,7 @@ class DisplayService:
     def __init__(self, settings: Settings, state_manager: StateManager):
         self.settings = settings
         self.state_manager = state_manager
-        self.display = None
+        self.display: Any = None
         self._running = False
 
         # Template path for UI-generated templates
@@ -89,6 +90,7 @@ class DisplayService:
             self.DitheringMethod = DitheringMethod
 
             # Initialize the display
+            assert self.display is not None
             self.display.initialize()
             width, height = self.display.get_dimensions()
             logger.info(f"E-ink display ready: {width}x{height}")
