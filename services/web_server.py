@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, Response, WebSocket, WebSocketDisconnect, status
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
@@ -90,91 +90,43 @@ class WebServer:
         self._setup_websocket()
 
     def _setup_captive_portal_routes(self):
-        """Setup routes for captive portal detection."""
+        """Setup routes that respond to OS connectivity checks.
 
-        # Android detection endpoints
+        All endpoints return success to prevent auto-disconnect from AP.
+        """
+
         @self.app.get("/generate_204")
         @self.app.get("/gen_204")
         async def android_captive_check(request: Request):
-            state = self.state_manager.get_state()
-            if state.connection_state == ConnectionState.AP_MODE:
-                # Redirect to setup page to trigger captive portal
-
-                return RedirectResponse(
-                    url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
-                    status_code=302,
-                )
-            # If not in AP mode, return normal 204
             return Response(status_code=204)
 
-        # iOS/macOS detection endpoints
         @self.app.get("/hotspot-detect.html")
         @self.app.get("/library/test/success.html")
         async def ios_captive_check(request: Request):
-            state = self.state_manager.get_state()
-            if state.connection_state == ConnectionState.AP_MODE:
-                # Return non-success to trigger captive portal
-                return HTMLResponse(
-                    content="<HTML><HEAD><TITLE>Portal</TITLE></HEAD><BODY></BODY></HTML>"
-                )
-            # If not in AP mode, return success
             return HTMLResponse(
                 content="<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>"
             )
 
-        # iOS alternate
         @self.app.get("/success.txt")
         async def ios_success_check(request: Request):
-            state = self.state_manager.get_state()
-            if state.connection_state == ConnectionState.AP_MODE:
-                return PlainTextResponse(content="")
             return PlainTextResponse(content="success")
 
-        # Windows detection endpoints
         @self.app.get("/ncsi.txt")
         async def windows_ncsi_check(request: Request):
-            state = self.state_manager.get_state()
-            if state.connection_state == ConnectionState.AP_MODE:
-                return RedirectResponse(
-                    url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
-                    status_code=302,
-                )
-
             return PlainTextResponse(content="Microsoft NCSI")
 
         @self.app.get("/connecttest.txt")
         async def windows_connect_check(request: Request):
-            state = self.state_manager.get_state()
-            if state.connection_state == ConnectionState.AP_MODE:
-                return RedirectResponse(
-                    url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
-                    status_code=302,
-                )
-
             return PlainTextResponse(content="Microsoft Connect Test")
 
-        # Firefox detection endpoint
         @self.app.get("/canonical.html")
         async def firefox_captive_check(request: Request):
-            state = self.state_manager.get_state()
-            if state.connection_state == ConnectionState.AP_MODE:
-                return RedirectResponse(
-                    url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
-                    status_code=302,
-                )
             return HTMLResponse(
                 content="<html><head><title>Success</title></head><body>Success</body></html>"
             )
 
-        # Kindle detection endpoint
         @self.app.get("/kindle-wifi/wifistub.html")
         async def kindle_captive_check(request: Request):
-            state = self.state_manager.get_state()
-            if state.connection_state == ConnectionState.AP_MODE:
-                return RedirectResponse(
-                    url=f"http://{self.settings.ap_ip}:{self.settings.web_port}/",
-                    status_code=302,
-                )
             return HTMLResponse(content="")
 
     def _setup_routes(self):

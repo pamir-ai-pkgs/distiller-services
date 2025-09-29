@@ -16,6 +16,7 @@ import uvicorn
 
 from core.avahi_service import AvahiService
 from core.config import Settings, get_settings
+from core.dns_config import DNSConfigurator
 from core.network_manager import NetworkManager
 from core.state import ConnectionState, NetworkInfo, StateManager
 from services.display_service import DisplayService
@@ -66,6 +67,7 @@ class DistillerWiFiApp:
 
         self.state_manager = StateManager(self.settings.state_file)
         self.network_manager = NetworkManager()
+        self.dns_configurator = DNSConfigurator(ap_ip=self.settings.ap_ip)
         self.avahi_service = AvahiService(self.settings.web_port)
         self.web_server = WebServer(self.settings, self.network_manager, self.state_manager)
         self.display_service = DisplayService(self.settings, self.state_manager)
@@ -84,6 +86,10 @@ class DistillerWiFiApp:
         logger.info(f"Device ID: {self.settings.device_id}")
         logger.info(f"mDNS hostname: {self.settings.mdns_fqdn}")
         logger.info(f"AP SSID: {self.settings.ap_ssid}")
+
+        # Setup DNS before starting AP mode
+        if not await self.dns_configurator.setup_connectivity_dns():
+            logger.warning("DNS configuration failed - devices may auto-disconnect")
 
         await self.network_manager.initialize()
 
@@ -306,6 +312,8 @@ class DistillerWiFiApp:
             # Disable captive portal if it was enabled
             if self.settings.enable_captive_portal:
                 await self.web_server.disable_captive_portal()
+
+            await self.dns_configurator.cleanup_connectivity_dns()
 
             self.avahi_service.stop()
             await self.display_service.stop()
