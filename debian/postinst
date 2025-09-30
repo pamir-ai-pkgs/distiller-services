@@ -9,7 +9,7 @@ configure)
 	if [ -f /boot/armbianEnv.txt ] || [ -f /boot/firmware/config.txt ]; then
 		echo "INFO: Setting MAC-based hostname..."
 		if [ -x /opt/distiller-cm5-services/scripts/update-hostname.sh ]; then
-			/opt/distiller-cm5-services/scripts/update-hostname.sh || true
+			/opt/distiller-cm5-services/scripts/update-hostname.sh -v
 		fi
 	fi
 
