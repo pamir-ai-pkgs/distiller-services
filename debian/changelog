@@ -1,3 +1,14 @@
+distiller-cm5-services (2.2.0) unstable; urgency=medium
+
+  [ utsavbalar1231 ]
+  * chore: add verbose logging to hostname update script
+  * fix: AP mode improvements
+  * feat: add DNS configuration for connectivity checks in AP mode
+  * fix: resolve mypy type checking errors
+  * fix(scripts): add retry logic for /etc/hosts update
+
+ -- PamirAI Incorporated <founders@pamir.ai>  Thu, 02 Oct 2025 02:12:36 +0530
+
 distiller-cm5-services (2.1.0) unstable; urgency=medium
 
   [ utsavbalar1231 ]
