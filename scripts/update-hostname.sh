@@ -56,9 +56,18 @@ update_system_hostname() {
 		hostnamectl set-hostname "$new_hostname" || true
 	fi
 
+	# Give systemd services time to finish hostname-change operations
+	sleep 0.5
+
 	# Update /etc/hosts entry for local hostname resolution
-	sed -i "/^127.0.1.1/d" /etc/hosts
-	echo "127.0.1.1	$new_hostname" >>/etc/hosts
+	for attempt in {1..3}; do
+		if sed -i "/^127.0.1.1/d" /etc/hosts 2>/dev/null &&
+			echo "127.0.1.1	$new_hostname" >>/etc/hosts 2>/dev/null; then
+			break
+		fi
+
+		[[ $attempt -lt 3 ]] && sleep 0.5
+	done
 
 	# Notify avahi if running
 	if systemctl is-active --quiet avahi-daemon; then
