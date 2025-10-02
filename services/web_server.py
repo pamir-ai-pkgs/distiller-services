@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, Response, WebSocket, WebSocketDisconnect, status
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
@@ -92,42 +92,60 @@ class WebServer:
     def _setup_captive_portal_routes(self):
         """Setup routes that respond to OS connectivity checks.
 
-        All endpoints return success to prevent auto-disconnect from AP.
+        All endpoints return 302 redirects to trigger captive portal detection.
+        This works in combination with the wildcard DNS server.
         """
 
         @self.app.get("/generate_204")
         @self.app.get("/gen_204")
         async def android_captive_check(request: Request):
-            return Response(status_code=204)
+            return Response(
+                status_code=302,
+                headers={"Location": f"http://{self.settings.ap_ip}:{self.settings.web_port}/"},
+            )
 
         @self.app.get("/hotspot-detect.html")
         @self.app.get("/library/test/success.html")
         async def ios_captive_check(request: Request):
-            return HTMLResponse(
-                content="<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>"
+            return Response(
+                status_code=302,
+                headers={"Location": f"http://{self.settings.ap_ip}:{self.settings.web_port}/"},
             )
 
         @self.app.get("/success.txt")
         async def ios_success_check(request: Request):
-            return PlainTextResponse(content="success")
+            return Response(
+                status_code=302,
+                headers={"Location": f"http://{self.settings.ap_ip}:{self.settings.web_port}/"},
+            )
 
         @self.app.get("/ncsi.txt")
         async def windows_ncsi_check(request: Request):
-            return PlainTextResponse(content="Microsoft NCSI")
+            return Response(
+                status_code=302,
+                headers={"Location": f"http://{self.settings.ap_ip}:{self.settings.web_port}/"},
+            )
 
         @self.app.get("/connecttest.txt")
         async def windows_connect_check(request: Request):
-            return PlainTextResponse(content="Microsoft Connect Test")
+            return Response(
+                status_code=302,
+                headers={"Location": f"http://{self.settings.ap_ip}:{self.settings.web_port}/"},
+            )
 
         @self.app.get("/canonical.html")
         async def firefox_captive_check(request: Request):
-            return HTMLResponse(
-                content="<html><head><title>Success</title></head><body>Success</body></html>"
+            return Response(
+                status_code=302,
+                headers={"Location": f"http://{self.settings.ap_ip}:{self.settings.web_port}/"},
             )
 
         @self.app.get("/kindle-wifi/wifistub.html")
         async def kindle_captive_check(request: Request):
-            return HTMLResponse(content="")
+            return Response(
+                status_code=302,
+                headers={"Location": f"http://{self.settings.ap_ip}:{self.settings.web_port}/"},
+            )
 
     def _setup_routes(self):
         @self.app.get("/", response_class=HTMLResponse)

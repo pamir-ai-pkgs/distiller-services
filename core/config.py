@@ -57,7 +57,7 @@ class Settings(BaseSettings):
 
     # Captive portal configuration
     enable_captive_portal: bool = Field(
-        default=False, description="Enable captive portal for automatic browser popup"
+        default=True, description="Enable captive portal for automatic browser popup"
     )
 
     # Display configuration
