@@ -25,6 +25,3 @@ distiller-wifi.service lib/systemd/system/
 # Python package files
 pyproject.toml opt/distiller-cm5-services/
 requirements.txt opt/distiller-cm5-services/
-
-# Configuration example
-tunnel_config.json etc/distiller/

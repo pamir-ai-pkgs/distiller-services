@@ -1,8 +1,0 @@
-{
-  "pinggy_access_token": "YOUR_PINGGY_TOKEN_HERE",
-  "tunnel_enabled": true,
-  "tunnel_ssh_port": 443,
-  "web_port": 8080,
-  "display_enabled": true,
-  "debug": false
-}
