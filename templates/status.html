@@ -39,7 +39,7 @@ status %}CONNECTED{% endblock %} {% block content %}
         <p class="tunnel-label">Remote Tunnel Active</p>
         <div class="tunnel-url">
           <a href="{{ tunnel_url }}" target="_blank" class="url-link">{{ tunnel_url }}</a>
-          <button class="copy-btn" onclick="copyToClipboard('{{ tunnel_url }}')">COPY</button>
+          <button class="copy-btn" onclick="copyToClipboard('{{ tunnel_url }}', this)">COPY</button>
         </div>
         <p class="tunnel-note">Use this URL to access your device from anywhere</p>
       </div>
@@ -84,11 +84,10 @@ status %}CONNECTED{% endblock %} {% block content %}
 
 <script>
   // Copy to clipboard function
-  function copyToClipboard(text) {
+  function copyToClipboard(text, btn) {
     navigator.clipboard
       .writeText(text)
       .then(() => {
-        const btn = event.target;
         const originalText = btn.textContent;
         btn.textContent = 'COPIED!';
         btn.classList.add('copied');

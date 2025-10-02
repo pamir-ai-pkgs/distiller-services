@@ -917,6 +917,7 @@ code {
   padding: 0.5rem 1rem;
   border: var(--border-width) solid var(--black);
   background: var(--white);
+  font-family: var(--font-semibold);
   font-weight: bold;
   font-size: 0.75rem;
   letter-spacing: 0.05em;
