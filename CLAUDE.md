@@ -11,24 +11,20 @@ async Python service using FastAPI, WebSocket, and persistent mDNS with captive 
 ## Essential Commands
 
 ```bash
-# Development Helper Script (Preferred)
-./dev.sh setup              # Install dependencies with uv
-./dev.sh run                # Start with --no-hardware --debug (requires sudo)
-./dev.sh run --port 9090    # Custom port
-./dev.sh test               # Run tests (when available)
-./dev.sh lint --check       # Comprehensive linting (default)
-./dev.sh lint --fix         # Auto-fix formatting issues
-./dev.sh clean              # Clean temporary files
-./dev.sh reset              # Reset environment
-./dev.sh shell              # Start development shell
-./dev.sh status             # Check environment status
+# Development (Makefile)
+make setup              # Install dependencies with uv
+make run                # Start with --no-hardware --debug (requires sudo)
+make run ARGS="--port 9090"  # Custom port
+make lint               # Check code (ruff, mypy, shellcheck)
+make fix                # Auto-fix formatting issues
+make clean              # Clean temporary files
+make build              # Build Debian package
 
 # Direct Commands
 sudo uv run python distiller_wifi.py --no-hardware --debug
 uv run ruff check .         # Fast Python linting
 uv run ruff format .        # Auto-format code
 uv run mypy --ignore-missing-imports --no-strict-optional .
-uv run pyright              # Type checking with pyright
 
 # Build & Deploy
 ./build-deb.sh              # Build Debian package for arm64 + all architectures
@@ -106,17 +102,17 @@ uv run python generate_eink_previews.py
 ## Quality Assurance
 
 ```bash
-# Code quality checks (in order of speed)
+# Code quality checks
+make lint                        # Run all linters (ruff, mypy, shellcheck)
+make fix                         # Auto-fix formatting issues
+
+# Manual checks
 uv run ruff check .              # Fast linting (seconds)
 uv run ruff format --check .     # Format check (seconds)
 uv run mypy --ignore-missing-imports --no-strict-optional --exclude debian .
-uv run pyright                   # Full type checking (slower)
-
-# Auto-fix issues
-uv run ruff check . --fix        # Fix linting issues
-uv run ruff format .             # Auto-format code
 
 # Tests (Note: No test files exist yet)
+make test                        # Run all tests
 # When adding tests, use pytest:
 # uv run pytest                               # Run all tests
 # uv run pytest tests/test_state.py          # Run specific test file
