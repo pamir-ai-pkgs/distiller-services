@@ -8,6 +8,7 @@ No manual positioning or magic numbers needed!
 from .display_layouts import (
     Caption,
     Checklist,
+    Component,
     Dots,
     Label,
     LandscapeLayout,
@@ -152,7 +153,7 @@ def create_tunnel_screen(
         LandscapeLayout
     """
     # Build right side content based on provider
-    right_content = []
+    right_content: list[Component] = []
     right_content.extend(
         [
             Space(height=theme.spacing.md),
@@ -167,21 +168,21 @@ def create_tunnel_screen(
         display_url = tunnel_url.replace("https://", "").replace("http://", "")
         right_content.extend(
             [
-                Value(display_url),  # type: ignore[list-item]
+                Value(display_url),
                 Space(),  # Push to bottom
-                Value("or visit"),  # type: ignore[list-item]
-                Label(f"{ip_address}  :3000"),  # type: ignore[list-item]
+                Value("or visit"),
+                Label(f"{ip_address}  :3000"),
             ]
         )
     else:
         # Pinggy has temporary URLs
         right_content.extend(
             [
-                Value("QR valid only"),  # type: ignore[list-item]
-                Label("55 minutes"),  # type: ignore[list-item]
+                Value("QR valid only"),
+                Label("55 minutes"),
                 Space(),  # Push to bottom
-                Value("or visit"),  # type: ignore[list-item]
-                Label(f"{ip_address}  :3000"),  # type: ignore[list-item]
+                Value("or visit"),
+                Label(f"{ip_address}  :3000"),
             ]
         )
 

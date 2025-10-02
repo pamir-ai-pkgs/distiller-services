@@ -33,6 +33,8 @@ dev = [
     "mypy>=1.0",
     "djlint>=1.34.0",
     "yamllint>=1.33.0",
+    "types-qrcode>=1.4.0",
+    "types-Pillow>=10.2.0",
 ]
 
 [build-system]

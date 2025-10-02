@@ -6,6 +6,7 @@ All spacing, sizing, and styling constants in one place.
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -205,18 +206,21 @@ class Theme:
         """Get content area dimensions (width, height)."""
         return (self.layout.content_width, self.layout.content_height)
 
-    def get_text_style(self, style_name: str) -> dict:
+    def get_text_style(self, style_name: str) -> dict[str, Any]:
         """Get text style configuration by name."""
-        return self.typography.styles.get(style_name, self.typography.styles["body"])  # type: ignore[no-any-return]
+        if self.typography.styles is None:
+            return {}
+        result = self.typography.styles.get(style_name, self.typography.styles.get("body", {}))
+        return result if result is not None else {}
 
     def get_qr_size(self, size: str = "medium") -> int:
         """Get QR code size by name."""
-        sizes = {
+        sizes: dict[str, int] = {
             "small": self.components.qr_small,
             "medium": self.components.qr_medium,
             "large": self.components.qr_large,
         }
-        return sizes.get(size, self.components.qr_medium)  # type: ignore[no-any-return]
+        return sizes.get(size, self.components.qr_medium)
 
 
 # Global theme instance
