@@ -78,22 +78,6 @@ uv sync
 sudo uv run python distiller_wifi.py --no-hardware --debug
 ```
 
-### Installation with pip (Fallback)
-
-If uv is not available:
-
-```bash
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run in development mode (requires root)
-sudo python distiller_wifi.py --no-hardware --debug
-```
-
 ### Debian Package Installation
 
 For production deployment:
@@ -218,7 +202,6 @@ distiller-cm5-services/
 │       └── app.js             # WebSocket client
 ├── debian/                     # Debian packaging
 ├── pyproject.toml             # uv project configuration
-├── requirements.txt           # pip requirements (fallback)
 └── README.md                  # This file
 ```
 

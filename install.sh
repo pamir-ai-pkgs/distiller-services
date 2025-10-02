@@ -239,12 +239,10 @@ copy_files() {
         cp -rf "$SCRIPT_DIR/fonts" "$INSTALL_DIR/"
     fi
     
-    # Copy Python package files
-    for file in pyproject.toml requirements.txt; do
-        if [[ -f "$SCRIPT_DIR/$file" ]]; then
-            cp -f "$SCRIPT_DIR/$file" "$INSTALL_DIR/"
-        fi
-    done
+    # Copy python requirements
+    if [[ -f "$SCRIPT_DIR/pyproject.toml" ]]; then
+        cp -f "$SCRIPT_DIR/pyproject.toml" "$INSTALL_DIR/"
+    fi
     
     print_success "Application files copied"
 }
@@ -264,11 +262,7 @@ setup_venv() {
     
     # Install dependencies
     print_info "Installing Python dependencies..."
-    if [[ -f "pyproject.toml" ]]; then
-        uv sync || uv pip install -r requirements.txt
-    else
-        uv pip install -r requirements.txt
-    fi
+    uv sync
     
     # Install SDK if available
     if [[ -d "/opt/distiller-cm5-sdk" ]]; then
