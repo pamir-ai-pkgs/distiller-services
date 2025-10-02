@@ -5,9 +5,7 @@ import argparse
 import asyncio
 import logging
 import os
-import secrets
 import socket
-import string
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -15,8 +13,7 @@ from pathlib import Path
 import uvicorn
 
 from core.avahi_service import AvahiService
-from core.config import Settings, get_settings
-from core.dns_config import DNSConfigurator
+from core.config import Settings, generate_secure_password, get_settings
 from core.network_manager import NetworkManager
 from core.state import ConnectionState, NetworkInfo, StateManager
 from services.display_service import DisplayService
@@ -67,7 +64,6 @@ class DistillerWiFiApp:
 
         self.state_manager = StateManager(self.settings.state_file)
         self.network_manager = NetworkManager()
-        self.dns_configurator = DNSConfigurator(ap_ip=self.settings.ap_ip)
         self.avahi_service = AvahiService(self.settings.web_port)
         self.web_server = WebServer(self.settings, self.network_manager, self.state_manager)
         self.display_service = DisplayService(self.settings, self.state_manager)
@@ -75,21 +71,12 @@ class DistillerWiFiApp:
         self.tasks: list[asyncio.Task] = []
         self.server: uvicorn.Server | None = None
 
-    def generate_ap_password(self) -> str:
-        """Generate secure random password for AP mode."""
-        chars = string.ascii_letters + string.digits
-        return "".join(secrets.choice(chars) for _ in range(12))
-
     async def initialize(self):
         logger.info("Initializing Distiller WiFi System...")
 
         logger.info(f"Device ID: {self.settings.device_id}")
         logger.info(f"mDNS hostname: {self.settings.mdns_fqdn}")
         logger.info(f"AP SSID: {self.settings.ap_ssid}")
-
-        # Setup DNS before starting AP mode
-        if not await self.dns_configurator.setup_connectivity_dns():
-            logger.warning("DNS configuration failed - devices may auto-disconnect")
 
         await self.network_manager.initialize()
 
@@ -156,7 +143,7 @@ class DistillerWiFiApp:
         # Only start AP mode if we're not connected to any network
         if not reconnected:
             # Generate dynamic password for AP mode
-            ap_password = self.generate_ap_password()
+            ap_password = generate_secure_password()
             logger.info("=" * 50)
             logger.info(f"NEW AP PASSWORD GENERATED: {ap_password}")
             logger.info("=" * 50)
@@ -173,7 +160,7 @@ class DistillerWiFiApp:
             )
 
             if success:
-                logger.debug("Waiting for DHCP/DNS services to be ready...")
+                logger.debug("Waiting for NetworkManager's dnsmasq to start...")
                 await asyncio.sleep(3)
 
                 await self.state_manager.update_state(connection_state=ConnectionState.AP_MODE)
@@ -211,8 +198,14 @@ class DistillerWiFiApp:
                 logger.info("Disabling captive portal as we're leaving AP mode")
                 await self.web_server.disable_captive_portal()
 
+        # Enable captive portal when entering AP mode (e.g., after disconnect)
+        elif new_state == ConnectionState.AP_MODE and old_state != ConnectionState.AP_MODE:
+            if self.settings.enable_captive_portal:
+                logger.info("Enabling captive portal")
+                await self.web_server.enable_captive_portal()
+
         # Avahi handles all network transitions automatically
-        # No need to manage mDNS state changes
+        # NetworkManager's dnsmasq handles DNS with wildcard configuration
 
     async def run_web_server(self):
         uvicorn_logger = logging.getLogger("uvicorn.error")
@@ -313,8 +306,6 @@ class DistillerWiFiApp:
             # Disable captive portal if it was enabled
             if self.settings.enable_captive_portal:
                 await self.web_server.disable_captive_portal()
-
-            await self.dns_configurator.cleanup_connectivity_dns()
 
             self.avahi_service.stop()
             await self.display_service.stop()

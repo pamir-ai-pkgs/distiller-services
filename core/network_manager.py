@@ -6,6 +6,7 @@ import os
 import re
 import stat
 import time
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,8 @@ class NetworkManager:
         self._is_ap_mode = False
         self._last_scan_results: list[WiFiNetwork] = []
         self.ap_connection_name = "Distiller-AP"
+        self._dnsmasq_config_dir = Path("/etc/NetworkManager/dnsmasq-shared.d")
+        self._dnsmasq_config_file = self._dnsmasq_config_dir / "80-distiller-captive.conf"
 
     async def initialize(self) -> None:
         await self._detect_wifi_device()
@@ -36,6 +39,53 @@ class NetworkManager:
             logger.info(f"WiFi device detected: {self.wifi_device}")
         else:
             logger.warning("No WiFi device detected")
+
+    async def _configure_captive_dns(self, gateway_ip: str) -> bool:
+        """Configure NetworkManager's dnsmasq for wildcard DNS (captive portal).
+
+        Creates a dnsmasq config file that makes all DNS queries return the gateway IP.
+        This triggers captive portal detection on Android, iOS, Windows, etc.
+        """
+        try:
+            # Ensure config directory exists
+            self._dnsmasq_config_dir.mkdir(parents=True, exist_ok=True)
+
+            # Create dnsmasq config for wildcard DNS
+            config_content = f"""# Distiller WiFi Captive Portal DNS Configuration
+# This file is automatically managed - do not edit manually
+
+# Return gateway IP for all DNS queries (wildcard DNS)
+address=/#/{gateway_ip}
+
+# Prevent DNS loops
+no-resolv
+no-poll
+
+# Listen only on AP interface
+listen-address={gateway_ip}
+"""
+
+            # Write config file
+            self._dnsmasq_config_file.write_text(config_content)
+            logger.info(f"Created dnsmasq captive portal config: {self._dnsmasq_config_file}")
+
+            # NetworkManager will reload dnsmasq when starting the AP connection
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to configure captive DNS: {e}")
+            return False
+
+    async def _remove_captive_dns(self) -> bool:
+        """Remove captive portal DNS configuration."""
+        try:
+            if self._dnsmasq_config_file.exists():
+                self._dnsmasq_config_file.unlink()
+                logger.info("Removed dnsmasq captive portal config")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to remove captive DNS config: {e}")
+            return False
 
     async def _run_command(self, cmd: list[str]) -> tuple[int | None, str, str]:
         try:
@@ -165,6 +215,12 @@ class NetworkManager:
                 logger.error("No WiFi device available for AP mode")
                 return False
 
+        # Configure dnsmasq for wildcard DNS (captive portal)
+        logger.info("Configuring wildcard DNS for captive portal...")
+        dns_configured = await self._configure_captive_dns(ip_address)
+        if not dns_configured:
+            logger.warning("Failed to configure captive DNS - portal may not work on all devices")
+
         await self._run_command(["nmcli", "connection", "delete", self.ap_connection_name])
         cmd = [
             "nmcli",
@@ -219,6 +275,10 @@ class NetworkManager:
     async def stop_ap_mode(self) -> None:
         await self._run_command(["nmcli", "connection", "down", self.ap_connection_name])
         await asyncio.sleep(1)
+
+        # Remove captive DNS configuration
+        await self._remove_captive_dns()
+
         self._is_ap_mode = False
 
     async def _validate_network_profile(self, profile_name: str) -> bool:
