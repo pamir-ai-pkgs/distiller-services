@@ -6,9 +6,9 @@ Build-Depends: debhelper-compat (= 13),
                dh-python,
                python3-dev
 Standards-Version: 4.6.2
-Homepage: https://github.com/Pamir-AI/distiller-services
-Vcs-Git: https://github.com/Pamir-AI/distiller-services.git
-Vcs-Browser: https://github.com/Pamir-AI/distiller-services
+Homepage: https://github.com/pamir-ai-pkgs/distiller-services
+Vcs-Git: https://github.com/pamir-ai-pkgs/distiller-services.git
+Vcs-Browser: https://github.com/pamir-ai-pkgs/distiller-services
 Rules-Requires-Root: no
 
 Package: distiller-services
