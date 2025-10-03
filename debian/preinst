@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Debian package preinst script for distiller-services
 # Modern Debian packaging practices
 

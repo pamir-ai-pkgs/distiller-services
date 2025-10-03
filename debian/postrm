@@ -9,30 +9,23 @@ purge | remove | upgrade | failed-upgrade | abort-install | abort-upgrade | disa
 	fi
 	systemctl disable distiller-wifi.service 2>/dev/null || true
 
-	# Remove new installation
-	if [ -d "/opt/distiller-services" ]; then
-		echo "INFO: Removing /opt/distiller-services..."
-		rm -rf /opt/distiller-services
-	fi
+	# Remove installation
+	[ -d "/opt/distiller-services" ] && rm -rf /opt/distiller-services
+	[ -d "/opt/distiller-cm5-services" ] && rm -rf /opt/distiller-cm5-services
 
-	# Remove old installation (cleanup for migration)
-	if [ -d "/opt/distiller-cm5-services" ]; then
-		echo "INFO: Removing old /opt/distiller-cm5-services..."
-		rm -rf /opt/distiller-cm5-services
-	fi
-
-	# Only purge user data on explicit purge command
 	if [ "$1" = "purge" ]; then
 		echo "INFO: Purging user data..."
-		rm -rf /etc/distiller /var/lib/distiller /var/log/distiller
-
-		# Remove Avahi service file
-		rm -f /etc/avahi/services/distiller-wifi.service
+		# Clean up user data directories
+		[ -d /etc/distiller ] && rm -rf /etc/distiller
+		[ -d /var/lib/distiller ] && rm -rf /var/lib/distiller
+		[ -d /var/log/distiller ] && rm -rf /var/log/distiller
+		[ -f /etc/avahi/services/distiller-wifi.service ] &&
+			rm -f /etc/avahi/services/distiller-wifi.service
 
 		# Remove configuration files
-		rm -f /etc/sudoers.d/distiller-system \
-			/etc/polkit-1/rules.d/50-distiller-networkmanager.rules \
-			/etc/udev/rules.d/99-distiller-hardware.rules
+		[ -f /etc/sudoers.d/distiller-system ] && rm -f /etc/sudoers.d/distiller-system
+		[ -f /etc/polkit-1/rules.d/50-distiller-networkmanager.rules ] && rm -f /etc/polkit-1/rules.d/50-distiller-networkmanager.rules
+		[ -f /etc/udev/rules.d/99-distiller-hardware.rules ] && rm -f /etc/udev/rules.d/99-distiller-hardware.rules
 
 		# Clean up temporary files
 		rm -f /tmp/distiller-* /var/run/distiller-* /var/lock/distiller-*
