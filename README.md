@@ -121,7 +121,7 @@ Using [uv](https://github.com/astral-sh/uv) for fast, reliable Python package ma
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone repository
-git clone https://github.com/Pamir-AI/distiller-services
+git clone https://github.com/pamir-ai-pkgs/distiller-services
 cd distiller-services
 
 # Install dependencies with uv
@@ -427,7 +427,7 @@ Generates preview images of all E-ink display states:
 
 ```bash
 # Clone repository
-git clone https://github.com/Pamir-AI/distiller-services
+git clone https://github.com/pamir-ai-pkgs/distiller-services
 cd distiller-services
 
 # Install uv (if not installed)
