@@ -1,8 +1,61 @@
-# Distiller CM5 WiFi Service
+# Distiller WiFi Service
 
 Modern, unified WiFi provisioning service for Raspberry Pi CM5 devices with E-ink display support.
 Features a single-service architecture with async Python, real-time WebSocket updates, and
 persistent mDNS discovery.
+
+## 🔄 Migration from v1.x/v2.x to v3.0.0
+
+**Version 3.0.0 includes a complete project rename and clean migration.**
+
+### What Changed
+
+- **Package renamed**: `distiller-cm5-services` → `distiller-services`
+- **Installation path**: `/opt/distiller-cm5-services` → `/opt/distiller-services`
+- **SDK dependency**: `distiller-cm5-sdk` → `distiller-sdk (>= 3.0.0)`
+- **SDK path**: `/opt/distiller-cm5-sdk` → `/opt/distiller-sdk`
+
+### Migration Process (Automatic)
+
+When you upgrade to v3.0.0, the package automatically:
+
+1. Stops the old `distiller-wifi` service
+2. Removes `/opt/distiller-cm5-services` completely
+3. Removes `/opt/distiller-cm5-sdk` completely (if present)
+4. Installs fresh at `/opt/distiller-services`
+5. **Preserves your data** in `/etc/distiller/` and `/var/lib/distiller/`
+
+### Upgrade Steps
+
+```bash
+# 1. Ensure distiller-sdk v3.0.0+ is installed first
+sudo dpkg -i distiller-sdk_3.0.0_all.deb
+
+# 2. Install distiller-services v3.0.0
+sudo dpkg -i distiller-services_3.0.0_all.deb
+
+# 3. Start the service
+sudo systemctl start distiller-wifi
+
+# 4. Verify
+sudo systemctl status distiller-wifi
+```
+
+### User Data Preservation
+
+The following directories are **preserved** during migration:
+
+- `/etc/distiller/` - Configuration files
+- `/var/lib/distiller/` - State files, device config, sessions
+- `/var/log/distiller/` - Log files
+
+### No Backward Compatibility
+
+- No symlinks created from old paths
+- Old installations completely removed
+- Clean break from v2.x
+
+---
 
 ## Architecture Overview
 
@@ -68,8 +121,8 @@ Using [uv](https://github.com/astral-sh/uv) for fast, reliable Python package ma
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone repository
-git clone https://github.com/Pamir-AI/distiller-cm5-services
-cd distiller-cm5-services
+git clone https://github.com/Pamir-AI/distiller-services
+cd distiller-services
 
 # Install dependencies with uv
 uv sync
@@ -87,7 +140,7 @@ For production deployment:
 ./build-deb.sh
 
 # Install
-sudo dpkg -i dist/distiller-cm5-services_*.deb
+sudo dpkg -i dist/distiller-services_*.deb
 sudo apt-get install -f  # Fix any dependencies
 
 # Start service
@@ -179,7 +232,7 @@ open http://localhost:8080
 ## Project Structure
 
 ```text
-distiller-cm5-services/
+distiller-services/
 ├── distiller_wifi.py           # Main application entry point
 ├── core/                       # Core modules
 │   ├── config.py              # Pydantic configuration
@@ -374,8 +427,8 @@ Generates preview images of all E-ink display states:
 
 ```bash
 # Clone repository
-git clone https://github.com/Pamir-AI/distiller-cm5-services
-cd distiller-cm5-services
+git clone https://github.com/Pamir-AI/distiller-services
+cd distiller-services
 
 # Install uv (if not installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh

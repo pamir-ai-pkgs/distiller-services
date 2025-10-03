@@ -12,6 +12,6 @@ override_dh_installsystemd:
 override_dh_fixperms:
 	dh_fixperms
 	# Make main script executable
-	chmod +x debian/distiller-cm5-services/opt/distiller-cm5-services/distiller_wifi.py
+	chmod +x debian/distiller-services/opt/distiller-services/distiller_wifi.py
 	# Make all shell scripts executable
-	-find debian/distiller-cm5-services/opt/distiller-cm5-services/scripts -name "*.sh" -exec chmod +x {} \;
+	-find debian/distiller-services/opt/distiller-services/scripts -name "*.sh" -exec chmod +x {} \;

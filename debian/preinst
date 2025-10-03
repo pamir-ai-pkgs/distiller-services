@@ -1,5 +1,5 @@
-#!/bin/bash
-# Debian package preinst script for distiller-cm5-services
+#!/bin/sh
+# Debian package preinst script for distiller-services
 # Modern Debian packaging practices
 
 set -e
@@ -20,7 +20,7 @@ EOF
 # Check for uv package manager
 check_uv() {
 	# Check common installation paths
-	local uv_found=false
+	uv_found=false
 
 	if command -v uv >/dev/null 2>&1; then
 		uv_found=true
@@ -57,7 +57,7 @@ ERROR: The 'distiller' user does not exist.
 Please create the distiller user and group first:
   sudo groupadd --system distiller
   sudo useradd --system --gid distiller --home /home/distiller --shell /bin/bash distiller
-  
+
 For hardware access, you may also want to add the user to these groups:
   sudo usermod -a -G audio,video,spi,dialout,gpio,i2c distiller
 

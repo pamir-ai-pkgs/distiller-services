@@ -5,51 +5,79 @@ export PATH="/root/.local/bin:/root/.cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin
 
 case "$1" in
 configure)
+	echo "INFO: distiller-services v3.0.0 - Clean migration starting..."
+
+	# Stop old service if running
+	if systemctl is-active --quiet distiller-wifi.service 2>/dev/null; then
+		echo "INFO: Stopping distiller-wifi service for migration..."
+		systemctl stop distiller-wifi.service 2>/dev/null || true
+		systemctl disable distiller-wifi.service 2>/dev/null || true
+	fi
+
+	# Remove old distiller-cm5-services installation completely
+	if [ -d "/opt/distiller-cm5-services" ]; then
+		echo "INFO: Removing old installation at /opt/distiller-cm5-services..."
+		rm -rf /opt/distiller-cm5-services
+		echo "INFO: Old service installation removed."
+	fi
+
+	# Remove old distiller-cm5-sdk installation completely
+	if [ -d "/opt/distiller-cm5-sdk" ]; then
+		echo "INFO: Removing old SDK at /opt/distiller-cm5-sdk..."
+		rm -rf /opt/distiller-cm5-sdk
+		echo "INFO: Old SDK installation removed."
+	fi
+
 	# Set MAC-based hostname only on target device
 	if [ -f /boot/armbianEnv.txt ] || [ -f /boot/firmware/config.txt ]; then
 		echo "INFO: Setting MAC-based hostname..."
-		if [ -x /opt/distiller-cm5-services/scripts/update-hostname.sh ]; then
+		if [ -x /opt/distiller-services/scripts/update-hostname.sh ]; then
 			systemctl is-system-running >/dev/null 2>&1 &&
-				/opt/distiller-cm5-services/scripts/update-hostname.sh -v
+				/opt/distiller-services/scripts/update-hostname.sh -v
 		fi
 	fi
 
-	cd /opt/distiller-cm5-services
+	cd /opt/distiller-services
 
 	# Setup virtual environment
 	[ -d ".venv" ] && rm -rf ".venv"
 	if ! uv venv --system-site-packages 2>/dev/null; then
 		echo "INFO: Creating venv without system-site-packages..."
 		uv venv || {
-			echo "WARNING: Failed to create virtual environment with uv"
+			echo "ERROR: Failed to create virtual environment with uv"
 			exit 1
 		}
 	fi
 
 	# Install dependencies
+	echo "INFO: Installing dependencies with uv sync..."
 	uv sync
 
-	VENV_PATH="/opt/distiller-cm5-services/.venv"
+	VENV_PATH="/opt/distiller-services/.venv"
 
-	# Install SDK if available
-	[ -d "/opt/distiller-cm5-sdk" ] &&
-		uv pip install -e /opt/distiller-cm5-sdk
+	# Install SDK
+	uv pip install -e /opt/distiller-sdk
 
 	# Set permissions
-	find /opt/distiller-cm5-services -type d -exec chmod 755 {} \; \
+	find /opt/distiller-services -type d -exec chmod 755 {} \; \
 		-o -type f -name "*.py" -exec chmod 755 {} \;
-	chmod +x /opt/distiller-cm5-services/distiller_wifi.py
+	chmod +x /opt/distiller-services/distiller_wifi.py
 
-	# Update systemd service
-	if [ -f /lib/systemd/system/distiller-wifi.service ]; then
+	# Update systemd service with new paths
+	[ -f /lib/systemd/system/distiller-wifi.service ] &&
 		sed -i "s|/usr/bin/python3|$VENV_PATH/bin/python|g" /lib/systemd/system/distiller-wifi.service
-	fi
 
 	# Reload systemd and enable service
 	systemctl daemon-reload 2>/dev/null || true
 	systemctl enable distiller-wifi.service 2>/dev/null || true
 
-	echo "INFO: Distiller WiFi service installed."
+	echo "INFO: ================================================================"
+	echo "INFO: distiller-services v3.0.0 installed successfully."
+	echo "INFO: Service location: /opt/distiller-services"
+	echo "INFO: SDK location: /opt/distiller-sdk"
+	echo "INFO: User data preserved: /etc/distiller/ and /var/lib/distiller/"
+	echo "INFO: Start service: sudo systemctl start distiller-wifi"
+	echo "INFO: ================================================================"
 	;;
 
 abort-upgrade | abort-remove | abort-deconfigure) ;;

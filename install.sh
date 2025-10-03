@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Distiller CM5 Services Installation Script
+# Distiller Services Installation Script
 # Based on Debian packaging for manual installation
 
 set -e
@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-INSTALL_DIR="/opt/distiller-cm5-services"
+INSTALL_DIR="/opt/distiller-services"
 SERVICE_NAME="distiller-wifi"
 SYSTEMD_PATH="/lib/systemd/system"
 VAR_DIR="/var/lib/distiller"
@@ -265,9 +265,9 @@ setup_venv() {
     uv sync
     
     # Install SDK if available
-    if [[ -d "/opt/distiller-cm5-sdk" ]]; then
+    if [[ -d "/opt/distiller-sdk" ]]; then
         print_info "Installing Distiller SDK..."
-        uv pip install -e /opt/distiller-cm5-sdk 2>/dev/null || true
+        uv pip install -e /opt/distiller-sdk 2>/dev/null || true
     fi
     
     print_success "Virtual environment setup complete"
@@ -299,7 +299,7 @@ install_service() {
     cat > "$SYSTEMD_PATH/$SERVICE_NAME.service" << EOF
 [Unit]
 Description=Distiller WiFi Provisioning System
-Documentation=https://github.com/pamir-ai/distiller-cm5-services
+Documentation=https://github.com/pamir-ai/distiller-services
 After=network-pre.target NetworkManager.service
 Wants=NetworkManager.service
 
@@ -317,8 +317,8 @@ TimeoutStopSec=15
 # Environment
 Environment=PYTHONUNBUFFERED=1
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-Environment=PYTHONPATH=$INSTALL_DIR:/opt/distiller-cm5-sdk:/opt/distiller-cm5-sdk/src
-Environment=LD_LIBRARY_PATH=/opt/distiller-cm5-sdk/lib
+Environment=PYTHONPATH=$INSTALL_DIR:/opt/distiller-sdk:/opt/distiller-sdk/src
+Environment=LD_LIBRARY_PATH=/opt/distiller-sdk/lib
 
 # Security settings - relaxed for network operations
 NoNewPrivileges=false

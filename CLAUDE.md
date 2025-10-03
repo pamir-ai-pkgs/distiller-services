@@ -8,6 +8,17 @@ repository.
 Unified WiFi provisioning service for Raspberry Pi CM5 devices with E-ink display support. Single
 async Python service using FastAPI, WebSocket, and persistent mDNS with captive portal support.
 
+**Package**: `distiller-services` (v3.0.0+)
+**Installation**: `/opt/distiller-services`
+**SDK Location**: `/opt/distiller-sdk`
+
+### Migration Notes (v3.0.0)
+
+- Project renamed from `distiller-cm5-services` to `distiller-services`
+- Clean migration removes all old installations automatically
+- User data preserved in `/etc/distiller/` and `/var/lib/distiller/`
+- SDK dependency updated to `distiller-sdk (>= 3.0.0)`
+
 ## Essential Commands
 
 ```bash

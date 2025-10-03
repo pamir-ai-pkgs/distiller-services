@@ -1,3 +1,18 @@
+distiller-services (3.0.0) unstable; urgency=medium
+
+  [ utsavbalar1231 ]
+  * BREAKING: Rename project from distiller-cm5-services to distiller-services
+  * BREAKING: Installation path changed to /opt/distiller-services
+  * BREAKING: Update SDK dependency to distiller-sdk (>= 3.0.0)
+  * BREAKING: SDK path changed to /opt/distiller-sdk
+  * feat: Clean migration removes all previous installations automatically
+  * feat: Add Replaces/Breaks/Provides for smooth package transition
+  * feat: Preserve user data in /etc/distiller/ and /var/lib/distiller/
+  * chore: Update all documentation for new naming convention
+  * chore: Update PYTHONPATH for new SDK location
+
+ -- PamirAI Incorporated <founders@pamir.ai>  Fri, 03 Oct 2025 12:00:00 +0000
+
 distiller-cm5-services (2.2.0) unstable; urgency=medium
 
   [ utsavbalar1231 ]

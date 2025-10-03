@@ -26,13 +26,13 @@ from .display_screens import (
 logger = logging.getLogger(__name__)
 
 # Add the SDK path to system path
-SDK_PATH = Path("/opt/distiller-cm5-sdk/src")
+SDK_PATH = Path("/opt/distiller-sdk/src")
 if SDK_PATH.exists():
     sys.path.insert(0, str(SDK_PATH))
 
 # Try to import TemplateRenderer for custom UI templates
 try:
-    from distiller_cm5_sdk.hardware.eink.composer import TemplateRenderer
+    from distiller_sdk.hardware.eink.composer import TemplateRenderer
 
     TEMPLATE_RENDERER_AVAILABLE = True
 except ImportError:
@@ -76,7 +76,7 @@ class DisplayService:
         """Initialize e-ink display but don't hold it."""
         try:
             # Import the actual SDK
-            from distiller_cm5_sdk.hardware.eink.display import (
+            from distiller_sdk.hardware.eink.display import (
                 Display,
                 DisplayMode,
                 DitheringMethod,
