@@ -1,7 +1,7 @@
 [project]
-name = "distiller-cm5-services"
-version = "2.2.1"
-description = "Modern async WiFi provisioning system for Raspberry Pi CM5 Distiller devices"
+name = "distiller-services"
+version = "3.0.0"
+description = "Modern async WiFi provisioning system for Distiller devices"
 authors = [{name = "PamirAI Incorporated", email = "support@pamir.ai"}]
 readme = "README.md"
 requires-python = ">=3.11"
@@ -43,7 +43,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["distiller_cm5_services*", "network*"]
+include = ["core*", "services*", "network*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.toml", "*.txt", "*.md", "*.py", "*.sh", "*.html", "*.css", "*.js", "*.svg", "*.ttf"]

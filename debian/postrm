@@ -2,33 +2,58 @@
 set -e
 
 case "$1" in
-purge)
-	# Remove system files and directories
-	rm -rf /var/log/distiller /var/lib/distiller /opt/distiller-cm5-services
-	rm -f /usr/local/bin/distiller-wifi
+purge | remove)
+	# Stop and disable service
+	if systemctl is-active --quiet distiller-wifi.service 2>/dev/null; then
+		systemctl stop distiller-wifi.service 2>/dev/null || true
+	fi
+	systemctl disable distiller-wifi.service 2>/dev/null || true
 
-	# Remove Avahi service file
-	rm -f /etc/avahi/services/distiller-wifi.service
-
-	# Remove configuration files
-	rm -f /etc/sudoers.d/distiller-system \
-		/etc/polkit-1/rules.d/50-distiller-networkmanager.rules \
-		/etc/udev/rules.d/99-distiller-hardware.rules
-
-	# Clean up temporary files
-	rm -f /tmp/distiller-* /var/run/distiller-* /var/lock/distiller-*
-
-	# Remove NetworkManager connections
-	if command -v nmcli >/dev/null 2>&1; then
-		nmcli connection show 2>/dev/null | grep -E "^Distiller-" | awk '{print $1}' |
-			xargs -r nmcli connection delete 2>/dev/null || true
+	# Remove new installation
+	if [ -d "/opt/distiller-services" ]; then
+		echo "INFO: Removing /opt/distiller-services..."
+		rm -rf /opt/distiller-services
 	fi
 
-	# Reload systemd if running
+	# Remove old installation (cleanup for migration)
+	if [ -d "/opt/distiller-cm5-services" ]; then
+		echo "INFO: Removing old /opt/distiller-cm5-services..."
+		rm -rf /opt/distiller-cm5-services
+	fi
+
+	# Only purge user data on explicit purge command
+	if [ "$1" = "purge" ]; then
+		echo "INFO: Purging user data..."
+		rm -rf /etc/distiller /var/lib/distiller /var/log/distiller
+
+		# Remove Avahi service file
+		rm -f /etc/avahi/services/distiller-wifi.service
+
+		# Remove configuration files
+		rm -f /etc/sudoers.d/distiller-system \
+			/etc/polkit-1/rules.d/50-distiller-networkmanager.rules \
+			/etc/udev/rules.d/99-distiller-hardware.rules
+
+		# Clean up temporary files
+		rm -f /tmp/distiller-* /var/run/distiller-* /var/lock/distiller-*
+
+		# Remove NetworkManager connections
+		if command -v nmcli >/dev/null 2>&1; then
+			nmcli connection show 2>/dev/null | grep -E "^Distiller-" | awk '{print $1}' |
+				xargs -r nmcli connection delete 2>/dev/null || true
+		fi
+	fi
+
 	systemctl daemon-reload 2>/dev/null || true
 	;;
 
-remove | upgrade | failed-upgrade | abort-install | abort-upgrade | disappear) ;;
+upgrade | failed-upgrade | abort-install | abort-upgrade | disappear)
+	# Stop service during upgrade but don't delete files
+	if systemctl is-active --quiet distiller-wifi.service 2>/dev/null; then
+		systemctl stop distiller-wifi.service 2>/dev/null || true
+	fi
+	systemctl daemon-reload 2>/dev/null || true
+	;;
 
 *)
 	echo "ERROR: postrm called with unknown argument \`$1'" >&2

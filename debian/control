@@ -1,4 +1,4 @@
-Source: distiller-cm5-services
+Source: distiller-services
 Section: net
 Priority: optional
 Maintainer: PamirAI Incorporated <support@pamir.ai>
@@ -6,12 +6,12 @@ Build-Depends: debhelper-compat (= 13),
                dh-python,
                python3-dev
 Standards-Version: 4.6.2
-Homepage: https://github.com/Pamir-AI/distiller-cm5-services
-Vcs-Git: https://github.com/Pamir-AI/distiller-cm5-services.git
-Vcs-Browser: https://github.com/Pamir-AI/distiller-cm5-services
+Homepage: https://github.com/Pamir-AI/distiller-services
+Vcs-Git: https://github.com/Pamir-AI/distiller-services.git
+Vcs-Browser: https://github.com/Pamir-AI/distiller-services
 Rules-Requires-Root: no
 
-Package: distiller-cm5-services
+Package: distiller-services
 Architecture: arm64
 Depends: ${misc:Depends},
          python3 (>= 3.11),
@@ -24,9 +24,12 @@ Depends: ${misc:Depends},
          avahi-utils,
          iptables,
          openssh-client,
-         distiller-cm5-sdk (>= 0.1.0) | distiller-sdk (>= 2.0.0),
+         distiller-sdk (>= 3.0.0),
+Replaces: distiller-cm5-services (<< 3.0.0)
+Breaks: distiller-cm5-services (<< 3.0.0)
+Provides: distiller-cm5-services
 Recommends:
 Description: WiFi provisioning service for Distiller by Pamir-AI
- Provides network configuration and management with support for 
- access point mode, client mode, and remote access via secure tunnels. 
+ Provides network configuration and management with support for
+ access point mode, client mode, and remote access via secure tunnels.
  Features e-ink display integration and web-based configuration interface.

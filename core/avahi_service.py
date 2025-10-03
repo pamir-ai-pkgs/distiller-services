@@ -95,7 +95,7 @@ class AvahiService:
     <port>{self.port}</port>
     <txt-record>path=/</txt-record>
     <txt-record>version=2.0</txt-record>
-    <txt-record>device=distiller-cm5</txt-record>
+    <txt-record>device=distiller</txt-record>
   </service>
 </service-group>
 """

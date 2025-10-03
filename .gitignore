@@ -275,8 +275,8 @@ debian/tmp/
 debian/.debhelper/
 debian/files
 debian/debhelper-build-stamp
-debian/distiller-cm5-services/
-debian/distiller-cm5-services.*
+debian/distiller-services/
+debian/distiller-services.*
 
 # Python artifacts
 __pycache__/

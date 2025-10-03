@@ -1,7 +1,7 @@
 {
-  "name": "distiller-cm5-services-frontend",
-  "version": "2.2.1",
-  "description": "Frontend tooling for Distiller CM5 Services",
+  "name": "distiller-services-frontend",
+  "version": "3.0.0",
+  "description": "Frontend tooling for Distiller Services",
   "private": true,
   "scripts": {
     "lint": "npm run lint:js && npm run lint:css && npm run lint:html && npm run lint:md",
@@ -35,7 +35,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/pamir-ai/distiller-cm5-services.git"
+    "url": "https://github.com/pamir-ai/distiller-services.git"
   },
   "author": "PamirAI Incorporated",
   "license": "UNLICENSED"
