@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import re
+import shutil
 import stat
 import time
 from pathlib import Path
@@ -40,6 +41,31 @@ class NetworkManager:
         else:
             logger.warning("No WiFi device detected")
 
+    async def _ensure_dns_port_available(self) -> None:
+        """Stop conflicting DNS services so NetworkManager's dnsmasq can start."""
+
+        if shutil.which("systemctl") is None:
+            return
+
+        for service in ("dnsmasq",):
+            returncode, _, _ = await self._run_command(
+                ["systemctl", "is-active", "--quiet", service]
+            )
+
+            if returncode == 0:
+                logger.warning(
+                    f"Stopping conflicting DNS service '{service}' to free port 53"
+                )
+                await self._run_command(["systemctl", "stop", service])
+
+            returncode, _, _ = await self._run_command(
+                ["systemctl", "is-enabled", "--quiet", service]
+            )
+
+            if returncode == 0:
+                logger.info(f"Disabling conflicting DNS service '{service}'")
+                await self._run_command(["systemctl", "disable", service])
+
     async def _configure_captive_dns(self, gateway_ip: str) -> bool:
         """Configure NetworkManager's dnsmasq for wildcard DNS (captive portal).
 
@@ -60,10 +86,11 @@ address=/#/{gateway_ip}
 # Prevent DNS loops
 no-resolv
 no-poll
-
-# Listen only on AP interface
-listen-address={gateway_ip}
 """
+
+            # NetworkManager already binds dnsmasq to the shared interface, so we
+            # rely on its defaults. Explicit bind directives here can conflict
+            # with NM-managed parameters and break AP activation.
 
             # Write config file
             self._dnsmasq_config_file.write_text(config_content)
@@ -214,6 +241,8 @@ listen-address={gateway_ip}
             if not self.wifi_device:
                 logger.error("No WiFi device available for AP mode")
                 return False
+
+        await self._ensure_dns_port_available()
 
         # Configure dnsmasq for wildcard DNS (captive portal)
         logger.info("Configuring wildcard DNS for captive portal...")
