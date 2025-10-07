@@ -72,6 +72,7 @@ class WebServer:
             gateway_ip=self.settings.ap_ip,
             web_port=self.settings.web_port,
         )
+        self._connection_lock = asyncio.Lock()
 
         self.app = FastAPI(
             title="Distiller WiFi Setup",
@@ -236,20 +237,21 @@ class WebServer:
 
         @self.app.post("/api/connect")
         async def connect_to_network(request: Request, conn_req: ConnectionRequest) -> JSONResponse:
-            session_id = request.cookies.get("session_id", str(uuid.uuid4()))
+            async with self._connection_lock:
+                session_id = request.cookies.get("session_id", str(uuid.uuid4()))
 
-            await self.state_manager.update_state(
-                connection_state=ConnectionState.CONNECTING,
-                network_info=NetworkInfo(ssid=conn_req.ssid),
-            )
+                await self.state_manager.update_state(
+                    connection_state=ConnectionState.CONNECTING,
+                    network_info=NetworkInfo(ssid=conn_req.ssid),
+                )
 
-            await self._broadcast_status()
-            asyncio.create_task(self._connect_to_network(conn_req.ssid, conn_req.password))
+                await self._broadcast_status()
+                asyncio.create_task(self._connect_to_network(conn_req.ssid, conn_req.password))
 
-            return JSONResponse(
-                content={"status": "connecting", "session_id": session_id},
-                status_code=status.HTTP_202_ACCEPTED,
-            )
+                return JSONResponse(
+                    content={"status": "connecting", "session_id": session_id},
+                    status_code=status.HTTP_202_ACCEPTED,
+                )
 
         @self.app.post("/api/disconnect")
         async def disconnect_network(request: Request) -> JSONResponse:
