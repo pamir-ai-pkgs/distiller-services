@@ -52,6 +52,7 @@ class SystemState(BaseModel):
     tunnel_url: str | None = None
     tunnel_provider: str | None = None  # "frp" or "pinggy"
     ap_password: str | None = None  # Dynamic AP password for current session
+    ap_password_generated_at: datetime | None = None  # When AP password was generated
     error_message: str | None = None
     retry_count: int = 0
     sessions: dict[str, SessionInfo] = Field(default_factory=dict)
@@ -95,6 +96,10 @@ class StateManager:
                         data["network_info"]["connected_at"] = datetime.fromisoformat(
                             data["network_info"]["connected_at"]
                         )
+                if "ap_password_generated_at" in data and data["ap_password_generated_at"]:
+                    data["ap_password_generated_at"] = datetime.fromisoformat(
+                        data["ap_password_generated_at"]
+                    )
                 # Recreate sessions
                 if "sessions" in data:
                     for _session_id, session_data in data["sessions"].items():
@@ -148,6 +153,7 @@ class StateManager:
         tunnel_url: str | None = None,
         tunnel_provider: str | None = None,
         ap_password: str | None = None,
+        ap_password_generated_at: datetime | None = None,
         error_message: str | None = None,
         increment_retry: bool = False,
         reset_retry: bool = False,
@@ -172,6 +178,9 @@ class StateManager:
 
             if ap_password is not None:
                 self.state.ap_password = ap_password
+
+            if ap_password_generated_at is not None:
+                self.state.ap_password_generated_at = ap_password_generated_at
 
             if error_message is not None:
                 self.state.error_message = error_message

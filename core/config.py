@@ -44,6 +44,9 @@ class Settings(BaseSettings):
 
     ap_ip: str = Field(default="192.168.4.1", description="Access Point IP address")
     ap_channel: int = Field(default=6, description="Access Point WiFi channel (1-11 for 2.4GHz)")
+    ap_password_ttl: int = Field(
+        default=1800, description="AP password time-to-live in seconds (default: 30 minutes)"
+    )
 
     # mDNS configuration
     mdns_hostname_prefix: str = Field(default="distiller", description="mDNS hostname prefix")

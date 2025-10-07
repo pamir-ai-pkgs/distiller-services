@@ -517,14 +517,35 @@ class WebServer:
     async def _restart_ap_mode(self) -> None:
         """Restart Access Point mode."""
         try:
-            # Generate new password for AP mode
-            ap_password = generate_secure_password()
-            logger.info("=" * 50)
-            logger.info(f"NEW AP PASSWORD GENERATED: {ap_password}")
-            logger.info("=" * 50)
+            # Check if existing password is still valid
+            current_state = self.state_manager.get_state()
+            ap_password = current_state.ap_password
+            password_is_valid = False
 
-            # Update state with new password
-            await self.state_manager.update_state(ap_password=ap_password)
+            if ap_password and current_state.ap_password_generated_at:
+                time_since_generation = (
+                    datetime.now() - current_state.ap_password_generated_at
+                ).total_seconds()
+                password_is_valid = time_since_generation < self.settings.ap_password_ttl
+
+            if password_is_valid:
+                logger.info("=" * 50)
+                logger.info(f"REUSING AP PASSWORD: {ap_password}")
+                logger.info(
+                    f"Password age: {int(time_since_generation)}s / TTL: {self.settings.ap_password_ttl}s"
+                )
+                logger.info("=" * 50)
+            else:
+                # Generate new password if none exists or TTL expired
+                ap_password = generate_secure_password()
+                logger.info("=" * 50)
+                logger.info(f"NEW AP PASSWORD GENERATED: {ap_password}")
+                logger.info("=" * 50)
+
+                # Update state with new password and timestamp
+                await self.state_manager.update_state(
+                    ap_password=ap_password, ap_password_generated_at=datetime.now()
+                )
 
             # Start AP mode with new password
             success = await self.network_manager.start_ap_mode(

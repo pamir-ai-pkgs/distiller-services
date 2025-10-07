@@ -7,6 +7,7 @@ import logging
 import os
 import socket
 import sys
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -149,7 +150,9 @@ class DistillerWiFiApp:
             logger.info("=" * 50)
 
             # Update state with the new password
-            await self.state_manager.update_state(ap_password=ap_password)
+            await self.state_manager.update_state(
+                ap_password=ap_password, ap_password_generated_at=datetime.now()
+            )
 
             logger.info("Starting Access Point mode...")
             success = await self.network_manager.start_ap_mode(
