@@ -22,9 +22,10 @@ class TunnelProvider(Enum):
 
 
 class TunnelService:
-    def __init__(self, settings: Settings, state_manager: StateManager):
+    def __init__(self, settings: Settings, state_manager: StateManager, network_manager=None):
         self.settings = settings
         self.state_manager = state_manager
+        self.network_manager = network_manager
         self.process: asyncio.subprocess.Process | None = None
         self.current_url: str | None = None
         self.current_provider: TunnelProvider | None = None
@@ -417,6 +418,9 @@ class TunnelService:
         self._running = True
         logger.info("Tunnel service started")
 
+        consecutive_failures = 0
+        backoff_delay = 5
+
         while self._running:
             try:
                 # Check network connectivity
@@ -432,17 +436,54 @@ class TunnelService:
                         await self.stop_pinggy_tunnel()
                         self.current_provider = None
 
+                    # Reset failure counter when network is down
+                    consecutive_failures = 0
+                    backoff_delay = 5
+
                     await asyncio.sleep(5)
                     continue
 
                 # Start tunnel if not running
                 if not self.current_url:
-                    await self.start_tunnel()
+                    # Verify actual network before attempting
+                    if self.network_manager and await self.network_manager.verify_connectivity():
+                        logger.info(f"Starting tunnel (previous failures: {consecutive_failures})")
+                        await self.start_tunnel()
+
+                        # Check if start succeeded
+                        if self.current_url:
+                            # Success - reset counters
+                            consecutive_failures = 0
+                            backoff_delay = 5
+                            logger.info("Tunnel started successfully")
+                        else:
+                            # Failed - increment and backoff
+                            consecutive_failures += 1
+                            backoff_delay = min(5 * (2**consecutive_failures), 300)
+                            logger.warning(
+                                f"Tunnel start failed (attempt {consecutive_failures}), "
+                                f"backing off for {backoff_delay}s"
+                            )
+                            await asyncio.sleep(backoff_delay - 5)
+                    else:
+                        logger.debug("Network validation failed, skipping tunnel start")
+                        consecutive_failures = 0
+
                 elif self.current_provider == TunnelProvider.PINGGY:
                     # Check if Pinggy process is still alive
                     if self.process and self.process.returncode is not None:
-                        logger.warning("Pinggy process died, restarting...")
-                        await self.start_tunnel()
+                        logger.warning("Pinggy process died")
+                        # Verify network before restart
+                        if (
+                            self.network_manager
+                            and await self.network_manager.verify_connectivity()
+                        ):
+                            logger.info("Network available, restarting tunnel...")
+                            self.current_url = None
+                        else:
+                            logger.debug("Network unavailable, not restarting tunnel")
+                            self.current_url = None
+                            self.current_provider = None
 
                 await asyncio.sleep(5)
 

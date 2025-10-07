@@ -68,7 +68,7 @@ class DistillerWiFiApp:
         self.avahi_service = AvahiService(self.settings.web_port)
         self.web_server = WebServer(self.settings, self.network_manager, self.state_manager)
         self.display_service = DisplayService(self.settings, self.state_manager)
-        self.tunnel_service = TunnelService(self.settings, self.state_manager)
+        self.tunnel_service = TunnelService(self.settings, self.state_manager, self.network_manager)
         self.tasks: list[asyncio.Task] = []
         self.server: uvicorn.Server | None = None
 
