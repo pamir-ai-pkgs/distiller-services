@@ -1,3 +1,42 @@
+distiller-services (3.0.0) unstable; urgency=medium
+
+  [ utsavbalar1231 ]
+  * feat!: rename project from distiller-cm5-services to distiller-services
+  * fix(debian): update repository URLs to pamir-ai-pkgs org
+  * refactor(debian): streamline maintenance scripts
+  * refactor(build): improve dependency checks and cross-compilation
+  * refactor(debian): update package metadata and architecture
+  * feat(api): add connection request serialization
+  * perf(display): remove redundant polling logic from display service
+  * fix(ap): implement TTL-based password stability during retries
+  * feat(network): implement event monitoring with callback system
+  * chore(Makfile): consolidate install.sh inside Makefile
+  * perf(tunnel): reduce logging noise in network connectivity checks
+  * feat(network): add automatic recovery from connection loss
+  * fix(tunnel): prevent retry storm with exponential backoff and validation
+  * chore(display_screens): clarify text for failed setup recovery
+  * fix(display): prevent race conditions with async lock
+  * fix(network): verify internet connectivity after WiFi connection
+  * feat(display): add real-time connection progress updates
+  * feat(network): add captive portal detection and proxy authentication
+  * chore: add ruff cache to gitignore
+  * refactor(device_config): remove unused hostname extraction method
+  * chore: remove deprecated linter configs
+  * refactor(build): replace build-deb.sh with Justfile
+  * fix(debian): remove dependency on python3-dev
+  * build: add lintian debian profile to debuild
+  * fix(debian): delegate systemd service management to debhelper
+  * refactor: migrate to src-layout with proper build backend
+  * style: formatting
+  * feat: prevent connection race conditions with application-level locking
+  * feat: improve network error handling and user feedback
+  * fix: improve tunnel service reliability and URL detection
+  * feat: enhance network resilience with exponential backoff and IPv6 support
+  * chore(debian): add git-buildpackage configuration
+  * docs: update for v3.0.0
+
+ -- PamirAI Incorporated <founders@pamir.ai>  Fri, 17 Oct 2025 17:37:22 +0530
+
 distiller-cm5-services (2.2.1) unstable; urgency=high
 
   [ Codex Hotfix ]
