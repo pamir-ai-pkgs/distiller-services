@@ -175,32 +175,18 @@ class DisplayService:
             return None
 
     async def run(self):
-        """Main display update loop."""
+        """Display service keepalive loop."""
         self._running = True
-        last_state = None
-        last_tunnel_url = None
 
         logger.info("Display service started")
 
         while self._running:
             try:
-                # Get current state
-                current_state = self.state_manager.get_state()
-
-                # Update display if state changed or tunnel URL changed
-                state_changed = last_state != current_state.connection_state
-                tunnel_changed = last_tunnel_url != current_state.tunnel_url
-
-                if state_changed or tunnel_changed:
-                    await self.update_display(current_state.connection_state)
-                    last_state = current_state.connection_state
-                    last_tunnel_url = current_state.tunnel_url
-
-                # Wait before next update
-                await asyncio.sleep(self.settings.display_update_interval)
+                # NOTE: All display updates are handled via the _on_state_change callback.
+                await asyncio.sleep(60)
 
             except Exception as e:
-                logger.error(f"Display update error: {e}")
+                logger.error(f"Display service error: {e}")
                 await asyncio.sleep(5)
 
     async def update_display(self, state):
