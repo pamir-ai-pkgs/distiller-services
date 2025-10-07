@@ -35,6 +35,13 @@ class TunnelService:
         self._max_retries = settings.tunnel_max_retries
         self._retry_delay = settings.tunnel_retry_delay
 
+        # Track network state for logging changes only
+        self._last_network_state: dict[str, str | None] = {
+            "ssid": None,
+            "ip_address": None,
+            "connected": False,
+        }
+
         # Device serial for FRP
         self._device_serial: str | None = None
         self._init_device_serial()
@@ -77,11 +84,33 @@ class TunnelService:
         state = self.state_manager.get_state()
         if state.connection_state == ConnectionState.CONNECTED:
             if state.network_info and state.network_info.ip_address:
-                logger.info(
-                    f"Network connected: {state.network_info.ssid} ({state.network_info.ip_address})"
-                )
+                # Only log at INFO level when state changes
+                current_ssid = state.network_info.ssid
+                current_ip = state.network_info.ip_address
+
+                if (
+                    not self._last_network_state["connected"]
+                    or self._last_network_state["ssid"] != current_ssid
+                    or self._last_network_state["ip_address"] != current_ip
+                ):
+                    logger.info(f"Network connected: {current_ssid} ({current_ip})")
+                    self._last_network_state["connected"] = True
+                    self._last_network_state["ssid"] = current_ssid
+                    self._last_network_state["ip_address"] = current_ip
+                else:
+                    logger.debug(f"Network still connected: {current_ssid} ({current_ip})")
+
                 return True
-        logger.debug("No network connectivity")
+
+        # Network not connected
+        if self._last_network_state["connected"]:
+            logger.info("Network disconnected")
+            self._last_network_state["connected"] = False
+            self._last_network_state["ssid"] = None
+            self._last_network_state["ip_address"] = None
+        else:
+            logger.debug("No network connectivity")
+
         return False
 
     async def check_frp_health(self) -> bool:
