@@ -75,7 +75,7 @@ class WebServer:
 
         self.app = FastAPI(
             title="Distiller WiFi Setup",
-            version="2.2.0",
+            version="2.2.1",
             docs_url="/api/docs" if settings.debug else None,
             redoc_url="/api/redoc" if settings.debug else None,
         )

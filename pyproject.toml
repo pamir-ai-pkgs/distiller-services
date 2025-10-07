@@ -1,6 +1,6 @@
 [project]
 name = "distiller-cm5-services"
-version = "2.2.0"
+version = "2.2.1"
 description = "Modern async WiFi provisioning system for Raspberry Pi CM5 Distiller devices"
 authors = [{name = "PamirAI Incorporated", email = "support@pamir.ai"}]
 readme = "README.md"
