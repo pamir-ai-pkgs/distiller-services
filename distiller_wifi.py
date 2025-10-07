@@ -189,6 +189,7 @@ class DistillerWiFiApp:
         logger.info(f"Avahi service started on port {self.settings.web_port}")
 
         self.state_manager.on_state_change(self._handle_state_change)
+        self.network_manager.on_network_event(self._handle_network_event)
 
         logger.info("Initialization complete")
 
@@ -209,6 +210,116 @@ class DistillerWiFiApp:
 
         # Avahi handles all network transitions automatically
         # NetworkManager's dnsmasq handles DNS with wildcard configuration
+
+    async def _handle_network_event(self, event_type: str, details: dict):
+        """Handle network events from NetworkManager monitoring."""
+        logger.info(f"Network event: {event_type} - {details}")
+
+        current_state = self.state_manager.get_state()
+
+        # Only handle events when we're supposed to be connected
+        if current_state.connection_state not in (
+            ConnectionState.CONNECTED,
+            ConnectionState.CONNECTING,
+        ):
+            return
+
+        # Handle connection loss events
+        if event_type in ("connectivity_lost", "device_disconnected"):
+            logger.warning(f"Network connection lost: {event_type}")
+            await self.state_manager.update_state(
+                connection_state=ConnectionState.DISCONNECTED,
+                error_message="Network connection lost",
+            )
+            asyncio.create_task(self._recover_from_network_loss())
+
+        # Handle connection deactivation (skip if it's our AP)
+        elif event_type == "connection_deactivated":
+            connection_name = details.get("connection", "unknown")
+            if connection_name != self.network_manager.ap_connection_name:
+                logger.warning(f"Connection '{connection_name}' deactivated")
+                await self.state_manager.update_state(
+                    connection_state=ConnectionState.DISCONNECTED,
+                    error_message="Connection deactivated",
+                )
+                asyncio.create_task(self._recover_from_network_loss())
+
+        # Handle connectivity restoration
+        elif event_type == "connectivity_restored":
+            logger.info("Network connectivity restored")
+            # Verify it's actually working before updating state
+            if await self.network_manager.verify_connectivity():
+                connection_info = await self.network_manager.get_connection_info()
+                if connection_info:
+                    await self.state_manager.update_state(
+                        connection_state=ConnectionState.CONNECTED,
+                        network_info=NetworkInfo(
+                            ssid=connection_info.get("ssid"),
+                            ip_address=connection_info.get("ip_address"),
+                        ),
+                        reset_retry=True,
+                    )
+
+    async def _recover_from_network_loss(self):
+        """Attempt to recover from network disconnection."""
+        logger.info("Starting network recovery")
+
+        # Wait briefly for transient issues to resolve
+        await asyncio.sleep(3)
+
+        # Check if we recovered already
+        current_state = self.state_manager.get_state()
+        if current_state.connection_state == ConnectionState.CONNECTED:
+            logger.info("Network already recovered")
+            return
+
+        # Get saved network
+        saved_network = current_state.network_info
+        if not saved_network or not saved_network.ssid:
+            logger.warning("No saved network, falling back to AP mode")
+            await self._fallback_to_ap_mode()
+            return
+
+        # Attempt reconnection
+        logger.info(f"Attempting to reconnect to {saved_network.ssid}")
+        await self.state_manager.update_state(
+            connection_state=ConnectionState.CONNECTING,
+            error_message=f"Reconnecting to {saved_network.ssid}",
+        )
+
+        success = await self.network_manager.reconnect_to_saved_network(saved_network.ssid)
+
+        if success:
+            # Verify with active connectivity check
+            if await self.network_manager.verify_connectivity():
+                connection_info = await self.network_manager.get_connection_info()
+                if connection_info:
+                    logger.info(f"Successfully reconnected to {saved_network.ssid}")
+                    await self.state_manager.update_state(
+                        connection_state=ConnectionState.CONNECTED,
+                        network_info=NetworkInfo(
+                            ssid=connection_info.get("ssid"),
+                            ip_address=connection_info.get("ip_address"),
+                        ),
+                        reset_retry=True,
+                    )
+                    return
+
+        # Reconnection failed
+        logger.warning(f"Failed to reconnect to {saved_network.ssid}")
+        await self._fallback_to_ap_mode()
+
+    async def _fallback_to_ap_mode(self):
+        """Fall back to AP mode after connection loss."""
+        logger.info("Falling back to AP mode")
+
+        await self.state_manager.update_state(
+            connection_state=ConnectionState.FAILED,
+            error_message="Connection lost, returning to setup mode",
+        )
+
+        await asyncio.sleep(2)
+        await self.web_server._restart_ap_mode()
 
     async def run_web_server(self):
         uvicorn_logger = logging.getLogger("uvicorn.error")

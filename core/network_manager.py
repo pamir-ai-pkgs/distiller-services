@@ -73,9 +73,7 @@ class NetworkManager:
             )
 
             if returncode == 0:
-                logger.warning(
-                    f"Stopping conflicting DNS service '{service}' to free port 53"
-                )
+                logger.warning(f"Stopping conflicting DNS service '{service}' to free port 53")
                 await self._run_command(["systemctl", "stop", service])
 
             returncode, _, _ = await self._run_command(
@@ -672,6 +670,41 @@ no-poll
 
         # Otherwise just check if we're connected to any network
         return True
+
+    async def verify_connectivity(self, timeout: float = 5.0) -> bool:
+        """Verify actual network connectivity with internet reachability test.
+
+        Args:
+            timeout: Maximum time to wait for verification (seconds)
+
+        Returns:
+            True if network is functional, False otherwise
+        """
+        try:
+            # Check if we have a connection
+            connection_info = await self.get_connection_info()
+            if not connection_info or not connection_info.get("ip_address"):
+                logger.debug("No IP address for connectivity verification")
+                return False
+
+            # Test internet reachability with ping
+            try:
+                returncode, stdout, stderr = await asyncio.wait_for(
+                    self._run_command(["ping", "-c", "1", "-W", "2", "8.8.8.8"]), timeout=timeout
+                )
+                if returncode == 0:
+                    logger.debug("Connectivity verification successful")
+                    return True
+                else:
+                    logger.debug(f"Connectivity verification failed: {stderr}")
+                    return False
+            except TimeoutError:
+                logger.debug("Connectivity verification timed out")
+                return False
+
+        except Exception as e:
+            logger.error(f"Connectivity verification error: {e}")
+            return False
 
     async def reconnect_to_saved_network(self, ssid: str) -> bool:
         """Try to reconnect to a previously saved network connection."""
