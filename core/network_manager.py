@@ -33,6 +33,7 @@ class NetworkManager:
         self.ap_connection_name = "Distiller-AP"
         self._dnsmasq_config_dir = Path("/etc/NetworkManager/dnsmasq-shared.d")
         self._dnsmasq_config_file = self._dnsmasq_config_dir / "80-distiller-captive.conf"
+        self._event_callbacks: list = []
 
     async def initialize(self) -> None:
         await self._detect_wifi_device()
@@ -40,6 +41,25 @@ class NetworkManager:
             logger.info(f"WiFi device detected: {self.wifi_device}")
         else:
             logger.warning("No WiFi device detected")
+
+    def on_network_event(self, callback):
+        """Register a callback for network events.
+
+        Args:
+            callback: Async function(event_type: str, details: dict) to call on events
+        """
+        self._event_callbacks.append(callback)
+
+    async def _trigger_event(self, event_type: str, details: dict = None):
+        """Trigger all registered event callbacks."""
+        if details is None:
+            details = {}
+
+        for callback in self._event_callbacks:
+            try:
+                await callback(event_type, details)
+            except Exception as e:
+                logger.error(f"Error in event callback: {e}", exc_info=True)
 
     async def _ensure_dns_port_available(self) -> None:
         """Stop conflicting DNS services so NetworkManager's dnsmasq can start."""
@@ -713,18 +733,81 @@ no-poll
         return False
 
     async def monitor_events(self) -> None:
+        """Monitor NetworkManager events and trigger callbacks on relevant changes.
+
+        Monitors for:
+        - Connectivity changes (full, limited, none)
+        - Device state changes (disconnected, unavailable, disconnecting)
+        - Connection state changes (deactivated, deactivating)
+        """
         logger.info("Starting NetworkManager event monitor")
 
-        process = await asyncio.create_subprocess_exec(
-            "nmcli", "monitor", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-
         while True:
-            line = await process.stdout.readline()
-            if not line:
-                break
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    "nmcli",
+                    "monitor",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
 
-            event = line.decode("utf-8").strip()
-            logger.debug(f"NetworkManager event: {event}")
+                while True:
+                    line = await process.stdout.readline()
+                    if not line:
+                        logger.warning("NetworkManager monitor process ended, restarting...")
+                        break
 
-            # StateManager callback integration point
+                    event = line.decode("utf-8").strip()
+                    if not event:
+                        continue
+
+                    logger.debug(f"NetworkManager event: {event}")
+
+                    # Parse connectivity changes
+                    if "connectivity is now" in event.lower():
+                        if "none" in event.lower():
+                            logger.warning("Network connectivity lost")
+                            await self._trigger_event(
+                                "connectivity_lost", {"reason": "no_connectivity"}
+                            )
+                        elif "limited" in event.lower():
+                            logger.warning("Network connectivity limited")
+                            await self._trigger_event(
+                                "connectivity_degraded", {"reason": "limited_connectivity"}
+                            )
+                        elif "full" in event.lower():
+                            logger.info("Network connectivity restored")
+                            await self._trigger_event("connectivity_restored", {})
+
+                    # Parse device state changes
+                    if self.wifi_device and self.wifi_device in event:
+                        if "disconnected" in event.lower():
+                            logger.warning(f"WiFi device {self.wifi_device} disconnected")
+                            await self._trigger_event(
+                                "device_disconnected", {"device": self.wifi_device}
+                            )
+                        elif "unavailable" in event.lower():
+                            logger.warning(f"WiFi device {self.wifi_device} unavailable")
+                            await self._trigger_event(
+                                "device_unavailable", {"device": self.wifi_device}
+                            )
+
+                    # Parse connection state changes
+                    if "deactivating" in event.lower() or "deactivated" in event.lower():
+                        # Extract connection name if present
+                        connection_match = re.search(r"'([^']+)'", event)
+                        connection_name = (
+                            connection_match.group(1) if connection_match else "unknown"
+                        )
+                        if connection_name != self.ap_connection_name:
+                            logger.warning(f"Connection {connection_name} deactivated")
+                            await self._trigger_event(
+                                "connection_deactivated", {"connection": connection_name}
+                            )
+
+            except Exception as e:
+                logger.error(f"NetworkManager monitor error: {e}", exc_info=True)
+
+            # Wait before restarting monitor
+            logger.info("Restarting NetworkManager event monitor in 5 seconds...")
+            await asyncio.sleep(5)
