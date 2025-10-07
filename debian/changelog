@@ -1,3 +1,11 @@
+distiller-cm5-services (2.2.1) unstable; urgency=high
+
+  [ Codex Hotfix ]
+  * hotfix: ensure NetworkManager can start AP dnsmasq by stopping conflicting
+    system dns services before activation
+
+ -- PamirAI Incorporated <founders@pamir.ai>  Mon, 06 Oct 2025 18:45:00 +0000
+
 distiller-cm5-services (2.2.0) unstable; urgency=medium
 
   [ utsavbalar1231 ]
