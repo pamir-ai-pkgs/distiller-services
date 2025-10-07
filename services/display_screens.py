@@ -285,7 +285,7 @@ def create_failed_screen(
                 style="body",
             ),
             Space(height=theme.spacing.xxl),
-            Value("Check credentials and try again."),
+            Value("Restart the board or resend credentials."),
         )
     )
 
