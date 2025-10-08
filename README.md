@@ -215,7 +215,7 @@ cd distiller-services
 uv sync
 
 # Build Debian package (optional)
-./build-deb.sh
+just build
 
 # Or run directly in development mode (requires root)
 sudo uv run python distiller_wifi.py --no-hardware --debug
@@ -494,7 +494,7 @@ cd distiller-services
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install dependencies
-make setup
+just setup
 
 # Or manually:
 uv sync
@@ -504,17 +504,17 @@ uv sync
 
 ```bash
 # Run in development mode (requires root for NetworkManager access)
-make run
+just run
 
 # Run with custom arguments
-make run ARGS="--port 9090"
+just run ARGS="--port 9090"
 
 # Run without hardware dependencies
 sudo uv run python distiller_wifi.py --no-hardware --debug
 
 # Code quality checks
-make lint         # Run all linters (ruff, mypy, shellcheck)
-make fix          # Auto-fix formatting issues
+just lint         # Run all linters (ruff, mypy, shellcheck)
+just fix          # Auto-fix formatting issues
 
 # Individual linting
 uv run ruff check .                    # Lint only
@@ -522,10 +522,10 @@ uv run ruff format .                   # Format only
 uv run mypy --ignore-missing-imports . # Type check
 
 # Build Debian package
-make build
+just build
 
 # Clean build artifacts
-./build-deb.sh clean
+just build clean
 ```
 
 ### Code Style
@@ -563,28 +563,27 @@ distiller-services/
 ├── scripts/                   # Utility scripts
 ├── distiller_wifi.py          # Main entry point
 ├── pyproject.toml             # Python project config
-├── Makefile                   # Development commands
-└── build-deb.sh               # Universal Debian builder
+└── Justfile                   # Build system with recipes
 ```
 
 ### Building Debian Packages
 
 ```bash
 # Build for ARM64 (default)
-./build-deb.sh
+just build
 
 # Build for current architecture
-./build-deb.sh native
+just build native
 
 # Build for specific architecture
-TARGET_ARCH=amd64 ./build-deb.sh
+TARGET_ARCH=amd64 just build
 
 # Check dependencies before building
-./build-deb.sh check
+just build check
 
 # Clean and rebuild
-./build-deb.sh clean
-./build-deb.sh
+just build clean
+just build
 ```
 
 Package output: `dist/distiller-services_3.0.0_arm64.deb`
@@ -840,7 +839,7 @@ Contributions are welcome. Please follow these guidelines:
 
 ### Code Quality Requirements
 
-- All code must pass `make lint` without errors
+- All code must pass `just lint` without errors
 - Type hints required for all functions
 - Async/await for all I/O operations
 - No emojis or casual language in code comments

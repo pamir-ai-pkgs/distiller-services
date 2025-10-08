@@ -72,15 +72,15 @@ Display updates synchronized to prevent race conditions during rapid state chang
 
 ### Setup & Development
 ```bash
-make setup                    # Install dependencies with uv
-make run                      # Run with --no-hardware --debug (requires sudo)
-make run ARGS="--port 9090"   # Custom arguments
+just setup                    # Install dependencies with uv
+just run                      # Run with --no-hardware --debug (requires sudo)
+just run ARGS="--port 9090"   # Custom arguments
 ```
 
 ### Code Quality
 ```bash
-make lint                     # Run ruff, mypy, shellcheck
-make fix                      # Auto-fix formatting issues
+just lint                     # Run ruff, mypy, shellcheck
+just fix                      # Auto-fix formatting issues
 uv run ruff check .           # Lint only
 uv run ruff format .          # Format only
 uv run mypy --ignore-missing-imports . # Type check
@@ -88,10 +88,10 @@ uv run mypy --ignore-missing-imports . # Type check
 
 ### Building & Packaging
 ```bash
-make build                    # Build Debian package (clean + build)
-./build-deb.sh                # Build for arm64 (default)
-./build-deb.sh native         # Build for current arch
-TARGET_ARCH=amd64 ./build-deb.sh  # Override architecture
+just build                    # Build Debian package (clean + build)
+just build                # Build for arm64 (default)
+just build native         # Build for current arch
+TARGET_ARCH=amd64 just build  # Override architecture
 ```
 
 Package output: `dist/distiller-services_*.deb`
@@ -274,8 +274,7 @@ distiller-services/
 ├── debian/                 # Debian packaging files
 ├── distiller_wifi.py       # Main entry point
 ├── pyproject.toml          # Python project config
-├── Makefile                # Development commands
-└── build-deb.sh            # Universal Debian builder
+└── Justfile                # Build system with recipes
 ```
 
 ## Deployment
