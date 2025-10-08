@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Error - {{ device_name }}{% endblock %}
+
+{% block status %}ERROR{% endblock %}
+
+{% block content %}
+<div class="error-container">
+  <!-- Error Card -->
+  <div class="status-card">
+    <div class="status-icon">
+      <div class="error-icon">
+        <svg class="error-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+      </div>
+    </div>
+
+    <h2 class="error-title">{{ message }}</h2>
+
+    <div class="detail-card">
+      <p class="detail-label">DETAILS</p>
+      <p class="detail-value">{{ details }}</p>
+    </div>
+
+    {% if suggestion %}
+    <div class="info-card">
+      <p class="info-text">
+        <strong>SUGGESTION:</strong> {{ suggestion }}
+      </p>
+    </div>
+    {% endif %}
+
+    <div class="action-section">
+      <button class="btn btn-primary" onclick="window.parent.location.reload()">
+        RETRY CONNECTION
+      </button>
+      <a href="/" class="btn btn-secondary">
+        RETURN TO SETUP
+      </a>
+    </div>
+  </div>
+</div>
+
+<style>
+  .error-container {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .error-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 1.5rem;
+    border: 3px solid var(--black);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--white);
+  }
+
+  .error-svg {
+    width: 48px;
+    height: 48px;
+    color: var(--black);
+  }
+
+  .error-title {
+    font-family: var(--font-heading);
+    font-size: 1.75rem;
+    margin-bottom: 2rem;
+    text-align: center;
+  }
+
+  .detail-card {
+    border: var(--border-width) solid var(--black);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    text-align: left;
+  }
+
+  .detail-card .detail-label {
+    font-family: var(--font-semibold);
+    font-weight: bold;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+
+  .detail-card .detail-value {
+    font-family: var(--font-mono);
+    margin-bottom: 0;
+  }
+
+  .info-card {
+    margin-bottom: 2rem;
+  }
+
+  .info-text strong {
+    font-family: var(--font-semibold);
+    letter-spacing: 0.05em;
+  }
+
+  .action-section {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+  }
+
+  @media (width <= 768px) {
+    .action-section {
+      flex-direction: column;
+    }
+
+    .action-section .btn {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}

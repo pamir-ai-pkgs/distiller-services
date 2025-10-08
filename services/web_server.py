@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, Form, Request, Response, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -375,6 +376,179 @@ class WebServer:
             response.set_cookie("session_id", session_id, max_age=3600)
             return response
 
+        @self.app.get("/captive", response_class=HTMLResponse)
+        async def captive_portal_page(request: Request):
+            """Show captive portal proxy page.
+
+            This page displays an iframe that proxies the captive portal through
+            our server, allowing the user to authenticate using their phone's browser.
+            """
+            session_id = request.cookies.get("session_id", str(uuid.uuid4()))
+            state = self.state_manager.get_state()
+
+            # Get device IP
+            device_ip = "unknown"
+            if state.network_info and state.network_info.ip_address:
+                device_ip = state.network_info.ip_address
+
+            # Get portal URL
+            portal_url = state.captive_portal_url or "http://detectportal.firefox.com"
+
+            return self.templates.TemplateResponse(
+                "captive_portal.html",
+                {
+                    "request": request,
+                    "portal_url": portal_url,
+                    "device_ip": device_ip,
+                    "device_name": self.settings.mdns_hostname,
+                    "session_id": session_id,
+                },
+            )
+
+        @self.app.get("/api/proxy")
+        async def proxy_request_get(request: Request, url: str | None = None):
+            """Proxy HTTP GET requests to captive portal."""
+            return await self._proxy_request(request, "GET", url)
+
+        @self.app.post("/api/proxy")
+        async def proxy_request_post(request: Request, url: str | None = None):
+            """Proxy HTTP POST requests to captive portal."""
+            return await self._proxy_request(request, "POST", url)
+
+    def _render_error_template(
+        self, error_type: str, message: str, details: str, suggestion: str
+    ) -> str:
+        """Render error page template."""
+        state = self.state_manager.get_state()
+        return self.templates.TemplateResponse(
+            "error.html",
+            {
+                "request": {},
+                "device_name": state.device_name,
+                "error_type": error_type,
+                "message": message,
+                "details": details,
+                "suggestion": suggestion,
+            },
+        ).body.decode()
+
+    async def _proxy_request(
+        self, request: Request, method: str, url: str | None = None
+    ) -> Response:
+        """Proxy HTTP requests to captive portal.
+
+        This allows the user's browser to interact with the captive portal through
+        our server, preserving cookies, headers, and session state.
+
+        Args:
+            request: FastAPI request object
+            method: HTTP method (GET, POST, etc.)
+            url: Target URL (from query param or state)
+
+        Returns:
+            Response with proxied content or HTML error page
+        """
+        state = self.state_manager.get_state()
+
+        # Determine target URL
+        if url and (url.startswith("http://") or url.startswith("https://")):
+            target_url = url
+        elif state.captive_portal_url:
+            target_url = state.captive_portal_url
+        else:
+            error_html = self._render_error_template(
+                "no_portal",
+                "No Captive Portal Detected",
+                "The device hasn't detected a captive portal on this network.",
+                "Return to the setup page and try connecting to a different network.",
+            )
+            return Response(content=error_html, media_type="text/html")
+
+        try:
+            async with httpx.AsyncClient(
+                follow_redirects=True, timeout=30.0, verify=False
+            ) as client:
+                # Prepare headers (exclude host header to avoid conflicts)
+                headers = dict(request.headers)
+                headers.pop("host", None)
+                headers.pop("content-length", None)  # Let httpx calculate this
+
+                # Get request body for POST/PUT
+                body = None
+                if method in ["POST", "PUT"]:
+                    body = await request.body()
+
+                # Make proxied request
+                response = await client.request(
+                    method=method, url=target_url, headers=headers, content=body
+                )
+
+                # Prepare response headers (exclude some that shouldn't be proxied)
+                response_headers = dict(response.headers)
+                for header in ["content-encoding", "transfer-encoding", "connection"]:
+                    response_headers.pop(header, None)
+
+                # Return response to user
+                return Response(
+                    content=response.content,
+                    status_code=response.status_code,
+                    headers=response_headers,
+                )
+
+        except httpx.TimeoutException:
+            logger.error(f"Proxy request timeout for {target_url}")
+            error_html = self._render_error_template(
+                "timeout",
+                "Portal Not Responding",
+                "The captive portal server is taking too long to respond.",
+                "Check your WiFi signal strength and try refreshing the portal.",
+            )
+            return Response(content=error_html, media_type="text/html", status_code=504)
+
+        except httpx.ConnectError as e:
+            logger.error(f"Proxy connection failed for {target_url}: {e}")
+            error_html = self._render_error_template(
+                "connection_failed",
+                "Cannot Reach Captive Portal",
+                "Unable to establish connection to the portal server.",
+                "Verify you're still connected to the WiFi network and try again.",
+            )
+            return Response(content=error_html, media_type="text/html", status_code=502)
+
+        except httpx.HTTPStatusError as e:
+            # Handle specific HTTP error codes from the portal
+            error_code = e.response.status_code
+            if error_code == 401:
+                message = "Authentication Required"
+                details = "Portal requires valid credentials to continue."
+                suggestion = "Please enter your username and password in the portal form."
+            elif error_code == 403:
+                message = "Authentication Failed"
+                details = "Access denied - credentials may be invalid."
+                suggestion = "Check your username/password and try again."
+            elif error_code == 402:
+                message = "Payment Required"
+                details = "This network requires payment to access."
+                suggestion = "Complete the payment process to gain internet access."
+            else:
+                message = f"Portal Error {error_code}"
+                details = "The captive portal server returned an unexpected error."
+                suggestion = "Try refreshing the portal or contact network support."
+
+            logger.error(f"Proxy HTTP error {error_code} for {target_url}: {e}")
+            error_html = self._render_error_template(f"http_{error_code}", message, details, suggestion)
+            return Response(content=error_html, media_type="text/html", status_code=502)
+
+        except Exception as e:
+            logger.error(f"Proxy request failed for {target_url}: {e}")
+            error_html = self._render_error_template(
+                "unknown",
+                "Unexpected Error Occurred",
+                str(e),
+                "Try refreshing the portal or return to setup.",
+            )
+            return Response(content=error_html, media_type="text/html", status_code=502)
+
     def _setup_websocket(self):
         """Setup WebSocket endpoint."""
 
@@ -426,17 +600,22 @@ class WebServer:
         )
         await self.state_manager.add_session(session)
 
-    async def _broadcast_status(self) -> None:
-        """Broadcast status update to all WebSocket connections."""
+    async def _broadcast_status(self, event_type: str = "status") -> None:
+        """Broadcast status update to all WebSocket connections.
+
+        Args:
+            event_type: Type of event ("status" or "captive_portal_cleared")
+        """
         state = self.state_manager.get_state()
         message = {
-            "type": "status",
+            "type": event_type,
             "state": state.connection_state.value,
             "ssid": state.network_info.ssid,
             "ip_address": state.network_info.ip_address,
             "tunnel_url": state.tunnel_url,
             "tunnel_provider": state.tunnel_provider,
             "error": state.error_message,
+            "captive_portal_url": state.captive_portal_url,
         }
 
         # Send to all connected clients
@@ -469,12 +648,13 @@ class WebServer:
                 # Get connection info
                 info = await self.network_manager.get_connection_info()
 
-                # Verify actual internet connectivity
-                has_internet = await self.network_manager.verify_connectivity()
+                # Check for captive portal first
+                is_captive, portal_url = await self.network_manager.detect_captive_portal()
 
-                # Stage 4: Connection complete (100%)
-                # Update state with connectivity status
-                if has_internet:
+                if is_captive:
+                    # Connected to WiFi but captive portal detected
+                    logger.info(f"Captive portal detected: {portal_url}")
+
                     await self.state_manager.update_state(
                         connection_state=ConnectionState.CONNECTED,
                         network_info=NetworkInfo(
@@ -482,24 +662,47 @@ class WebServer:
                             ip_address=info.get("ip_address") if info else None,
                             connected_at=datetime.now(),
                         ),
+                        captive_portal_url=portal_url,
+                        captive_portal_detected_at=datetime.now(),
                         connection_progress=1.0,
+                        error_message="Captive portal detected - authentication required",
                         reset_retry=True,
                     )
-                    logger.info(f"Successfully connected to {ssid} with internet access")
+                    logger.warning(
+                        f"Connected to {ssid} but captive portal requires authentication"
+                    )
                 else:
-                    # WiFi connected but no internet (captive portal scenario)
-                    await self.state_manager.update_state(
-                        connection_state=ConnectionState.CONNECTED,
-                        network_info=NetworkInfo(
-                            ssid=ssid,
-                            ip_address=info.get("ip_address") if info else None,
-                            connected_at=datetime.now(),
-                        ),
-                        connection_progress=1.0,
-                        error_message="Limited connectivity - no internet access",
-                        reset_retry=True,
-                    )
-                    logger.warning(f"Connected to {ssid} but no internet access (captive portal?)")
+                    # No captive portal, verify actual internet connectivity
+                    has_internet = await self.network_manager.verify_connectivity()
+
+                    # Stage 4: Connection complete (100%)
+                    # Update state with connectivity status
+                    if has_internet:
+                        await self.state_manager.update_state(
+                            connection_state=ConnectionState.CONNECTED,
+                            network_info=NetworkInfo(
+                                ssid=ssid,
+                                ip_address=info.get("ip_address") if info else None,
+                                connected_at=datetime.now(),
+                            ),
+                            connection_progress=1.0,
+                            reset_retry=True,
+                        )
+                        logger.info(f"Successfully connected to {ssid} with internet access")
+                    else:
+                        # WiFi connected but no internet (no captive portal detected)
+                        await self.state_manager.update_state(
+                            connection_state=ConnectionState.CONNECTED,
+                            network_info=NetworkInfo(
+                                ssid=ssid,
+                                ip_address=info.get("ip_address") if info else None,
+                                connected_at=datetime.now(),
+                            ),
+                            connection_progress=1.0,
+                            error_message="Limited connectivity - no internet access",
+                            reset_retry=True,
+                        )
+                        logger.warning(f"Connected to {ssid} but no internet access")
             else:
                 # Connection failed - reset progress
                 await self.state_manager.update_state(
@@ -598,6 +801,95 @@ class WebServer:
 
         except Exception as e:
             logger.error(f"AP mode error: {e}")
+
+    async def monitor_captive_portal_auth(self) -> None:
+        """Background task that monitors for successful captive portal authentication.
+
+        Runs while captive_portal_url is set, checking connectivity every 10 seconds.
+        When internet access is restored, clears the captive portal state and triggers
+        display update to show normal connected screen.
+
+        Also monitors for session expiry - if internet is lost after successful auth,
+        it re-triggers the captive portal state.
+
+        This task runs continuously in the background and should be started when the
+        service initializes.
+        """
+        logger.info("Starting captive portal authentication monitor")
+        last_had_internet = False
+
+        while True:
+            try:
+                # Get current state
+                state = self.state_manager.get_state()
+
+                # Case 1: Captive portal detected - waiting for authentication
+                if state.captive_portal_url and state.connection_state == ConnectionState.CONNECTED:
+                    # Check if we now have internet access
+                    has_internet = await self.network_manager.verify_connectivity()
+
+                    if has_internet:
+                        logger.info(
+                            "Captive portal authentication successful - internet access restored"
+                        )
+
+                        # Clear captive portal state
+                        await self.state_manager.update_state(
+                            captive_portal_url=None,
+                            captive_portal_detected_at=None,
+                            captive_portal_session_expires_at=None,
+                            error_message=None,
+                        )
+
+                        # Broadcast special event to WebSocket clients for captive portal success
+                        await self._broadcast_status(event_type="captive_portal_cleared")
+
+                        logger.info("Captive portal cleared, normal connectivity restored")
+                        last_had_internet = True
+
+                # Case 2: Connected to network - monitor for session expiry
+                elif (
+                    state.connection_state == ConnectionState.CONNECTED
+                    and not state.captive_portal_url
+                ):
+                    # Check if internet is still accessible
+                    has_internet = await self.network_manager.verify_connectivity()
+
+                    # If we had internet before but lost it now, might be session expiry
+                    if last_had_internet and not has_internet:
+                        logger.warning(
+                            "Internet connectivity lost - checking if captive portal session expired"
+                        )
+
+                        # Re-check for captive portal
+                        is_captive, portal_url = await self.network_manager.detect_captive_portal()
+
+                        if is_captive:
+                            logger.warning(
+                                "Captive portal session expired - re-authentication required"
+                            )
+
+                            # Set captive portal state again
+                            await self.state_manager.update_state(
+                                captive_portal_url=portal_url,
+                                captive_portal_detected_at=datetime.now(),
+                                error_message="Captive portal session expired - please re-authenticate",
+                            )
+
+                            # Broadcast update
+                            await self._broadcast_status()
+
+                            last_had_internet = False
+
+                    elif has_internet:
+                        last_had_internet = True
+
+                # Check every 10 seconds
+                await asyncio.sleep(10)
+
+            except Exception as e:
+                logger.error(f"Captive portal monitor error: {e}", exc_info=True)
+                await asyncio.sleep(10)
 
     def get_app(self) -> FastAPI:
         """Get the FastAPI application instance."""

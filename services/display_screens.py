@@ -290,6 +290,46 @@ def create_failed_screen(
     )
 
 
+def create_captive_portal_screen(device_ip: str, portal_url: str | None = None) -> LandscapeLayout:
+    """
+    Create captive portal authentication screen.
+
+    Shows device IP address and QR code for user to access proxy interface.
+    User connects their phone to the same WiFi network, scans QR code or
+    visits the displayed URL, and completes authentication through their
+    phone's browser.
+
+    Args:
+        device_ip: Device's IP address on current network
+        portal_url: Detected captive portal URL (for debugging, optional)
+
+    Returns:
+        LandscapeLayout
+    """
+    # Generate QR code URL pointing to device's captive portal proxy
+    proxy_url = f"http://{device_ip}:8080/captive"
+
+    return (
+        LandscapeLayout()
+        .add_left(
+            Title("CAPTIVE PORTAL"),
+            Space(height=theme.spacing.xl),
+            QRCode(proxy_url, size="small"),
+            Space(height=theme.spacing.md),
+            Caption("Scan to authenticate"),
+        )
+        .add_right(
+            Subtitle("1. Connect phone"),
+            Subtitle("to same WiFi"),
+            Space(height=theme.spacing.lg),
+            Value(device_ip),
+            Label(":8080/captive"),
+            Space(height=theme.spacing.xl),
+            Caption("2. Complete login"),
+        )
+    )
+
+
 def create_custom_screen(title: str, components: list) -> Layout:
     """
     Create a custom screen with provided components.
