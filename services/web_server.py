@@ -461,18 +461,34 @@ class WebServer:
                 # Get connection info
                 info = await self.network_manager.get_connection_info()
 
-                # Update state
-                await self.state_manager.update_state(
-                    connection_state=ConnectionState.CONNECTED,
-                    network_info=NetworkInfo(
-                        ssid=ssid,
-                        ip_address=info.get("ip_address") if info else None,
-                        connected_at=datetime.now(),
-                    ),
-                    reset_retry=True,
-                )
+                # Verify actual internet connectivity
+                has_internet = await self.network_manager.verify_connectivity()
 
-                logger.info(f"Successfully connected to {ssid}")
+                # Update state with connectivity status
+                if has_internet:
+                    await self.state_manager.update_state(
+                        connection_state=ConnectionState.CONNECTED,
+                        network_info=NetworkInfo(
+                            ssid=ssid,
+                            ip_address=info.get("ip_address") if info else None,
+                            connected_at=datetime.now(),
+                        ),
+                        reset_retry=True,
+                    )
+                    logger.info(f"Successfully connected to {ssid} with internet access")
+                else:
+                    # WiFi connected but no internet (captive portal scenario)
+                    await self.state_manager.update_state(
+                        connection_state=ConnectionState.CONNECTED,
+                        network_info=NetworkInfo(
+                            ssid=ssid,
+                            ip_address=info.get("ip_address") if info else None,
+                            connected_at=datetime.now(),
+                        ),
+                        error_message="Limited connectivity - no internet access",
+                        reset_retry=True,
+                    )
+                    logger.warning(f"Connected to {ssid} but no internet access (captive portal?)")
             else:
                 # Connection failed
                 await self.state_manager.update_state(
