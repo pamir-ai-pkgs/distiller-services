@@ -249,7 +249,7 @@ def generate_previews():
     print(f"Combined preview saved: {combined_path}")
 
     print("\n" + "=" * 50)
-    print("✓ All e-ink display previews generated successfully!")
+    print("SUCCESS: All e-ink display previews generated successfully!")
     print(f"\nView the images in: {output_dir}")
     print("\nIndividual files:")
     for file in sorted(output_dir.glob("eink_*.png")):

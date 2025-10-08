@@ -15,6 +15,7 @@ from core.config import Settings
 from core.state import ConnectionState, StateManager
 
 from .display_screens import (
+    create_captive_portal_screen,
     create_connected_screen,
     create_connecting_screen,
     create_failed_screen,
@@ -200,8 +201,22 @@ class DisplayService:
                 current_state = full_state.connection_state
                 image = None
 
+                # Check for captive portal scenario first (highest priority)
+                if current_state == ConnectionState.CONNECTED and full_state.captive_portal_url:
+                    # Show captive portal screen
+                    ip_address = "192.168.1.1"  # Default fallback
+                    if full_state.network_info and full_state.network_info.ip_address:
+                        ip_address = full_state.network_info.ip_address
+
+                    layout = create_captive_portal_screen(
+                        device_ip=ip_address, portal_url=full_state.captive_portal_url
+                    )
+                    # Render the layout to an image
+                    image = layout.render(self.fonts)
+                    logger.info("Showing captive portal authentication screen")
+
                 # Try to use custom template for connected state with tunnel URL
-                if (
+                elif (
                     current_state == ConnectionState.CONNECTED
                     and full_state.tunnel_url
                     and self._has_template()

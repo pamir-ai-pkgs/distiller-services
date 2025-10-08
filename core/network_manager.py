@@ -9,6 +9,8 @@ import stat
 import time
 from pathlib import Path
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 
@@ -705,6 +707,91 @@ no-poll
         except Exception as e:
             logger.error(f"Connectivity verification error: {e}")
             return False
+
+    async def detect_captive_portal(self) -> tuple[bool, str | None]:
+        """Detect captive portal by attempting HTTP requests to connectivity check URLs.
+
+        Tests multiple well-known connectivity check endpoints used by different
+        operating systems. Captive portals typically intercept these requests and
+        return redirects or unexpected content.
+
+        Returns:
+            tuple[bool, str | None]: (is_captive_portal, portal_url)
+                - is_captive_portal: True if captive portal detected
+                - portal_url: URL of detected captive portal (if found)
+        """
+        # Connectivity check endpoints used by various operating systems
+        test_urls = [
+            "http://connectivitycheck.gstatic.com/generate_204",  # Android
+            "http://captive.apple.com/hotspot-detect.html",  # iOS/macOS
+            "http://detectportal.firefox.com/success.txt",  # Firefox
+        ]
+
+        for test_url in test_urls:
+            try:
+                # Make HTTP request without following redirects
+                async with httpx.AsyncClient(follow_redirects=False, timeout=5.0) as client:
+                    response = await client.get(test_url)
+
+                    # Captive portal indicators:
+
+                    # 1. HTTP 302/307/308 redirect (most common)
+                    if response.status_code in [302, 307, 308]:
+                        portal_url = response.headers.get("Location")
+                        if portal_url:
+                            logger.info(f"Captive portal detected via redirect: {portal_url}")
+                            return (True, portal_url)
+                        else:
+                            logger.info("Captive portal detected (redirect without Location)")
+                            return (True, test_url)
+
+                    # 2. HTTP 511 Network Authentication Required (RFC 6585)
+                    elif response.status_code == 511:
+                        logger.info("Captive portal detected via HTTP 511")
+                        return (True, test_url)
+
+                    # 3. HTTP 200 but with unexpected content
+                    elif response.status_code == 200:
+                        # Expected responses for these endpoints
+                        expected_responses = {
+                            "connectivitycheck.gstatic.com": "",  # 204 or empty body
+                            "captive.apple.com": "Success",
+                            "detectportal.firefox.com": "success",
+                        }
+
+                        # Check if response matches expected content
+                        response_text = response.text.strip()
+                        expected = None
+                        for domain, exp_text in expected_responses.items():
+                            if domain in test_url:
+                                expected = exp_text
+                                break
+
+                        if expected is not None and expected.lower() not in response_text.lower():
+                            logger.info(
+                                f"Captive portal detected via unexpected content: "
+                                f"got '{response_text[:100]}' instead of '{expected}'"
+                            )
+                            return (True, test_url)
+
+                    # 4. HTTP 204 No Content - this is what we expect for normal internet
+                    elif response.status_code == 204:
+                        logger.debug(f"Connectivity check passed: {test_url}")
+                        return (False, None)
+
+            except httpx.TimeoutException:
+                logger.debug(f"Connectivity check timeout: {test_url}")
+                continue
+            except httpx.ConnectError:
+                logger.debug(f"Connectivity check failed to connect: {test_url}")
+                continue
+            except Exception as e:
+                logger.debug(f"Connectivity check error for {test_url}: {e}")
+                continue
+
+        # All tests failed - probably no internet, but not necessarily captive portal
+        logger.debug("All connectivity checks failed - no internet or network issue")
+        return (False, None)
 
     async def reconnect_to_saved_network(self, ssid: str) -> bool:
         """Try to reconnect to a previously saved network connection."""

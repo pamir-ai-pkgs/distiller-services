@@ -206,7 +206,7 @@ class QRCode(Component):
     ) -> int:
         """Render QR code."""
         # Generate QR code
-        qr = qrcode.QRCode( # type: ignore[attr-defined]
+        qr = qrcode.QRCode(  # type: ignore[attr-defined]
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_M,
             box_size=3,

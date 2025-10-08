@@ -53,6 +53,9 @@ class SystemState(BaseModel):
     tunnel_provider: str | None = None  # "frp" or "pinggy"
     ap_password: str | None = None  # Dynamic AP password for current session
     ap_password_generated_at: datetime | None = None  # When AP password was generated
+    captive_portal_url: str | None = None  # URL of detected captive portal
+    captive_portal_detected_at: datetime | None = None  # When portal was detected
+    captive_portal_session_expires_at: datetime | None = None  # When portal session expires
     error_message: str | None = None
     retry_count: int = 0
     connection_progress: float = 0.0  # Connection progress (0.0 to 1.0)
@@ -101,6 +104,17 @@ class StateManager:
                     data["ap_password_generated_at"] = datetime.fromisoformat(
                         data["ap_password_generated_at"]
                     )
+                if "captive_portal_detected_at" in data and data["captive_portal_detected_at"]:
+                    data["captive_portal_detected_at"] = datetime.fromisoformat(
+                        data["captive_portal_detected_at"]
+                    )
+                if (
+                    "captive_portal_session_expires_at" in data
+                    and data["captive_portal_session_expires_at"]
+                ):
+                    data["captive_portal_session_expires_at"] = datetime.fromisoformat(
+                        data["captive_portal_session_expires_at"]
+                    )
                 # Recreate sessions
                 if "sessions" in data:
                     for _session_id, session_data in data["sessions"].items():
@@ -132,6 +146,19 @@ class StateManager:
                 data["network_info"]["connected_at"] = (
                     self.state.network_info.connected_at.isoformat()
                 )
+            if "ap_password_generated_at" in data and self.state.ap_password_generated_at:
+                data["ap_password_generated_at"] = self.state.ap_password_generated_at.isoformat()
+            if "captive_portal_detected_at" in data and self.state.captive_portal_detected_at:
+                data["captive_portal_detected_at"] = (
+                    self.state.captive_portal_detected_at.isoformat()
+                )
+            if (
+                "captive_portal_session_expires_at" in data
+                and self.state.captive_portal_session_expires_at
+            ):
+                data["captive_portal_session_expires_at"] = (
+                    self.state.captive_portal_session_expires_at.isoformat()
+                )
 
             # Convert session datetimes
             for session_id, session in self.state.sessions.items():
@@ -155,6 +182,9 @@ class StateManager:
         tunnel_provider: str | None = None,
         ap_password: str | None = None,
         ap_password_generated_at: datetime | None = None,
+        captive_portal_url: str | None = None,
+        captive_portal_detected_at: datetime | None = None,
+        captive_portal_session_expires_at: datetime | None = None,
         error_message: str | None = None,
         connection_progress: float | None = None,
         increment_retry: bool = False,
@@ -183,6 +213,15 @@ class StateManager:
 
             if ap_password_generated_at is not None:
                 self.state.ap_password_generated_at = ap_password_generated_at
+
+            if captive_portal_url is not None:
+                self.state.captive_portal_url = captive_portal_url
+
+            if captive_portal_detected_at is not None:
+                self.state.captive_portal_detected_at = captive_portal_detected_at
+
+            if captive_portal_session_expires_at is not None:
+                self.state.captive_portal_session_expires_at = captive_portal_session_expires_at
 
             if error_message is not None:
                 self.state.error_message = error_message

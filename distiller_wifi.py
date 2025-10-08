@@ -359,6 +359,7 @@ class DistillerWiFiApp:
                 asyncio.create_task(self.display_service.run()),
                 asyncio.create_task(self.tunnel_service.run()),
                 asyncio.create_task(self.run_session_cleanup()),
+                asyncio.create_task(self.web_server.monitor_captive_portal_auth()),
             ]
 
             self.tasks.append(asyncio.create_task(self.run_network_monitor()))
