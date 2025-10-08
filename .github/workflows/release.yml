@@ -117,10 +117,9 @@ jobs:
       - name: Build Debian package
         run: |
           echo "Starting build process..."
-          chmod +x build-deb.sh
 
           # Build the Debian package for ARM64
-          ./build-deb.sh
+          just build
 
           echo "Build completed. Checking artifacts:"
           ls -la dist/
