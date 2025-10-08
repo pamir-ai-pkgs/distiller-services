@@ -454,16 +454,25 @@ class WebServer:
     async def _connect_to_network(self, ssid: str, password: str | None) -> None:
         """Handle network connection process."""
         try:
-            # Attempt connection
+            # Stage 1: Starting connection (20%)
+            await self.state_manager.update_state(connection_progress=0.2)
+            await asyncio.sleep(0.5)  # Brief delay for UI update
+
+            # Stage 2: Attempting WiFi connection (50%)
+            await self.state_manager.update_state(connection_progress=0.5)
             success = await self.network_manager.connect_to_network(ssid, password)
 
             if success:
+                # Stage 3: Verifying connectivity (80%)
+                await self.state_manager.update_state(connection_progress=0.8)
+
                 # Get connection info
                 info = await self.network_manager.get_connection_info()
 
                 # Verify actual internet connectivity
                 has_internet = await self.network_manager.verify_connectivity()
 
+                # Stage 4: Connection complete (100%)
                 # Update state with connectivity status
                 if has_internet:
                     await self.state_manager.update_state(
@@ -473,6 +482,7 @@ class WebServer:
                             ip_address=info.get("ip_address") if info else None,
                             connected_at=datetime.now(),
                         ),
+                        connection_progress=1.0,
                         reset_retry=True,
                     )
                     logger.info(f"Successfully connected to {ssid} with internet access")
@@ -485,15 +495,17 @@ class WebServer:
                             ip_address=info.get("ip_address") if info else None,
                             connected_at=datetime.now(),
                         ),
+                        connection_progress=1.0,
                         error_message="Limited connectivity - no internet access",
                         reset_retry=True,
                     )
                     logger.warning(f"Connected to {ssid} but no internet access (captive portal?)")
             else:
-                # Connection failed
+                # Connection failed - reset progress
                 await self.state_manager.update_state(
                     connection_state=ConnectionState.FAILED,
                     error_message="Failed to connect to network",
+                    connection_progress=0.0,
                     increment_retry=True,
                 )
 

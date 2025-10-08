@@ -55,6 +55,7 @@ class SystemState(BaseModel):
     ap_password_generated_at: datetime | None = None  # When AP password was generated
     error_message: str | None = None
     retry_count: int = 0
+    connection_progress: float = 0.0  # Connection progress (0.0 to 1.0)
     sessions: dict[str, SessionInfo] = Field(default_factory=dict)
     updated_at: datetime = Field(default_factory=datetime.now)
 
@@ -155,6 +156,7 @@ class StateManager:
         ap_password: str | None = None,
         ap_password_generated_at: datetime | None = None,
         error_message: str | None = None,
+        connection_progress: float | None = None,
         increment_retry: bool = False,
         reset_retry: bool = False,
     ) -> None:
@@ -186,6 +188,9 @@ class StateManager:
                 self.state.error_message = error_message
             elif connection_state == ConnectionState.CONNECTED:
                 self.state.error_message = None
+
+            if connection_progress is not None:
+                self.state.connection_progress = max(0.0, min(1.0, connection_progress))
 
             if increment_retry:
                 self.state.retry_count += 1

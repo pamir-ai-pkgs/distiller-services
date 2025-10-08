@@ -232,9 +232,10 @@ class DisplayService:
                         )
 
                     elif current_state == ConnectionState.CONNECTING:
-                        # Connecting screen with progress
+                        # Connecting screen with dynamic progress
                         ssid = full_state.network_info.ssid if full_state.network_info else None
-                        layout = create_connecting_screen(ssid=ssid, progress=0.4)
+                        progress = full_state.connection_progress
+                        layout = create_connecting_screen(ssid=ssid, progress=progress)
 
                     elif current_state == ConnectionState.CONNECTED:
                         # Check if we have a tunnel URL to show
