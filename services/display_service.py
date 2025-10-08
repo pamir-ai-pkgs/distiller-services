@@ -58,6 +58,7 @@ class DisplayService:
         self.state_manager = state_manager
         self.display: Any = None
         self._running = False
+        self._display_lock = asyncio.Lock()
 
         # Template path for UI-generated templates
         self.template_path = Path("/home/distiller/template/default/template.json")
@@ -191,101 +192,102 @@ class DisplayService:
 
     async def update_display(self, state):
         """Update display based on current state using new component system."""
-        try:
-            # Always get fresh state to ensure we have latest tunnel_url
-            full_state = self.state_manager.get_state()
-            # Use fresh state for screen decision instead of stale parameter
-            current_state = full_state.connection_state
-            image = None
+        async with self._display_lock:
+            try:
+                # Always get fresh state to ensure we have latest tunnel_url
+                full_state = self.state_manager.get_state()
+                # Use fresh state for screen decision instead of stale parameter
+                current_state = full_state.connection_state
+                image = None
 
-            # Try to use custom template for connected state with tunnel URL
-            if (
-                current_state == ConnectionState.CONNECTED
-                and full_state.tunnel_url
-                and self._has_template()
-            ):
-                # Get IP address for template rendering
-                ip_address = "127.0.0.1"
-                if full_state.network_info and full_state.network_info.ip_address:
-                    ip_address = full_state.network_info.ip_address
-
-                # Try to render custom template
-                image = self._render_template(ip_address, full_state.tunnel_url)
-
-                if image:
-                    logger.info("Using custom UI template for display")
-
-            # If no custom template or rendering failed, use hardcoded screens
-            if not image:
-                # Create appropriate screen based on fresh state
-                if current_state == ConnectionState.AP_MODE:
-                    # Setup screen with WiFi credentials
-                    ap_password = full_state.ap_password or "setupwifi123"
-                    layout = create_setup_screen(
-                        ap_ssid=self.settings.ap_ssid,
-                        ap_password=ap_password,
-                        mdns_hostname=self.settings.mdns_hostname,
-                        ap_ip=self.settings.ap_ip,
-                        web_port=self.settings.web_port,
-                    )
-
-                elif current_state == ConnectionState.CONNECTING:
-                    # Connecting screen with progress
-                    ssid = full_state.network_info.ssid if full_state.network_info else None
-                    layout = create_connecting_screen(ssid=ssid, progress=0.4)
-
-                elif current_state == ConnectionState.CONNECTED:
-                    # Check if we have a tunnel URL to show
-                    if full_state.tunnel_url:
-                        provider = full_state.tunnel_provider or "pinggy"
-                        layout = create_tunnel_screen(
-                            full_state.tunnel_url,
-                            full_state.network_info.ip_address,
-                            provider=provider,
-                        )
-                    else:
-                        # Regular connected screen
-                        network_info = full_state.network_info
-                        layout = create_connected_screen(
-                            ssid=network_info.ssid if network_info else None,
-                            ip_address=network_info.ip_address if network_info else None,
-                            mdns_hostname=self.settings.mdns_hostname,
-                        )
-
-                elif current_state == ConnectionState.FAILED:
-                    # Connection failed screen
-                    network_info = full_state.network_info
-                    layout = create_failed_screen(
-                        ssid=network_info.ssid if network_info else None,
-                        error_message=full_state.error_message,
-                    )
-
-                else:
-                    # Default initializing screen
-                    layout = create_initializing_screen()
-
-                # Render the layout to an image
-                image = layout.render(self.fonts)
-
-            # Send to display
-            if self.display:
-                # Image is from template if it was rendered by _render_template
-                is_from_template = (
-                    TEMPLATE_RENDERER_AVAILABLE
-                    and self._has_template()
-                    and image is not None
-                    and current_state == ConnectionState.CONNECTED
+                # Try to use custom template for connected state with tunnel URL
+                if (
+                    current_state == ConnectionState.CONNECTED
                     and full_state.tunnel_url
-                )
-                await self._send_to_display(image, current_state, is_template=is_from_template)
-            else:
-                # Save to file for debugging
-                debug_file = Path("/tmp/distiller_display.png")
-                image.save(str(debug_file))
-                logger.debug(f"Display image saved to: {debug_file}")
+                    and self._has_template()
+                ):
+                    # Get IP address for template rendering
+                    ip_address = "127.0.0.1"
+                    if full_state.network_info and full_state.network_info.ip_address:
+                        ip_address = full_state.network_info.ip_address
 
-        except Exception as e:
-            logger.error(f"Failed to update display: {e}", exc_info=True)
+                    # Try to render custom template
+                    image = self._render_template(ip_address, full_state.tunnel_url)
+
+                    if image:
+                        logger.info("Using custom UI template for display")
+
+                # If no custom template or rendering failed, use hardcoded screens
+                if not image:
+                    # Create appropriate screen based on fresh state
+                    if current_state == ConnectionState.AP_MODE:
+                        # Setup screen with WiFi credentials
+                        ap_password = full_state.ap_password or "setupwifi123"
+                        layout = create_setup_screen(
+                            ap_ssid=self.settings.ap_ssid,
+                            ap_password=ap_password,
+                            mdns_hostname=self.settings.mdns_hostname,
+                            ap_ip=self.settings.ap_ip,
+                            web_port=self.settings.web_port,
+                        )
+
+                    elif current_state == ConnectionState.CONNECTING:
+                        # Connecting screen with progress
+                        ssid = full_state.network_info.ssid if full_state.network_info else None
+                        layout = create_connecting_screen(ssid=ssid, progress=0.4)
+
+                    elif current_state == ConnectionState.CONNECTED:
+                        # Check if we have a tunnel URL to show
+                        if full_state.tunnel_url:
+                            provider = full_state.tunnel_provider or "pinggy"
+                            layout = create_tunnel_screen(
+                                full_state.tunnel_url,
+                                full_state.network_info.ip_address,
+                                provider=provider,
+                            )
+                        else:
+                            # Regular connected screen
+                            network_info = full_state.network_info
+                            layout = create_connected_screen(
+                                ssid=network_info.ssid if network_info else None,
+                                ip_address=network_info.ip_address if network_info else None,
+                                mdns_hostname=self.settings.mdns_hostname,
+                            )
+
+                    elif current_state == ConnectionState.FAILED:
+                        # Connection failed screen
+                        network_info = full_state.network_info
+                        layout = create_failed_screen(
+                            ssid=network_info.ssid if network_info else None,
+                            error_message=full_state.error_message,
+                        )
+
+                    else:
+                        # Default initializing screen
+                        layout = create_initializing_screen()
+
+                    # Render the layout to an image
+                    image = layout.render(self.fonts)
+
+                # Send to display
+                if self.display:
+                    # Image is from template if it was rendered by _render_template
+                    is_from_template = (
+                        TEMPLATE_RENDERER_AVAILABLE
+                        and self._has_template()
+                        and image is not None
+                        and current_state == ConnectionState.CONNECTED
+                        and full_state.tunnel_url
+                    )
+                    await self._send_to_display(image, current_state, is_template=is_from_template)
+                else:
+                    # Save to file for debugging
+                    debug_file = Path("/tmp/distiller_display.png")
+                    image.save(str(debug_file))
+                    logger.debug(f"Display image saved to: {debug_file}")
+
+            except Exception as e:
+                logger.error(f"Failed to update display: {e}", exc_info=True)
 
     async def _on_state_change(self, old_state, new_state):
         """Handle state changes via callback to force immediate display update."""
