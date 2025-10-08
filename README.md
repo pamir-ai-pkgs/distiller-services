@@ -18,7 +18,7 @@ The service operates in two primary modes: Access Point (AP) mode for initial co
 
 ### Network Management
 
-- **Access Point Mode**: Creates a temporary WiFi hotspot with dynamically generated secure passwords
+- **Access Point Mode**: Creates temporary WiFi hotspot with dynamically generated secure passwords
 - **Client Mode**: Connects to existing WiFi networks with automatic reconnection on failure
 - **Network Scanning**: Real-time WiFi network discovery with signal strength indicators
 - **Captive Portal**: Multi-OS automatic browser popup (Android, iOS, Windows, Firefox, Kindle)
@@ -65,8 +65,6 @@ The service operates in two primary modes: Access Point (AP) mode for initial co
 
 ## System Architecture
 
-### Component Overview
-
 The service is built on an event-driven architecture where state changes trigger cascading updates across all subsystems:
 
 ```
@@ -91,41 +89,6 @@ The system operates through six distinct connection states:
 6. **DISCONNECTED**: Manually disconnected
 
 State transitions trigger registered callbacks, updating the display, broadcasting to WebSocket clients, and adjusting network configuration.
-
-### Network Topology
-
-**Access Point Mode:**
-```
-Device (192.168.4.1/24) ← WiFi ← Client Devices
-         ↓
-    dnsmasq (DHCP + wildcard DNS)
-         ↓
-    Web Server (Port 8080)
-```
-
-**Client Mode:**
-```
-Device ← WiFi ← Router ← Internet
-  ↓
-  ├─ mDNS (distiller-xxxx.local)
-  └─ Tunnel (FRP/Pinggy)
-         ↓
-    Public URL
-```
-
-### Service Orchestration
-
-All services run as async tasks coordinated by `asyncio.gather()`. The main application manages lifecycle:
-
-```python
-tasks = [
-    run_web_server(),      # FastAPI HTTP/WebSocket
-    display_service.run(), # E-ink updates
-    tunnel_service.run(),  # Remote access
-    run_session_cleanup(), # Session management
-    run_network_monitor()  # NetworkManager events
-]
-```
 
 ## Requirements
 
@@ -167,80 +130,45 @@ tasks = [
 
 ### Debian Package Installation
 
-The recommended installation method for production deployments:
+Recommended for production deployments:
 
 ```bash
-# Install Distiller SDK first (required dependency)
 sudo dpkg -i distiller-sdk_3.0.0_arm64.deb
-
-# Install WiFi provisioning service
 sudo dpkg -i distiller-services_3.0.0_arm64.deb
-
-# Enable and start service
 sudo systemctl enable distiller-wifi.service
 sudo systemctl start distiller-wifi.service
-
-# Verify service status
-sudo systemctl status distiller-wifi.service
 ```
-
-The installation process:
-1. Removes old 2.x installations if present
-2. Configures MAC-based hostname
-3. Creates virtual environment with uv
-4. Installs Python dependencies
-5. Installs distiller-sdk integration
-6. Configures systemd service
 
 ### From Source Installation
 
 For development or custom builds:
 
 ```bash
-# Prerequisites
 sudo apt-get update
 sudo apt-get install -y python3 python3-dev python3-venv \
     network-manager dnsmasq avahi-daemon iptables openssh-client \
     build-essential debhelper dh-python fakeroot
 
-# Install uv package manager
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Clone repository
 cd /opt
 git clone https://github.com/pamir-ai/distiller-services.git
 cd distiller-services
 
-# Install dependencies
 uv sync
 
-# Build Debian package (optional)
 just build
 
-# Or run directly in development mode (requires root)
 sudo uv run python distiller_wifi.py --no-hardware --debug
 ```
 
-### Post-Installation Verification
+### Verification
 
 ```bash
-# Check service status
 sudo systemctl status distiller-wifi.service
-
-# View recent logs
 sudo journalctl -u distiller-wifi -n 50
-
-# Verify network interfaces
 nmcli device status
-
-# Check mDNS advertisement
 avahi-browse -a -t | grep -i distiller
-
-# Test web interface (in AP mode)
-curl http://192.168.4.1:8080
-
-# Test web interface (in client mode, replace xxxx with device ID)
-curl http://distiller-xxxx.local:8080
 ```
 
 ## Configuration
@@ -272,7 +200,7 @@ All configuration options can be set via environment variables with the `DISTILL
 | `DISTILLER_TUNNEL_RETRY_DELAY` | `30` | Delay between retries (seconds) |
 | `DISTILLER_DEBUG` | `False` | Enable debug logging |
 
-### Configuration via .env File
+### Configuration File
 
 Create `/opt/distiller-services/.env`:
 
@@ -283,44 +211,15 @@ DISTILLER_TUNNEL_PROVIDER=pinggy
 DISTILLER_PINGGY_ACCESS_TOKEN=your_token_here
 ```
 
-### Device Identity Configuration
-
-Device identity is managed automatically via MAC address but can be inspected:
-
-```bash
-# View device configuration
-cat /var/lib/distiller/device_config.json
-
-# Example output:
-{
-  "device_id": "a3f2",
-  "hostname": "distiller-a3f2",
-  "ap_ssid": "Distiller-A3F2",
-  "created_at": "2024-01-15T10:30:00.000000"
-}
-```
-
 ## Usage
 
 ### Starting and Stopping
 
 ```bash
-# Start service
 sudo systemctl start distiller-wifi.service
-
-# Stop service
 sudo systemctl stop distiller-wifi.service
-
-# Restart service
 sudo systemctl restart distiller-wifi.service
-
-# Enable auto-start on boot
 sudo systemctl enable distiller-wifi.service
-
-# Disable auto-start
-sudo systemctl disable distiller-wifi.service
-
-# View service status
 sudo systemctl status distiller-wifi.service
 ```
 
@@ -345,43 +244,12 @@ sudo systemctl status distiller-wifi.service
 ### Monitoring Service
 
 ```bash
-# View live logs
 sudo journalctl -u distiller-wifi -f
-
-# View last 100 lines
 sudo journalctl -u distiller-wifi -n 100
-
-# View logs since boot
 sudo journalctl -u distiller-wifi -b
-
-# View logs with timestamp
 sudo journalctl -u distiller-wifi -o short-iso
-
-# Filter by priority (errors only)
 sudo journalctl -u distiller-wifi -p err
-
-# Check log file (if file logging enabled)
-sudo tail -f /var/log/distiller/distiller-wifi.log
 ```
-
-### WebSocket Connection
-
-For real-time state updates, connect to the WebSocket endpoint:
-
-```javascript
-// JavaScript example
-const ws = new WebSocket('ws://distiller-xxxx.local:8080/ws');
-
-ws.onmessage = (event) => {
-    const state = JSON.parse(event.data);
-    console.log('Connection state:', state.state);
-    console.log('Current SSID:', state.ssid);
-    console.log('IP address:', state.ip_address);
-    console.log('Tunnel URL:', state.tunnel_url);
-};
-```
-
-State updates are broadcast whenever the connection state changes.
 
 ## API Reference
 
@@ -483,56 +351,47 @@ Messages are sent automatically on state changes. No subscription or heartbeat r
 
 ## Development
 
-### Development Environment Setup
+### Setup
 
 ```bash
-# Clone repository
 git clone https://github.com/pamir-ai/distiller-services.git
 cd distiller-services
-
-# Install uv package manager
 curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install dependencies
-just setup
-
-# Or manually:
 uv sync
 ```
 
 ### Development Commands
 
 ```bash
-# Run in development mode (requires root for NetworkManager access)
 just run
-
-# Run with custom arguments
 just run ARGS="--port 9090"
-
-# Run without hardware dependencies
 sudo uv run python distiller_wifi.py --no-hardware --debug
-
-# Code quality checks
-just lint         # Run all linters (ruff, mypy, shellcheck)
-just fix          # Auto-fix formatting issues
-
-# Individual linting
-uv run ruff check .                    # Lint only
-uv run ruff format .                   # Format only
-uv run mypy --ignore-missing-imports . # Type check
-
-# Build Debian package
-just build
-
-# Clean build artifacts
-just build clean
 ```
+
+### Code Quality
+
+```bash
+just lint
+just fix
+uv run ruff check .
+uv run ruff format .
+uv run mypy --ignore-missing-imports .
+```
+
+### Building
+
+```bash
+just build
+just build native
+TARGET_ARCH=amd64 just build
+just clean
+```
+
+Package output: `dist/distiller-services_3.0.0_arm64.deb`
 
 ### Code Style
 
-The project follows strict code quality guidelines:
-
-- **Line Length**: 100 characters (ruff and black)
+- **Line Length**: 100 characters
 - **Type Hints**: Full Pydantic typing throughout
 - **Async/Await**: All I/O operations use async patterns
 - **Import Sorting**: isort with black profile
@@ -543,130 +402,42 @@ The project follows strict code quality guidelines:
 
 ```
 distiller-services/
-├── core/                       # Core business logic
-│   ├── state.py               # State machine & persistence
-│   ├── network_manager.py     # NetworkManager wrapper
-│   ├── config.py              # Settings & environment
-│   ├── device_config.py       # Device identity management
-│   ├── captive_portal.py      # Captive portal iptables
-│   └── avahi_service.py       # mDNS advertisement
-├── services/                  # Service implementations
-│   ├── web_server.py          # FastAPI application
-│   ├── display_service.py     # E-ink display updates
-│   ├── display_screens.py     # Screen layouts
-│   ├── display_layouts.py     # Layout components
-│   ├── display_theme.py       # Design tokens
-│   └── tunnel_service.py      # FRP/Pinggy tunnels
-├── templates/                 # Jinja2 HTML templates
-├── static/                    # CSS, JavaScript assets
-├── debian/                    # Debian packaging files
-├── scripts/                   # Utility scripts
-├── distiller_wifi.py          # Main entry point
-├── pyproject.toml             # Python project config
-└── Justfile                   # Build system with recipes
+├── core/
+│   ├── state.py
+│   ├── network_manager.py
+│   ├── config.py
+│   ├── device_config.py
+│   ├── captive_portal.py
+│   └── avahi_service.py
+├── services/
+│   ├── web_server.py
+│   ├── display_service.py
+│   ├── display_screens.py
+│   ├── display_layouts.py
+│   ├── display_theme.py
+│   └── tunnel_service.py
+├── templates/
+├── static/
+├── debian/
+├── scripts/
+├── distiller_wifi.py
+├── pyproject.toml
+└── Justfile
 ```
-
-### Building Debian Packages
-
-```bash
-# Build for ARM64 (default)
-just build
-
-# Build for current architecture
-just build native
-
-# Build for specific architecture
-TARGET_ARCH=amd64 just build
-
-# Check dependencies before building
-just build check
-
-# Clean and rebuild
-just build clean
-just build
-```
-
-Package output: `dist/distiller-services_3.0.0_arm64.deb`
-
-## Network Configuration Details
-
-### Captive Portal Mechanism
-
-The captive portal uses a two-part system:
-
-1. **Wildcard DNS**: NetworkManager's dnsmasq is configured to return the gateway IP for all DNS queries via `/etc/NetworkManager/dnsmasq-shared.d/80-distiller-captive.conf`
-
-2. **OS Detection Endpoints**: HTTP redirects for connectivity checks:
-   - Android: `/generate_204`, `/gen_204`
-   - iOS: `/hotspot-detect.html`, `/library/test/success.html`, `/success.txt`
-   - Windows: `/ncsi.txt`, `/connecttest.txt`
-   - Firefox: `/canonical.html`
-   - Kindle: `/kindle-wifi/wifistub.html`
-
-All endpoints return HTTP 302 redirects to the setup page.
-
-### mDNS Resolution
-
-Avahi service advertises the HTTP service with TXT records:
-
-```xml
-<service>
-  <type>_http._tcp</type>
-  <port>8080</port>
-  <txt-record>path=/</txt-record>
-  <txt-record>version=2.0</txt-record>
-  <txt-record>device=distiller</txt-record>
-</service>
-```
-
-Service file location: `/etc/avahi/services/distiller-wifi.service`
-
-### Tunnel URL Patterns
-
-**FRP (Fast Reverse Proxy):**
-- URL format: `https://{SERIAL}.{DEVICES_DOMAIN}`
-- Example: `https://ABC123456.devices.pamir.ai`
-- Requires device serial in `/etc/pamir/device.env`
-- Systemd service: `frpc.service`
-
-**Pinggy:**
-- Free tier: `https://random-id.subdomain.free.pinggy.link`
-- Persistent: `https://custom-subdomain.pinggy.link`
-- Refresh interval: 55 minutes (free) or 24 hours (persistent)
-- Requires SSH client
 
 ## File Locations
-
-### Installation Directories
 
 | Path | Purpose |
 |------|---------|
 | `/opt/distiller-services/` | Service installation directory |
 | `/opt/distiller-services/.venv/` | Python virtual environment |
-| `/opt/distiller-sdk/` | Distiller SDK installation |
-
-### State and Configuration
-
-| Path | Purpose |
-|------|---------|
 | `/var/lib/distiller/state.json` | Persistent state (network, tunnel) |
 | `/var/lib/distiller/device_config.json` | Device identity configuration |
 | `/etc/pamir/device.env` | Device serial number (if available) |
 | `/etc/NetworkManager/system-connections/` | NetworkManager connection profiles |
 | `/etc/NetworkManager/dnsmasq-shared.d/` | Captive portal DNS configuration |
 | `/etc/avahi/services/` | Avahi mDNS service files |
-
-### Logs
-
-| Path | Purpose |
-|------|---------|
 | `/var/log/distiller/distiller-wifi.log` | Service log file (rotating, 10MB) |
-| `journalctl -u distiller-wifi` | Systemd journal logs |
-
-### Systemd Service
-
-| Path | Purpose |
-|------|---------|
 | `/lib/systemd/system/distiller-wifi.service` | Systemd unit file |
 
 ## Troubleshooting
@@ -674,57 +445,28 @@ Service file location: `/etc/avahi/services/distiller-wifi.service`
 ### Service Won't Start
 
 ```bash
-# Check service status
 sudo systemctl status distiller-wifi.service
-
-# View recent errors
 sudo journalctl -u distiller-wifi -n 50 -p err
-
-# Check if NetworkManager is running
 sudo systemctl status NetworkManager
-
-# Verify Python environment
 /opt/distiller-services/.venv/bin/python --version
-
-# Check permissions
-ls -la /opt/distiller-services/distiller_wifi.py
 ```
 
 ### Cannot Access Web Interface
 
 ```bash
-# Verify service is running
 sudo systemctl is-active distiller-wifi.service
-
-# Check listening ports
 sudo ss -tlnp | grep 8080
-
-# Verify AP mode is active
 nmcli connection show --active | grep Distiller
-
-# Check firewall rules
-sudo iptables -L -n -v
-
-# Test local connectivity
 curl http://localhost:8080
-
-# Verify mDNS hostname
 avahi-resolve --name distiller-xxxx.local
 ```
 
 ### Captive Portal Not Working
 
 ```bash
-# Check dnsmasq configuration
 cat /etc/NetworkManager/dnsmasq-shared.d/80-distiller-captive.conf
-
-# Verify DNS is working
 nslookup google.com 192.168.4.1
-
-# Check iptables NAT rules
 sudo iptables -t nat -L -n -v
-
-# Restart NetworkManager
 sudo systemctl restart NetworkManager
 sudo systemctl restart distiller-wifi.service
 ```
@@ -732,100 +474,32 @@ sudo systemctl restart distiller-wifi.service
 ### WiFi Connection Fails
 
 ```bash
-# Check WiFi device status
 nmcli device status
-
-# Scan for networks
 nmcli device wifi list
-
-# Check NetworkManager logs
 sudo journalctl -u NetworkManager -n 100
-
-# Verify credentials in state file
 cat /var/lib/distiller/state.json
-
-# Test connection manually
 sudo nmcli device wifi connect "SSID" password "password"
 ```
 
 ### E-ink Display Not Updating
 
 ```bash
-# Check if display is enabled
 grep -i display /var/lib/distiller/state.json
-
-# Verify display hardware
 ls -la /dev/spidev*
-
-# Check SDK installation
 ls -la /opt/distiller-sdk/
-
-# View display debug images (if hardware unavailable)
 ls -la /tmp/distiller_display.png
-
-# Check display service logs
 sudo journalctl -u distiller-wifi | grep -i display
 ```
 
 ### Tunnel Not Working
 
 ```bash
-# Check tunnel service status
 sudo journalctl -u distiller-wifi | grep -i tunnel
-
-# Verify FRP service (if using FRP)
 sudo systemctl status frpc.service
-
-# Check device serial
 cat /etc/pamir/device.env
-
-# Verify SSH connectivity (if using Pinggy)
 ssh -T a.pinggy.io
-
-# Check network connectivity
 ping -c 4 8.8.8.8
 ```
-
-### State File Corruption
-
-```bash
-# Check for backup
-ls -la /var/lib/distiller/state.json.backup
-
-# Restore from backup
-sudo cp /var/lib/distiller/state.json.backup /var/lib/distiller/state.json
-
-# Or reset state (will start fresh)
-sudo rm /var/lib/distiller/state.json
-sudo systemctl restart distiller-wifi.service
-```
-
-### High CPU Usage
-
-```bash
-# Check process status
-top -p $(pgrep -f distiller_wifi)
-
-# View detailed resource usage
-sudo systemd-cgtop
-
-# Check for network event storms
-sudo journalctl -u distiller-wifi -f | grep -i event
-
-# Disable display updates if needed
-echo "DISTILLER_DISPLAY_ENABLED=False" | sudo tee -a /opt/distiller-services/.env
-sudo systemctl restart distiller-wifi.service
-```
-
-## Known Issues
-
-See [TODO.md](TODO.md) for detailed technical implementation plan addressing:
-
-- Network connectivity validation (currently checks cached state only)
-- Event monitoring implementation (stubbed in network_manager.py:626-642)
-- Connection request serialization
-- AP password stability during connection retries
-- Display update race conditions during rapid state changes
 
 ## Contributing
 
@@ -847,7 +521,7 @@ Contributions are welcome. Please follow these guidelines:
 
 ## License
 
-Copyright (c) 2024 PamirAI Incorporated
+Copyright (c) 2025 PamirAI Incorporated
 
 Licensed under the MIT License. See LICENSE file for details.
 
@@ -855,16 +529,13 @@ Licensed under the MIT License. See LICENSE file for details.
 
 For issues and support:
 
-- GitHub Issues: https://github.com/pamir-ai/distiller-services/issues
-- Email: support@pamir.ai
-- Documentation: https://docs.pamir.ai/distiller-services
+- GitHub Issues: https://github.com/pamir-ai-pkgs/distiller-services/issues
+- Email: founders@pamir.ai
 
 ## Related Projects
 
 - [distiller-sdk](https://github.com/pamir-ai/distiller-sdk) - Core hardware SDK
-- [distiller-telemetry](https://github.com/pamir-ai/distiller-telemetry) - Device registration service
 - [distiller-update](https://github.com/pamir-ai/distiller-update) - APT update checker
-- [distiller-test-harness](https://github.com/pamir-ai/distiller-test-harness) - Test suite
 
 ## Acknowledgments
 
