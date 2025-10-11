@@ -5,11 +5,10 @@ export PATH="/root/.local/bin:/root/.cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin
 
 case "$1" in
 configure)
-	# Stop old service if running
-	if systemctl is-active --quiet distiller-wifi.service 2>/dev/null; then
+	# Stop old service if running (migration from older versions)
+	if [ -d /run/systemd/system ] && systemctl is-active --quiet distiller-wifi.service 2>/dev/null; then
 		echo "INFO: Stopping distiller-wifi service for migration..."
-		systemctl stop distiller-wifi.service 2>/dev/null || true
-		systemctl disable distiller-wifi.service 2>/dev/null || true
+		deb-systemd-invoke stop distiller-wifi.service 2>/dev/null || true
 	fi
 
 	# Remove old distiller-cm5-services installation completely
@@ -47,10 +46,6 @@ configure)
 	find /opt/distiller-services -type d -exec chmod 755 {} \; \
 		-o -type f -name "*.py" -exec chmod 755 {} \;
 	chmod +x /opt/distiller-services/distiller_wifi.py
-
-	# Reload systemd and enable service
-	systemctl daemon-reload 2>/dev/null || true
-	systemctl enable distiller-wifi.service 2>/dev/null || true
 
 	echo "INFO: distiller-services installed successfully."
 	echo "INFO: Start service: sudo systemctl start distiller-wifi"
