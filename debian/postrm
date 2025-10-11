@@ -3,12 +3,6 @@ set -e
 
 case "$1" in
 purge | remove)
-	# Stop and disable service
-	if systemctl is-active --quiet distiller-wifi.service 2>/dev/null; then
-		systemctl stop distiller-wifi.service 2>/dev/null || true
-	fi
-	systemctl disable distiller-wifi.service 2>/dev/null || true
-
 	# Remove installation
 	[ -d "/opt/distiller-services" ] && rm -rf /opt/distiller-services
 	[ -d "/opt/distiller-cm5-services" ] && rm -rf /opt/distiller-cm5-services
@@ -28,7 +22,9 @@ purge | remove)
 		[ -f /etc/udev/rules.d/99-distiller-hardware.rules ] && rm -f /etc/udev/rules.d/99-distiller-hardware.rules
 
 		# Clean up temporary files
-		rm -f /tmp/distiller-* /var/run/distiller-* /var/lock/distiller-*
+		find /tmp -maxdepth 1 -name 'distiller-*' -type f -delete 2>/dev/null || true
+		find /var/run -maxdepth 1 -name 'distiller-*' -type f -delete 2>/dev/null || true
+		find /var/lock -maxdepth 1 -name 'distiller-*' -type f -delete 2>/dev/null || true
 
 		# Remove NetworkManager connections
 		if command -v nmcli >/dev/null 2>&1; then
@@ -36,17 +32,9 @@ purge | remove)
 				xargs -r nmcli connection delete 2>/dev/null || true
 		fi
 	fi
-
-	systemctl daemon-reload 2>/dev/null || true
 	;;
 
-upgrade | failed-upgrade | abort-install | abort-upgrade | disappear)
-	# Stop service during upgrade but don't delete files
-	if systemctl is-active --quiet distiller-wifi.service 2>/dev/null; then
-		systemctl stop distiller-wifi.service 2>/dev/null || true
-	fi
-	systemctl daemon-reload 2>/dev/null || true
-	;;
+upgrade | failed-upgrade | abort-install | abort-upgrade | disappear) ;;
 
 *)
 	echo "ERROR: postrm called with unknown argument \`$1'" >&2
