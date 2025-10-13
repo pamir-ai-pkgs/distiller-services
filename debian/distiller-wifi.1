@@ -1,0 +1,149 @@
+.TH DISTILLER-WIFI 1 "2025-10-12" "distiller-services 3.0.0" "User Commands"
+.SH NAME
+distiller-wifi \- WiFi provisioning service for Distiller devices
+.SH SYNOPSIS
+.B distiller-wifi
+[\fB\-\-config\fR \fICONFIG_FILE\fR]
+[\fB\-\-debug\fR]
+[\fB\-\-port\fR \fIPORT\fR]
+.SH DESCRIPTION
+.B distiller-wifi
+is a modern async WiFi provisioning service for Distiller edge computing devices.
+It provides network configuration through access point mode, client mode, and secure
+tunnel access, with e-ink display integration and a web-based configuration interface.
+.PP
+The service runs as a systemd unit and requires root privileges for NetworkManager
+operations and hardware access.
+.SH OPTIONS
+.TP
+.BR \-\-config " " \fICONFIG_FILE\fR
+Path to configuration file. If not specified, uses default settings.
+.TP
+.BR \-\-debug
+Enable debug logging. Increases verbosity and logs detailed information about
+network operations, state transitions, and hardware interactions.
+.TP
+.BR \-\-port " " \fIPORT\fR
+Web server port (default: 8080). The web interface and API will be accessible
+on this port.
+.SH FILES
+.TP
+.I /usr/lib/distiller-services/
+Application data directory containing templates, static assets, and shell scripts.
+.TP
+.I /etc/distiller/
+Configuration directory for system-wide settings.
+.TP
+.I /var/lib/distiller/
+State directory containing runtime state files and persistent data.
+.TP
+.I /var/log/distiller/
+Log directory for application logs (rotated at 10MB, 3 backups).
+.TP
+.I /lib/systemd/system/distiller-wifi.service
+Systemd service unit file.
+.SH SYSTEMD INTEGRATION
+The service is typically managed through systemd:
+.PP
+.RS
+.nf
+systemctl start distiller-wifi
+systemctl stop distiller-wifi
+systemctl status distiller-wifi
+systemctl enable distiller-wifi
+.fi
+.RE
+.PP
+View logs with:
+.RS
+.nf
+journalctl -u distiller-wifi -f
+.fi
+.RE
+.SH OPERATION MODES
+.TP
+.B Access Point Mode
+When no network is configured or connection fails, the service starts an access
+point with SSID "Distiller-XXXX" (where XXXX is based on device MAC address).
+A dynamic password is generated and displayed in logs. Connect to this network
+and navigate to http://192.168.42.1:8080 to configure WiFi.
+.TP
+.B Client Mode
+When connected to a configured network, the service provides a web interface
+accessible via mDNS hostname (distiller-xxxx.local) or IP address.
+.TP
+.B Captive Portal
+In AP mode, the service can automatically redirect connected devices to the
+configuration page, providing a seamless setup experience on mobile devices.
+.SH HARDWARE REQUIREMENTS
+Designed for Raspberry Pi CM5 (BCM2712) and Radxa Zero 3/3W (RK3566) platforms.
+Requires:
+.IP \(bu 2
+NetworkManager for WiFi operations
+.IP \(bu 2
+Avahi daemon for mDNS advertisement
+.IP \(bu 2
+distiller-sdk for hardware control (optional, for e-ink display)
+.SH ENVIRONMENT
+The service uses the following directory structure:
+.IP \(bu 2
+Python package installed to /usr/lib/distiller-services/.venv
+.IP \(bu 2
+Console script at /usr/bin/distiller-wifi
+.IP \(bu 2
+Application data in /usr/lib/distiller-services/
+.IP \(bu 2
+Configuration in /etc/distiller/
+.IP \(bu 2
+State in /var/lib/distiller/
+.IP \(bu 2
+Logs in /var/log/distiller/
+.SH SECURITY
+The service runs as root to access NetworkManager D-Bus and hardware devices.
+Security settings are relaxed for network operations. The service should only
+be run on trusted networks or in isolated environments.
+.SH DEPENDENCIES
+.IP \(bu 2
+Python 3.11 or later
+.IP \(bu 2
+NetworkManager
+.IP \(bu 2
+dnsmasq (for AP mode DHCP/DNS)
+.IP \(bu 2
+Avahi daemon (for mDNS)
+.IP \(bu 2
+distiller-sdk >= 3.0.0 (recommended)
+.IP \(bu 2
+uv package manager (build-time)
+.SH EXAMPLES
+.TP
+Run manually with debug logging on port 9090:
+.RS
+.nf
+sudo distiller-wifi --debug --port 9090
+.fi
+.RE
+.TP
+Start the service:
+.RS
+.nf
+sudo systemctl start distiller-wifi
+.fi
+.RE
+.TP
+Check service status:
+.RS
+.nf
+systemctl status distiller-wifi
+.fi
+.RE
+.SH SEE ALSO
+.BR systemctl (1),
+.BR journalctl (1),
+.BR nmcli (1)
+.PP
+Project homepage: https://github.com/pamir-ai/distiller-services
+.SH AUTHOR
+Written by PamirAI Incorporated.
+.SH COPYRIGHT
+Copyright (c) 2024-2025 PamirAI Incorporated.

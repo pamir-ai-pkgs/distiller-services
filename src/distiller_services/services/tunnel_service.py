@@ -8,8 +8,8 @@ import re
 from enum import Enum
 from pathlib import Path
 
-from core.config import Settings
-from core.state import ConnectionState, StateManager
+from distiller_services.core.config import Settings
+from distiller_services.core.state import ConnectionState, StateManager
 
 logger = logging.getLogger(__name__)
 

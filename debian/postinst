@@ -1,8 +1,6 @@
 #!/bin/sh
 set -e
 
-export PATH="/root/.local/bin:/root/.cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-
 case "$1" in
 configure)
 	# Stop old service if running (migration from older versions)
@@ -11,41 +9,47 @@ configure)
 		deb-systemd-invoke stop distiller-wifi.service 2>/dev/null || true
 	fi
 
-	# Remove old distiller-cm5-services installation completely
-	[ -d "/opt/distiller-cm5-services" ] && rm -rf /opt/distiller-cm5-services
+	# Create required directories with correct permissions
+	install -d -m 0755 /etc/distiller
+	install -d -m 0755 /var/lib/distiller
+	install -d -m 0755 /var/log/distiller
 
-	# Set MAC-based hostname only on target device
-	if [ -f /boot/armbianEnv.txt ] || [ -f /boot/firmware/config.txt ]; then
-		echo "INFO: Setting MAC-based hostname..."
-		if [ -x /opt/distiller-services/scripts/update-hostname.sh ]; then
-			systemctl is-system-running >/dev/null 2>&1 &&
-				/opt/distiller-services/scripts/update-hostname.sh -v
-		fi
-	fi
+	# Create virtual environment with uv
+	cd /usr/lib/distiller-services
 
-	cd /opt/distiller-services
-
-	# Setup virtual environment
-	[ -d ".venv" ] && rm -rf ".venv"
-	if ! uv venv --system-site-packages 2>/dev/null; then
-		echo "INFO: Creating venv without system-site-packages..."
+	# Create .venv with specific Python version
+	if [ ! -d .venv ]; then
 		uv venv || {
-			echo "ERROR: Failed to create virtual environment with uv"
+			echo "ERROR: Failed to create virtual environment" >&2
 			exit 1
 		}
 	fi
 
-	# Install dependencies
-	echo "INFO: Installing dependencies with uv sync..."
-	uv sync
+	# Enable bytecode compilation for faster startup
+	export UV_COMPILE_BYTECODE=1
+	export UV_LINK_MODE=copy
 
-	# Install SDK
-	uv pip install -e /opt/distiller-sdk
+	# Install the package (production mode, not editable)
+	uv pip install --python .venv/bin/python --compile-bytecode . || {
+		echo "ERROR: Failed to install package" >&2
+		exit 1
+	}
 
-	# Set permissions
-	find /opt/distiller-services -type d -exec chmod 755 {} \; \
-		-o -type f -name "*.py" -exec chmod 755 {} \;
-	chmod +x /opt/distiller-services/distiller_wifi.py
+	# Install distiller-sdk if available
+	if [ -d /opt/distiller-sdk ]; then
+		echo "INFO: Installing distiller-sdk dependency..."
+		uv pip install --python .venv/bin/python /opt/distiller-sdk || {
+			echo "WARNING: Failed to install distiller-sdk"
+		}
+	fi
+
+	# Set MAC-based hostname on target devices
+	if [ -f /boot/armbianEnv.txt ] || [ -f /boot/firmware/config.txt ]; then
+		if [ -x /usr/share/distiller-services/scripts/update-hostname.sh ]; then
+			systemctl is-system-running >/dev/null 2>&1 &&
+				/usr/share/distiller-services/scripts/update-hostname.sh -v || true
+		fi
+	fi
 
 	echo "INFO: distiller-services installed successfully."
 	echo "INFO: Start service: sudo systemctl start distiller-wifi"
@@ -54,7 +58,7 @@ configure)
 abort-upgrade | abort-remove | abort-deconfigure) ;;
 
 *)
-	echo "ERROR: postinst called with unknown argument \`$1'" >&2
+	echo "ERROR: postinst called with unknown argument: $1" >&2
 	exit 1
 	;;
 esac

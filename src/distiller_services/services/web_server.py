@@ -5,7 +5,6 @@ import logging
 import re
 import uuid
 from datetime import datetime
-from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, Form, Request, Response, WebSocket, WebSocketDisconnect, status
@@ -14,10 +13,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 
-from core.captive_portal import CaptivePortal
-from core.config import Settings, generate_secure_password
-from core.network_manager import NetworkManager
-from core.state import ConnectionState, NetworkInfo, SessionInfo, StateManager
+from distiller_services.core.captive_portal import CaptivePortal
+from distiller_services.core.config import Settings, generate_secure_password
+from distiller_services.core.network_manager import NetworkManager
+from distiller_services.core.state import ConnectionState, NetworkInfo, SessionInfo, StateManager
+from distiller_services.paths import get_static_dir, get_templates_dir
 
 logger = logging.getLogger(__name__)
 
@@ -77,14 +77,15 @@ class WebServer:
 
         self.app = FastAPI(
             title="Distiller WiFi Setup",
-            version="2.2.1",
+            version="3.0.0",
             docs_url="/api/docs" if settings.debug else None,
             redoc_url="/api/redoc" if settings.debug else None,
         )
 
-        template_dir = Path(__file__).parent.parent / "templates"
+        # Use dynamic paths
+        template_dir = get_templates_dir()
         self.templates = Jinja2Templates(directory=str(template_dir))
-        static_dir = Path(__file__).parent.parent / "static"
+        static_dir = get_static_dir()
         self.app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
         self.websockets: dict[str, WebSocket] = {}
         self._setup_captive_portal_routes()
@@ -536,7 +537,9 @@ class WebServer:
                 suggestion = "Try refreshing the portal or contact network support."
 
             logger.error(f"Proxy HTTP error {error_code} for {target_url}: {e}")
-            error_html = self._render_error_template(f"http_{error_code}", message, details, suggestion)
+            error_html = self._render_error_template(
+                f"http_{error_code}", message, details, suggestion
+            )
             return Response(content=error_html, media_type="text/html", status_code=502)
 
         except Exception as e:

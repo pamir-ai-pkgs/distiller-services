@@ -1,6 +1,6 @@
 [Unit]
 Description=Distiller WiFi Provisioning System
-Documentation=https://github.com/pamir-ai/distiller-services
+Documentation=https://github.com/pamir-ai-pkgs/distiller-services
 After=network-online.target NetworkManager.service avahi-daemon.service
 Wants=network-online.target NetworkManager.service avahi-daemon.service
 
@@ -8,9 +8,9 @@ Wants=network-online.target NetworkManager.service avahi-daemon.service
 Type=simple
 User=root
 Group=root
-WorkingDirectory=/opt/distiller-services
-ExecStartPre=/bin/bash --norc /opt/distiller-services/scripts/update-hostname.sh -v
-ExecStart=/opt/distiller-services/.venv/bin/python /opt/distiller-services/distiller_wifi.py
+WorkingDirectory=/usr/lib/distiller-services
+ExecStartPre=/bin/bash --norc /usr/share/distiller-services/scripts/update-hostname.sh -v
+ExecStart=/usr/bin/distiller-wifi
 Restart=always
 RestartSec=10
 TimeoutStartSec=30
@@ -19,10 +19,9 @@ TimeoutStopSec=15
 # Environment
 Environment=PYTHONUNBUFFERED=1
 Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-Environment=PYTHONPATH=/opt/distiller-services:/opt/distiller-sdk:/opt/distiller-sdk/src
 Environment=LD_LIBRARY_PATH=/opt/distiller-sdk/lib
 
-# Security settings - relaxed for network operations
+# Security settings
 NoNewPrivileges=false
 ProtectSystem=false
 ProtectHostname=no
