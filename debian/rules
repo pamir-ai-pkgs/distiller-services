@@ -1,17 +1,24 @@
 #!/usr/bin/make -f
 
-# Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
+export PYBUILD_NAME=distiller-services
 
 %:
 	dh $@
+
+override_dh_auto_build:
+	# No build step needed
+	true
+
+override_dh_auto_test:
+	# Skip tests during package build
+	true
 
 override_dh_installsystemd:
 	dh_installsystemd --name=distiller-wifi
 
 override_dh_fixperms:
 	dh_fixperms
-	# Make main script executable
-	chmod +x debian/distiller-services/opt/distiller-services/distiller_wifi.py
 	# Make all shell scripts executable
-	-find debian/distiller-services/opt/distiller-services/scripts -name "*.sh" -exec chmod +x {} \;
+	-find debian/distiller-services/usr/share/distiller-services/scripts -name "*.sh" -exec chmod +x {} \;
+	# Ensure Python source files have correct permissions
+	-find debian/distiller-services/usr/lib/distiller-services/src -type f -name "*.py" -exec chmod 644 {} \;

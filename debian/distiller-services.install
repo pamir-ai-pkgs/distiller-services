@@ -1,0 +1,9 @@
+src/distiller_services usr/lib/distiller-services/src/
+pyproject.toml usr/lib/distiller-services/
+uv.lock usr/lib/distiller-services/
+README.md usr/lib/distiller-services/
+distiller_wifi.py usr/lib/distiller-services/
+generate_eink_previews.py usr/lib/distiller-services/
+templates usr/lib/distiller-services/
+static usr/lib/distiller-services/
+scripts usr/share/distiller-services/
