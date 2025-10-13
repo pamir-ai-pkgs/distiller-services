@@ -1,14 +1,3 @@
 etc/distiller
 var/lib/distiller
 var/log/distiller
-opt/distiller-services
-opt/distiller-services/core
-opt/distiller-services/services
-opt/distiller-services/scripts
-opt/distiller-services/static
-opt/distiller-services/static/css
-opt/distiller-services/static/js
-opt/distiller-services/static/images
-opt/distiller-services/static/fonts
-opt/distiller-services/templates
-opt/distiller-services/fonts

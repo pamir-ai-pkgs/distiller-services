@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from ..paths import get_device_env_path, get_log_dir, get_state_dir
 from .device_config import DeviceConfigManager
 
 
@@ -85,7 +86,8 @@ class Settings(BaseSettings):
     device_serial: str | None = Field(default=None, description="Device serial number (override)")
 
     device_env_path: str = Field(
-        default="/etc/pamir/device.env", description="Path to device env file"
+        default_factory=lambda: str(get_device_env_path()),
+        description="Path to device env file",
     )
 
     # Pinggy configuration (backward compatibility)
@@ -113,11 +115,9 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False, description="Enable debug logging")
 
     # Paths
-    state_dir: Path = Field(
-        default=Path("/var/lib/distiller"), description="State storage directory"
-    )
+    state_dir: Path = Field(default_factory=get_state_dir, description="State storage directory")
 
-    log_dir: Path = Field(default=Path("/var/log/distiller"), description="Log file directory")
+    log_dir: Path = Field(default_factory=get_log_dir, description="Log file directory")
 
     # Device configuration manager (lazy loaded)
     _device_config: DeviceConfigManager | None = None
@@ -125,8 +125,8 @@ class Settings(BaseSettings):
     def _get_device_config(self) -> DeviceConfigManager:
         """Get or create device configuration manager."""
         if self._device_config is None:
-            # Always use /var/lib/distiller for device config
-            config_file = Path("/var/lib/distiller/device_config.json")
+            # Use state directory for device config
+            config_file = self.state_dir / "device_config.json"
 
             self._device_config = DeviceConfigManager(config_file=config_file)
             # Load or create identity

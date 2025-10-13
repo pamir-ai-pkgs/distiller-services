@@ -11,8 +11,9 @@ from typing import Any
 
 from PIL import Image, ImageFont
 
-from core.config import Settings
-from core.state import ConnectionState, StateManager
+from distiller_services.core.config import Settings
+from distiller_services.core.state import ConnectionState, StateManager
+from distiller_services.paths import get_sdk_path, get_static_dir
 
 from .display_screens import (
     create_captive_portal_screen,
@@ -26,8 +27,8 @@ from .display_screens import (
 
 logger = logging.getLogger(__name__)
 
-# Add the SDK path to system path
-SDK_PATH = Path("/opt/distiller-sdk/src")
+# Add the SDK path to system path (auto-detects dev vs production)
+SDK_PATH = get_sdk_path()
 if SDK_PATH.exists():
     sys.path.insert(0, str(SDK_PATH))
 
@@ -109,13 +110,8 @@ class DisplayService:
         """Load fonts for rendering."""
         fonts = {}
 
-        # Use MartianMono font from static/fonts (parent directory)
-        font_path = (
-            Path(__file__).parent.parent
-            / "static"
-            / "fonts"
-            / "MartianMonoNerdFont-CondensedBold.ttf"
-        )
+        # Use MartianMono font (auto-detects dev vs production)
+        font_path = get_static_dir() / "fonts" / "MartianMonoNerdFont-CondensedBold.ttf"
 
         try:
             # Load font at different sizes

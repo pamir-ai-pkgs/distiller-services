@@ -15,6 +15,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from ..paths import get_state_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -187,7 +189,7 @@ class DeviceIdentity(BaseModel):
 
 class DeviceConfigManager:
     def __init__(self, config_file: Path | None = None):
-        self.config_file = config_file or Path("/var/lib/distiller/device_config.json")
+        self.config_file = config_file or (get_state_dir() / "device_config.json")
         self.identity: DeviceIdentity | None = None
 
     def load_or_create(self) -> DeviceIdentity:

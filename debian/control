@@ -3,7 +3,7 @@ Section: net
 Priority: optional
 Maintainer: PamirAI Incorporated <founders@pamir.ai>
 Build-Depends: debhelper-compat (= 13),
-               dh-python
+               python3-all (>= 3.11)
 Standards-Version: 4.7.0
 Homepage: https://github.com/pamir-ai-pkgs/distiller-services
 Vcs-Git: https://github.com/pamir-ai-pkgs/distiller-services.git
@@ -14,7 +14,7 @@ Package: distiller-services
 Architecture: all
 Depends: ${misc:Depends},
          python3 (>= 3.11),
-         python3-venv,
+         uv,
          systemd,
          network-manager,
          dnsmasq,

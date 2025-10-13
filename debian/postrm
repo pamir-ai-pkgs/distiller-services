@@ -2,42 +2,45 @@
 set -e
 
 case "$1" in
-purge | remove)
-	# Remove installation
-	[ -d "/opt/distiller-services" ] && rm -rf /opt/distiller-services
-	[ -d "/opt/distiller-cm5-services" ] && rm -rf /opt/distiller-cm5-services
+remove)
+	# Remove virtual environment
+	rm -rf /usr/lib/distiller-services/.venv
+	;;
 
-	if [ "$1" = "purge" ]; then
-		echo "INFO: Purging user data..."
-		# Clean up user data directories
-		[ -d /etc/distiller ] && rm -rf /etc/distiller
-		[ -d /var/lib/distiller ] && rm -rf /var/lib/distiller
-		[ -d /var/log/distiller ] && rm -rf /var/log/distiller
-		[ -f /etc/avahi/services/distiller-wifi.service ] &&
-			rm -f /etc/avahi/services/distiller-wifi.service
+purge)
+	# Clean up user data directories
+	[ -d /etc/distiller ] && rm -rf /etc/distiller
+	[ -d /var/lib/distiller ] && rm -rf /var/lib/distiller
+	[ -d /var/log/distiller ] && rm -rf /var/log/distiller
 
-		# Remove configuration files
-		[ -f /etc/sudoers.d/distiller-system ] && rm -f /etc/sudoers.d/distiller-system
-		[ -f /etc/polkit-1/rules.d/50-distiller-networkmanager.rules ] && rm -f /etc/polkit-1/rules.d/50-distiller-networkmanager.rules
-		[ -f /etc/udev/rules.d/99-distiller-hardware.rules ] && rm -f /etc/udev/rules.d/99-distiller-hardware.rules
+	# Remove Avahi service file
+	[ -f /etc/avahi/services/distiller-wifi.service ] &&
+		rm -f /etc/avahi/services/distiller-wifi.service
 
-		# Clean up temporary files
-		find /tmp -maxdepth 1 -name 'distiller-*' -type f -delete 2>/dev/null || true
-		find /var/run -maxdepth 1 -name 'distiller-*' -type f -delete 2>/dev/null || true
-		find /var/lock -maxdepth 1 -name 'distiller-*' -type f -delete 2>/dev/null || true
+	# Remove configuration files
+	[ -f /etc/sudoers.d/distiller-system ] && rm -f /etc/sudoers.d/distiller-system
+	[ -f /etc/polkit-1/rules.d/50-distiller-networkmanager.rules ] && rm -f /etc/polkit-1/rules.d/50-distiller-networkmanager.rules
+	[ -f /etc/udev/rules.d/99-distiller-hardware.rules ] && rm -f /etc/udev/rules.d/99-distiller-hardware.rules
 
-		# Remove NetworkManager connections
-		if command -v nmcli >/dev/null 2>&1; then
-			nmcli connection show 2>/dev/null | grep -E "^Distiller-" | awk '{print $1}' |
-				xargs -r nmcli connection delete 2>/dev/null || true
-		fi
+	# Clean up temporary files
+	find /tmp -maxdepth 1 -name 'distiller-*' -type f -delete 2>/dev/null || true
+	find /var/run -maxdepth 1 -name 'distiller-*' -type f -delete 2>/dev/null || true
+	find /var/lock -maxdepth 1 -name 'distiller-*' -type f -delete 2>/dev/null || true
+
+	# Remove NetworkManager connections
+	if command -v nmcli >/dev/null 2>&1; then
+		nmcli connection show 2>/dev/null | grep -E "^Distiller-" | awk '{print $1}' |
+			xargs -r nmcli connection delete 2>/dev/null || true
 	fi
+
+	# Clean up uv cache to save disk space
+	uv cache clean || true
 	;;
 
 upgrade | failed-upgrade | abort-install | abort-upgrade | disappear) ;;
 
 *)
-	echo "ERROR: postrm called with unknown argument \`$1'" >&2
+	echo "ERROR: postrm called with unknown argument: $1" >&2
 	exit 1
 	;;
 esac

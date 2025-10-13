@@ -280,6 +280,7 @@ debian/files
 debian/debhelper-build-stamp
 debian/distiller-services/
 debian/distiller-services.*
+!debian/distiller-services.install
 
 # Python artifacts
 __pycache__/

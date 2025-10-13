@@ -10,7 +10,7 @@ remove | upgrade | deconfigure)
 failed-upgrade) ;;
 
 *)
-	echo "ERROR: prerm called with unknown argument \`$1'" >&2
+	echo "ERROR: prerm called with unknown argument: $1" >&2
 	exit 1
 	;;
 esac

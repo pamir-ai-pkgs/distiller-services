@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-"distiller-wifi" = "distiller_wifi:main"
+"distiller-wifi" = "distiller_services.__main__:main"
 
 [project.optional-dependencies]
 dev = [
@@ -35,15 +35,24 @@ dev = [
 ]
 
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["core*", "services*", "network*"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/distiller_services"]
 
-[tool.setuptools.package-data]
-"*" = ["*.json", "*.toml", "*.txt", "*.md", "*.py", "*.sh", "*.html", "*.css", "*.js", "*.svg", "*.ttf"]
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/scripts",
+    "/templates",
+    "/static",
+    "/debian",
+    "/README.md",
+    "/pyproject.toml",
+    "/Justfile",
+    "/distiller-wifi.service",
+]
 
 [tool.ruff]
 line-length = 100
