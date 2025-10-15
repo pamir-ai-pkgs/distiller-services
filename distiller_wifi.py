@@ -10,5 +10,7 @@ For development, use: python -m distiller_services
 
 if __name__ == "__main__":
     import sys
+
     from distiller_services.__main__ import main
+
     sys.exit(main())
