@@ -74,6 +74,8 @@ class WebServer:
             web_port=self.settings.web_port,
         )
         self._connection_lock = asyncio.Lock()
+        self._websocket_lock = asyncio.Lock()
+        self._app_connection_lock: asyncio.Lock | None = None  # Will be set by DistillerWiFiApp
 
         self.app = FastAPI(
             title="Distiller WiFi Setup",
@@ -562,7 +564,10 @@ class WebServer:
 
             # Generate session ID for this connection
             ws_id = str(uuid.uuid4())
-            self.websockets[ws_id] = websocket
+
+            # Add to websockets dict with lock
+            async with self._websocket_lock:
+                self.websockets[ws_id] = websocket
 
             try:
                 # Send initial status
@@ -576,6 +581,7 @@ class WebServer:
                         "tunnel_url": state.tunnel_url,
                         "tunnel_provider": state.tunnel_provider,
                         "error": state.error_message,
+                        "connection_status": state.connection_status,
                     }
                 )
 
@@ -591,8 +597,9 @@ class WebServer:
             except Exception as e:
                 logger.error(f"WebSocket error: {e}")
             finally:
-                # Remove from active connections
-                self.websockets.pop(ws_id, None)
+                # Remove from active connections with lock
+                async with self._websocket_lock:
+                    self.websockets.pop(ws_id, None)
 
     async def _track_session(self, session_id: str, request: Request) -> None:
         """Track user session."""
@@ -619,119 +626,159 @@ class WebServer:
             "tunnel_provider": state.tunnel_provider,
             "error": state.error_message,
             "captive_portal_url": state.captive_portal_url,
+            "connection_status": state.connection_status,
         }
 
-        # Send to all connected clients
-        disconnected = []
-        for ws_id, websocket in self.websockets.items():
-            try:
-                await websocket.send_json(message)
-            except Exception:
-                disconnected.append(ws_id)
+        # Send to all connected clients with lock protection
+        async with self._websocket_lock:
+            disconnected = []
+            for ws_id, websocket in list(self.websockets.items()):
+                try:
+                    await websocket.send_json(message)
+                except Exception:
+                    disconnected.append(ws_id)
 
-        # Clean up disconnected clients
-        for ws_id in disconnected:
-            self.websockets.pop(ws_id, None)
+            # Clean up disconnected clients
+            for ws_id in disconnected:
+                self.websockets.pop(ws_id, None)
 
     async def _connect_to_network(self, ssid: str, password: str | None) -> None:
-        """Handle network connection process."""
-        try:
-            # Stage 1: Starting connection (20%)
-            await self.state_manager.update_state(connection_progress=0.2)
-            await asyncio.sleep(0.5)  # Brief delay for UI update
+        """Handle network connection process with granular status updates."""
+        # Use app-level lock if available, otherwise use local lock
+        connection_lock = self._app_connection_lock or self._connection_lock
 
-            # Stage 2: Attempting WiFi connection (50%)
-            await self.state_manager.update_state(connection_progress=0.5)
-            success = await self.network_manager.connect_to_network(ssid, password)
+        async with connection_lock:
+            try:
+                logger.info(f"User-initiated connection to {ssid}")
 
-            if success:
-                # Stage 3: Verifying connectivity (80%)
-                await self.state_manager.update_state(connection_progress=0.8)
+                # Update to connecting state
+                await self.state_manager.update_state(
+                    connection_status=f"Connecting to {ssid}...",
+                    connection_progress=0.3,
+                )
+                await self._broadcast_status()
 
-                # Get connection info
-                info = await self.network_manager.get_connection_info()
+                # Attempt connection
+                success = await self.network_manager.connect_to_network(ssid, password)
 
-                # Check for captive portal first
-                is_captive, portal_url = await self.network_manager.detect_captive_portal()
+                if success:
+                    # Get connection info
+                    info = await self.network_manager.get_connection_info()
 
-                if is_captive:
-                    # Connected to WiFi but captive portal detected
-                    logger.info(f"Captive portal detected: {portal_url}")
+                    # Update progress after getting IP
+                    await self.state_manager.update_state(
+                        connection_status="Verifying connectivity...",
+                        connection_progress=0.6,
+                    )
+                    await self._broadcast_status()
+
+                    # Check for captive portal
+                    is_captive, portal_url = await self.network_manager.detect_captive_portal()
+
+                    if is_captive:
+                        # Connected to WiFi but captive portal detected
+                        logger.info(f"Captive portal detected: {portal_url}")
+
+                        await self.state_manager.update_state(
+                            connection_state=ConnectionState.CONNECTED,
+                            network_info=NetworkInfo(
+                                ssid=ssid,
+                                ip_address=info.get("ip_address") if info else None,
+                                connected_at=datetime.now(),
+                            ),
+                            captive_portal_url=portal_url,
+                            captive_portal_detected_at=datetime.now(),
+                            connection_progress=1.0,
+                            connection_status="Captive portal detected - authentication required",
+                            error_message="Captive portal detected - authentication required",
+                            reset_retry=True,
+                        )
+                        logger.warning(
+                            f"Connected to {ssid} but captive portal requires authentication"
+                        )
+                    else:
+                        # Verify actual internet connectivity
+                        await self.state_manager.update_state(
+                            connection_status="Checking internet connectivity...",
+                            connection_progress=0.8,
+                        )
+                        await self._broadcast_status()
+
+                        has_internet = await self.network_manager.verify_connectivity()
+
+                        # Connection complete
+                        if has_internet:
+                            await self.state_manager.update_state(
+                                connection_state=ConnectionState.CONNECTED,
+                                network_info=NetworkInfo(
+                                    ssid=ssid,
+                                    ip_address=info.get("ip_address") if info else None,
+                                    connected_at=datetime.now(),
+                                ),
+                                connection_progress=1.0,
+                                connection_status=None,  # Clear status on success
+                                error_message=None,
+                                reset_retry=True,
+                            )
+                            logger.info(f"Successfully connected to {ssid} with internet access")
+                        else:
+                            # WiFi connected but no internet (no captive portal detected)
+                            await self.state_manager.update_state(
+                                connection_state=ConnectionState.CONNECTED,
+                                network_info=NetworkInfo(
+                                    ssid=ssid,
+                                    ip_address=info.get("ip_address") if info else None,
+                                    connected_at=datetime.now(),
+                                ),
+                                connection_progress=1.0,
+                                connection_status=None,  # Clear status
+                                error_message="Limited connectivity - no internet access",
+                                reset_retry=True,
+                            )
+                            logger.warning(f"Connected to {ssid} but no internet access")
+                else:
+                    # Connection failed - get user-friendly error message
+                    error_msg = "Failed to connect to network"
+
+                    # Try to get more specific error from network manager's last error
+                    if hasattr(self.network_manager, "_last_connection_error"):
+                        parsed_error = self.network_manager._parse_connection_error(
+                            self.network_manager._last_connection_error
+                        )
+                        if parsed_error:
+                            error_msg = parsed_error
+
+                    logger.error(f"Connection to {ssid} failed: {error_msg}")
 
                     await self.state_manager.update_state(
-                        connection_state=ConnectionState.CONNECTED,
-                        network_info=NetworkInfo(
-                            ssid=ssid,
-                            ip_address=info.get("ip_address") if info else None,
-                            connected_at=datetime.now(),
-                        ),
-                        captive_portal_url=portal_url,
-                        captive_portal_detected_at=datetime.now(),
-                        connection_progress=1.0,
-                        error_message="Captive portal detected - authentication required",
-                        reset_retry=True,
+                        connection_state=ConnectionState.FAILED,
+                        error_message=error_msg,
+                        connection_progress=0.0,
+                        connection_status=None,  # Clear status on failure
+                        increment_retry=True,
                     )
-                    logger.warning(
-                        f"Connected to {ssid} but captive portal requires authentication"
-                    )
-                else:
-                    # No captive portal, verify actual internet connectivity
-                    has_internet = await self.network_manager.verify_connectivity()
+                    await self._broadcast_status()
 
-                    # Stage 4: Connection complete (100%)
-                    # Update state with connectivity status
-                    if has_internet:
-                        await self.state_manager.update_state(
-                            connection_state=ConnectionState.CONNECTED,
-                            network_info=NetworkInfo(
-                                ssid=ssid,
-                                ip_address=info.get("ip_address") if info else None,
-                                connected_at=datetime.now(),
-                            ),
-                            connection_progress=1.0,
-                            reset_retry=True,
-                        )
-                        logger.info(f"Successfully connected to {ssid} with internet access")
-                    else:
-                        # WiFi connected but no internet (no captive portal detected)
-                        await self.state_manager.update_state(
-                            connection_state=ConnectionState.CONNECTED,
-                            network_info=NetworkInfo(
-                                ssid=ssid,
-                                ip_address=info.get("ip_address") if info else None,
-                                connected_at=datetime.now(),
-                            ),
-                            connection_progress=1.0,
-                            error_message="Limited connectivity - no internet access",
-                            reset_retry=True,
-                        )
-                        logger.warning(f"Connected to {ssid} but no internet access")
-            else:
-                # Connection failed - reset progress
+                    # Return to AP mode after delay
+                    await asyncio.sleep(5)
+                    await self._restart_ap_mode()
+
+                # Broadcast final status update
+                await self._broadcast_status()
+
+            except Exception as e:
+                logger.error(f"Connection error: {e}", exc_info=True)
                 await self.state_manager.update_state(
                     connection_state=ConnectionState.FAILED,
-                    error_message="Failed to connect to network",
+                    error_message=f"Connection error: {str(e)}",
                     connection_progress=0.0,
-                    increment_retry=True,
+                    connection_status=None,  # Clear status on error
                 )
+                await self._broadcast_status()
 
-                # Return to AP mode after delay
+                # Return to AP mode
                 await asyncio.sleep(5)
                 await self._restart_ap_mode()
-
-            # Broadcast status update
-            await self._broadcast_status()
-
-        except Exception as e:
-            logger.error(f"Connection error: {e}")
-            await self.state_manager.update_state(
-                connection_state=ConnectionState.FAILED, error_message=str(e)
-            )
-            await self._broadcast_status()
-
-            # Return to AP mode
-            await asyncio.sleep(5)
-            await self._restart_ap_mode()
 
     async def _disconnect_and_restart_ap(self) -> None:
         """Disconnect from network and restart AP mode."""
