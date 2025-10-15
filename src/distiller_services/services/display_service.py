@@ -74,6 +74,7 @@ class DisplayService:
 
         # Register for state changes
         self.state_manager.on_state_change(self._on_state_change)
+        self.state_manager.on_tunnel_url_change(self._on_tunnel_url_change)
 
     def _init_hardware(self):
         """Initialize e-ink display but don't hold it."""
@@ -243,10 +244,13 @@ class DisplayService:
                         )
 
                     elif current_state == ConnectionState.CONNECTING:
-                        # Connecting screen with dynamic progress
+                        # Connecting screen with dynamic progress and status
                         ssid = full_state.network_info.ssid if full_state.network_info else None
                         progress = full_state.connection_progress
-                        layout = create_connecting_screen(ssid=ssid, progress=progress)
+                        status = full_state.connection_status
+                        layout = create_connecting_screen(
+                            ssid=ssid, progress=progress, status=status
+                        )
 
                     elif current_state == ConnectionState.CONNECTED:
                         # Check if we have a tunnel URL to show
@@ -305,6 +309,13 @@ class DisplayService:
         """Handle state changes via callback to force immediate display update."""
         logger.info(f"State change callback: {old_state} -> {new_state}")
         await self.update_display(new_state)
+
+    async def _on_tunnel_url_change(self, old_url, new_url):
+        """Handle tunnel URL changes to update display with tunnel screen."""
+        logger.info(f"Tunnel URL change callback: {old_url} -> {new_url}")
+        # Get current state and trigger display update
+        current_state = self.state_manager.get_state().connection_state
+        await self.update_display(current_state)
 
     async def _send_to_display(self, image, state, is_template=False):
         """Send image to e-ink display with conditional rotation for templates."""

@@ -66,11 +66,19 @@ class DistillerWiFiApp:
         self.state_manager = StateManager(self.settings.state_file)
         self.network_manager = NetworkManager()
         self.avahi_service = AvahiService(self.settings.web_port)
+
+        # Application-level connection lock to prevent concurrent connection attempts
+        self._connection_lock = asyncio.Lock()
+        self._connection_initiator: str | None = None  # Track who initiated connection
+
         self.web_server = WebServer(self.settings, self.network_manager, self.state_manager)
         self.display_service = DisplayService(self.settings, self.state_manager)
         self.tunnel_service = TunnelService(self.settings, self.state_manager, self.network_manager)
         self.tasks: list[asyncio.Task] = []
         self.server: uvicorn.Server | None = None
+
+        # Give web_server access to connection lock
+        self.web_server._app_connection_lock = self._connection_lock
 
     async def initialize(self):
         logger.info("Initializing Distiller WiFi System...")
@@ -261,52 +269,78 @@ class DistillerWiFiApp:
 
     async def _recover_from_network_loss(self):
         """Attempt to recover from network disconnection."""
-        logger.info("Starting network recovery")
-
-        # Wait briefly for transient issues to resolve
-        await asyncio.sleep(3)
-
-        # Check if we recovered already
-        current_state = self.state_manager.get_state()
-        if current_state.connection_state == ConnectionState.CONNECTED:
-            logger.info("Network already recovered")
+        # Check if lock is already held (user connection in progress)
+        if self._connection_lock.locked():
+            logger.info("Skipping auto-recovery - user connection in progress")
             return
 
-        # Get saved network
-        saved_network = current_state.network_info
-        if not saved_network or not saved_network.ssid:
-            logger.warning("No saved network, falling back to AP mode")
+        # Try to acquire lock, but don't wait if it's held
+        try:
+            acquired = self._connection_lock.acquire_nowait()
+        except Exception:
+            logger.debug("Could not acquire connection lock for recovery")
+            return
+
+        if not acquired:
+            logger.info("Skipping auto-recovery - connection already in progress")
+            return
+
+        try:
+            self._connection_initiator = "recovery"
+            logger.info("Starting auto-recovery from network loss")
+
+            # Wait briefly for transient issues to resolve
+            await asyncio.sleep(3)
+
+            # Check if we recovered already
+            current_state = self.state_manager.get_state()
+            if current_state.connection_state == ConnectionState.CONNECTED:
+                logger.info("Network already recovered")
+                return
+
+            # Get saved network
+            saved_network = current_state.network_info
+            if not saved_network or not saved_network.ssid:
+                logger.warning("No saved network, falling back to AP mode")
+                await self._fallback_to_ap_mode()
+                return
+
+            # Attempt reconnection
+            logger.info(f"Auto-recovery attempting to reconnect to {saved_network.ssid}")
+            await self.state_manager.update_state(
+                connection_state=ConnectionState.CONNECTING,
+                error_message=f"Reconnecting to {saved_network.ssid}",
+                connection_status="Auto-recovery: reconnecting...",
+            )
+
+            success = await self.network_manager.reconnect_to_saved_network(saved_network.ssid)
+
+            if success:
+                # Verify with active connectivity check
+                if await self.network_manager.verify_connectivity():
+                    connection_info = await self.network_manager.get_connection_info()
+                    if connection_info:
+                        logger.info(
+                            f"Auto-recovery: successfully reconnected to {saved_network.ssid}"
+                        )
+                        await self.state_manager.update_state(
+                            connection_state=ConnectionState.CONNECTED,
+                            network_info=NetworkInfo(
+                                ssid=connection_info.get("ssid"),
+                                ip_address=connection_info.get("ip_address"),
+                            ),
+                            connection_status=None,
+                            reset_retry=True,
+                        )
+                        return
+
+            # Reconnection failed
+            logger.warning(f"Auto-recovery: failed to reconnect to {saved_network.ssid}")
             await self._fallback_to_ap_mode()
-            return
 
-        # Attempt reconnection
-        logger.info(f"Attempting to reconnect to {saved_network.ssid}")
-        await self.state_manager.update_state(
-            connection_state=ConnectionState.CONNECTING,
-            error_message=f"Reconnecting to {saved_network.ssid}",
-        )
-
-        success = await self.network_manager.reconnect_to_saved_network(saved_network.ssid)
-
-        if success:
-            # Verify with active connectivity check
-            if await self.network_manager.verify_connectivity():
-                connection_info = await self.network_manager.get_connection_info()
-                if connection_info:
-                    logger.info(f"Successfully reconnected to {saved_network.ssid}")
-                    await self.state_manager.update_state(
-                        connection_state=ConnectionState.CONNECTED,
-                        network_info=NetworkInfo(
-                            ssid=connection_info.get("ssid"),
-                            ip_address=connection_info.get("ip_address"),
-                        ),
-                        reset_retry=True,
-                    )
-                    return
-
-        # Reconnection failed
-        logger.warning(f"Failed to reconnect to {saved_network.ssid}")
-        await self._fallback_to_ap_mode()
+        finally:
+            self._connection_initiator = None
+            self._connection_lock.release()
 
     async def _fallback_to_ap_mode(self):
         """Fall back to AP mode after connection loss."""

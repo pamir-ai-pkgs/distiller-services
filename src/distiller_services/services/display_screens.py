@@ -67,17 +67,23 @@ def create_setup_screen(
     )
 
 
-def create_connecting_screen(ssid: str | None = None, progress: float = 0.4) -> LandscapeLayout:
+def create_connecting_screen(
+    ssid: str | None = None, progress: float = 0.4, status: str | None = None
+) -> LandscapeLayout:
     """
-    Create connecting screen with progress bar.
+    Create connecting screen with progress bar and status message.
 
     Args:
         ssid: Network being connected to
         progress: Connection progress (0.0 to 1.0)
+        status: Connection status message (e.g., "Obtaining IP address...")
 
     Returns:
         LandscapeLayout
     """
+    # Use provided status or default
+    status_text = status or "Authenticating..."
+
     return (
         LandscapeLayout()
         .add_left(
@@ -96,7 +102,7 @@ def create_connecting_screen(ssid: str | None = None, progress: float = 0.4) -> 
             Space(height=theme.spacing.xxl),
             Space(height=theme.spacing.xxl),
             Space(height=theme.spacing.xxl),
-            Caption("Authenticating..."),
+            Caption(status_text),
         )
     )
 

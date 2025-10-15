@@ -59,6 +59,9 @@ class SystemState(BaseModel):
     error_message: str | None = None
     retry_count: int = 0
     connection_progress: float = 0.0  # Connection progress (0.0 to 1.0)
+    connection_status: str | None = (
+        None  # Granular status during connection (e.g., "Connecting...", "Obtaining IP address...")
+    )
     sessions: dict[str, SessionInfo] = Field(default_factory=dict)
     updated_at: datetime = Field(default_factory=datetime.now)
 
@@ -187,6 +190,7 @@ class StateManager:
         captive_portal_session_expires_at: datetime | None = None,
         error_message: str | None = None,
         connection_progress: float | None = None,
+        connection_status: str | None = None,
         increment_retry: bool = False,
         reset_retry: bool = False,
     ) -> None:
@@ -231,6 +235,9 @@ class StateManager:
             if connection_progress is not None:
                 self.state.connection_progress = max(0.0, min(1.0, connection_progress))
 
+            if connection_status is not None:
+                self.state.connection_status = connection_status
+
             if increment_retry:
                 self.state.retry_count += 1
             elif reset_retry:
@@ -241,10 +248,16 @@ class StateManager:
             # Save state
             await self._save_state()
 
-            # Trigger callbacks if state or tunnel_url changed
-            if old_state != self.state.connection_state or old_tunnel_url != self.state.tunnel_url:
+            # Trigger state change callback only if connection_state actually changed
+            if old_state != self.state.connection_state:
                 await self._trigger_callbacks(
                     "state_change", old_state, self.state.connection_state
+                )
+
+            # Trigger tunnel URL change callback if URL changed (separate from state change)
+            if old_tunnel_url != self.state.tunnel_url:
+                await self._trigger_callbacks(
+                    "tunnel_url_change", old_tunnel_url, self.state.tunnel_url
                 )
 
     async def add_session(self, session: SessionInfo) -> None:
@@ -283,6 +296,12 @@ class StateManager:
         if "state_change" not in self._callbacks:
             self._callbacks["state_change"] = []
         self._callbacks["state_change"].append(callback)
+
+    def on_tunnel_url_change(self, callback: Any) -> None:
+        """Register a callback for tunnel URL changes."""
+        if "tunnel_url_change" not in self._callbacks:
+            self._callbacks["tunnel_url_change"] = []
+        self._callbacks["tunnel_url_change"].append(callback)
 
     async def _trigger_callbacks(self, event: str, *args, **kwargs) -> None:
         """Trigger registered callbacks for an event."""
