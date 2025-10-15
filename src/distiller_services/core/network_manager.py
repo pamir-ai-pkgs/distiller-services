@@ -36,6 +36,7 @@ class NetworkManager:
         self._dnsmasq_config_dir = Path("/etc/NetworkManager/dnsmasq-shared.d")
         self._dnsmasq_config_file = self._dnsmasq_config_dir / "80-distiller-captive.conf"
         self._event_callbacks: list = []
+        self._last_connection_error: str = ""  # Store last connection error for error parsing
 
     async def initialize(self) -> None:
         await self._detect_wifi_device()
@@ -390,6 +391,26 @@ no-poll
             logger.error(f"Failed to validate profile {profile_name}: {e}")
             return False
 
+    def _parse_connection_error(self, stderr: str) -> str:
+        """Convert technical nmcli errors to user-friendly messages."""
+        # All patterns are lowercase since we lowercase stderr for comparison
+        error_map = {
+            "secrets were required": "Incorrect password",
+            "no network with ssid": "Network not found or out of range",
+            "timeout was reached": "Connection timeout - weak signal",
+            "base network connection was interrupted": "Network interference detected",
+            "failed to activate": "Unable to activate connection",
+            "ip configuration could not be reserved": "DHCP timeout - network busy",
+        }
+
+        stderr_lower = stderr.lower()
+        for pattern, message in error_map.items():
+            if pattern in stderr_lower:
+                return message
+
+        # Return truncated error if no match
+        return f"Connection failed: {stderr[:100]}"
+
     def _validate_ssid(self, ssid: str) -> bool:
         """Validate SSID to prevent injection attacks."""
 
@@ -404,33 +425,6 @@ no-poll
         if not safe_ssid_pattern.match(ssid):
             logger.error(f"SSID contains invalid characters: {ssid}")
             return False
-
-        # Check for suspicious patterns that might indicate injection attempts
-        dangerous_patterns = [
-            "$",
-            "`",
-            ";",
-            "|",
-            "&",
-            ">",
-            "<",
-            "(",
-            ")",
-            "{",
-            "}",
-            "[",
-            "]",
-            "\\",
-            '"',
-            "'",
-            "\n",
-            "\r",
-            "\t",
-        ]
-        for pattern in dangerous_patterns:
-            if pattern in ssid:
-                logger.error(f"SSID contains potentially dangerous character: {pattern}")
-                return False
 
         return True
 
@@ -481,11 +475,13 @@ no-poll
                 connection_info = await self.get_connection_info()
                 if connection_info:
                     self._is_ap_mode = False
+                    self._last_connection_error = ""  # Clear error on success
                     logger.info(f"Connected to {ssid} using existing profile")
                     return True
             else:
                 # Existing profile failed, delete it and create new one
                 logger.warning(f"Failed to connect with existing profile: {stderr}")
+                self._last_connection_error = stderr  # Store error for parsing
                 await self._run_command(["nmcli", "connection", "delete", ssid])
                 profile_exists = False
 
@@ -532,12 +528,14 @@ no-poll
             returncode, _, stderr = await self._run_command(cmd)
             if returncode != 0:
                 logger.error(f"Failed to create connection profile: {stderr}")
+                self._last_connection_error = stderr  # Store error for parsing
                 return False
 
             returncode, _, stderr = await self._run_command(["nmcli", "connection", "up", ssid])
 
             if returncode != 0:
                 logger.error(f"Failed to connect: {stderr}")
+                self._last_connection_error = stderr  # Store error for parsing
                 await self._run_command(["nmcli", "connection", "delete", ssid])
                 return False
 
@@ -545,6 +543,7 @@ no-poll
         connection_info = await self.get_connection_info()
         if connection_info:
             self._is_ap_mode = False
+            self._last_connection_error = ""  # Clear error on success
 
         return connection_info is not None
 
@@ -794,7 +793,11 @@ no-poll
         return (False, None)
 
     async def reconnect_to_saved_network(self, ssid: str) -> bool:
-        """Try to reconnect to a previously saved network connection."""
+        """Try to reconnect to a previously saved network connection.
+
+        Returns False if profile is stale (wrong password) or doesn't exist,
+        forcing fallback to AP mode where user can enter new password.
+        """
         # Validate SSID to prevent injection attacks
         if not self._validate_ssid(ssid):
             logger.error(f"SSID validation failed for reconnection: {ssid}")
@@ -836,7 +839,17 @@ no-poll
         returncode, _, stderr = await self._run_command(["nmcli", "connection", "up", ssid])
 
         if returncode != 0:
-            logger.error(f"Failed to reconnect to {ssid}: {stderr}")
+            # Check if this is a stale password error
+            if "secrets were required" in stderr.lower():
+                logger.warning(f"Stale password detected for {ssid}, deleting profile")
+                # Delete the stale profile
+                await self._run_command(["nmcli", "connection", "delete", ssid])
+                logger.info(
+                    f"Deleted stale profile for {ssid} - user will need to re-enter password"
+                )
+                return False
+
+            logger.error(f"Failed to reconnect to {ssid}: {self._parse_connection_error(stderr)}")
             return False
 
         # Wait for connection to establish
