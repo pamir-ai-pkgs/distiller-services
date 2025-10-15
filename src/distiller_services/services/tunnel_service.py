@@ -32,12 +32,14 @@ class TunnelService:
         self._running = False
         self._refresh_task: asyncio.Task | None = None
         self._frp_monitor_task: asyncio.Task | None = None
+        self._pinggy_reader_task: asyncio.Task | None = None
+        self._url_received: asyncio.Event = asyncio.Event()
         self._retry_count = 0
         self._max_retries = settings.tunnel_max_retries
         self._retry_delay = settings.tunnel_retry_delay
 
         # Track network state for logging changes only
-        self._last_network_state: dict[str, str | None] = {
+        self._last_network_state: dict[str, str | None | bool] = {
             "ssid": None,
             "ip_address": None,
             "connected": False,
@@ -169,6 +171,18 @@ class TunnelService:
         try:
             logger.info("Starting Pinggy tunnel...")
 
+            # Cancel old reader task if exists
+            if self._pinggy_reader_task and not self._pinggy_reader_task.done():
+                logger.debug("Cancelling old Pinggy reader task")
+                self._pinggy_reader_task.cancel()
+                try:
+                    await self._pinggy_reader_task
+                except asyncio.CancelledError:
+                    pass
+
+            # Clear URL event for new connection
+            self._url_received.clear()
+
             # Build SSH command for Pinggy tunnel
             if self.settings.pinggy_access_token:
                 # Persistent tunnel with token
@@ -224,12 +238,19 @@ class TunnelService:
 
             self.current_provider = TunnelProvider.PINGGY
 
-            # Start output reader task
-            asyncio.create_task(self._read_pinggy_output())
+            # Start output reader task and track it
+            self._pinggy_reader_task = asyncio.create_task(self._read_pinggy_output())
 
-            # Wait for tunnel to establish
-            logger.info("Waiting for Pinggy tunnel to establish...")
-            await asyncio.sleep(5)
+            # Wait for URL to be captured (up to 10 seconds)
+            logger.info("Waiting for Pinggy tunnel URL...")
+            try:
+                await asyncio.wait_for(self._url_received.wait(), timeout=10.0)
+            except TimeoutError:
+                logger.error("Timeout waiting for Pinggy tunnel URL")
+                # Process might still be running but no URL received
+                if self.process and self.process.returncode is None:
+                    logger.warning("Pinggy process running but no URL received")
+                return False
 
             # Check if process is still running
             if self.process.returncode is not None:
@@ -252,6 +273,15 @@ class TunnelService:
     async def stop_pinggy_tunnel(self):
         """Stop Pinggy SSH tunnel."""
         try:
+            # Cancel reader task
+            if self._pinggy_reader_task and not self._pinggy_reader_task.done():
+                self._pinggy_reader_task.cancel()
+                try:
+                    await self._pinggy_reader_task
+                except asyncio.CancelledError:
+                    pass
+                self._pinggy_reader_task = None
+
             if self._refresh_task:
                 self._refresh_task.cancel()
                 self._refresh_task = None
@@ -279,21 +309,13 @@ class TunnelService:
             return
 
         try:
-            # URL patterns for Pinggy
+            # Single pattern for persistent or free tunnels
             if self.settings.pinggy_access_token:
-                # Persistent tunnel URLs
-                url_patterns = [
-                    r"https://[a-zA-Z0-9\-]+\.pinggy\.link",
-                    r"http://[a-zA-Z0-9\-]+\.pinggy\.link",
-                    r"https://[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.pinggy\.link",
-                ]
+                # Persistent: subdomain.pinggy.link or subdomain.region.pinggy.link
+                url_pattern = r"https?://[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)?\.pinggy\.link"
             else:
-                # Free tunnel URLs
-                url_patterns = [
-                    r"https://[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.free\.pinggy\.link",
-                    r"http://[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.free\.pinggy\.link",
-                    r"https://[a-zA-Z0-9\-]+\.free\.pinggy\.link",
-                ]
+                # Free: subdomain.region.free.pinggy.link or subdomain.free.pinggy.link
+                url_pattern = r"https?://[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)?\.free\.pinggy\.link"
 
             while self.process and self.process.returncode is None:
                 try:
@@ -307,22 +329,23 @@ class TunnelService:
                         logger.debug(f"Pinggy output: {text}")
 
                         # Look for URL
-                        for pattern in url_patterns:
-                            match = re.search(pattern, text)
-                            if match:
-                                url = match.group(0)
-                                if not url.startswith("http"):
-                                    url = f"https://{url}"
+                        match = re.search(url_pattern, text)
+                        if match:
+                            url = match.group(0)
+                            if not url.startswith("http"):
+                                url = f"https://{url}"
 
-                                if url != self.current_url:
-                                    self.current_url = url
-                                    logger.info(f"New Pinggy tunnel URL: {url}")
+                            if url != self.current_url:
+                                self.current_url = url
+                                logger.info(f"New Pinggy tunnel URL: {url}")
 
-                                    # Update state with Pinggy URL
-                                    await self.state_manager.update_state(
-                                        tunnel_url=url, tunnel_provider="pinggy"
-                                    )
-                                break
+                                # Update state with Pinggy URL
+                                await self.state_manager.update_state(
+                                    tunnel_url=url, tunnel_provider="pinggy"
+                                )
+
+                                # Signal that URL has been received
+                                self._url_received.set()
 
                 except TimeoutError:
                     continue
