@@ -58,6 +58,28 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
+def check_port_available(host: str, port: int) -> bool:
+    """Test if port can be bound on specified host."""
+    try:
+        family = socket.AF_INET6 if ":" in host else socket.AF_INET
+        with socket.socket(family, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if host == "::" and hasattr(socket, "IPPROTO_IPV6"):
+                s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            s.bind((host, port))
+            return True
+    except OSError:
+        return False
+
+
+def find_available_port(host: str, start_port: int, max_attempts: int = 10) -> int | None:
+    """Find first available port in range [start_port, start_port + max_attempts)."""
+    for port in range(start_port, start_port + max_attempts):
+        if check_port_available(host, port):
+            return port
+    return None
+
+
 class DistillerWiFiApp:
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or get_settings()
@@ -196,6 +218,7 @@ class DistillerWiFiApp:
         logger.info(f"Avahi service started on port {self.settings.web_port}")
 
         self.state_manager.on_state_change(self._handle_state_change)
+        self.state_manager.on_persistence_health_change(self._handle_persistence_health_change)
         self.network_manager.on_network_event(self._handle_network_event)
 
         logger.info("Initialization complete")
@@ -217,6 +240,22 @@ class DistillerWiFiApp:
 
         # Avahi handles all network transitions automatically
         # NetworkManager's dnsmasq handles DNS with wildcard configuration
+
+    async def _handle_persistence_health_change(self, old_health: str, new_health: str):
+        logger.warning(f"State persistence health changed: {old_health} -> {new_health}")
+
+        if new_health == "degraded":
+            logger.warning("State persistence degraded - disk may be full or permissions issue")
+        elif new_health == "failed":
+            logger.error(
+                "State persistence failed - critical issue with state file. "
+                "State changes will not be saved to disk!"
+            )
+        elif new_health == "healthy" and old_health != "healthy":
+            logger.info("State persistence recovered - state file writes successful again")
+
+        # Broadcast state update to WebSocket clients
+        await self.web_server._broadcast_status()
 
     async def _handle_network_event(self, event_type: str, details: dict):
         """Handle network events from NetworkManager monitoring."""
@@ -287,55 +326,81 @@ class DistillerWiFiApp:
 
         try:
             self._connection_initiator = "recovery"
-            logger.info("Starting auto-recovery from network loss")
-
-            # Wait briefly for transient issues to resolve
-            await asyncio.sleep(3)
-
-            # Check if we recovered already
-            current_state = self.state_manager.get_state()
-            if current_state.connection_state == ConnectionState.CONNECTED:
-                logger.info("Network already recovered")
-                return
+            logger.info("Starting auto-recovery from network loss with exponential backoff")
 
             # Get saved network
+            current_state = self.state_manager.get_state()
             saved_network = current_state.network_info
             if not saved_network or not saved_network.ssid:
                 logger.warning("No saved network, falling back to AP mode")
                 await self._fallback_to_ap_mode()
                 return
 
-            # Attempt reconnection
-            logger.info(f"Auto-recovery attempting to reconnect to {saved_network.ssid}")
-            await self.state_manager.update_state(
-                connection_state=ConnectionState.CONNECTING,
-                error_message=f"Reconnecting to {saved_network.ssid}",
-                connection_status="Auto-recovery: reconnecting...",
+            # Exponential backoff retry loop
+            delay = self.settings.recovery_initial_delay
+            max_retries = self.settings.recovery_max_retries
+
+            for attempt in range(1, max_retries + 1):
+                logger.info(
+                    f"Auto-recovery attempt {attempt}/{max_retries} "
+                    f"(waiting {delay:.1f}s before retry)"
+                )
+
+                # Wait with exponential backoff
+                await asyncio.sleep(delay)
+
+                # Check if we recovered already (connectivity restored event)
+                current_state = self.state_manager.get_state()
+                if current_state.connection_state == ConnectionState.CONNECTED:
+                    logger.info("Network already recovered during wait")
+                    return
+
+                # Update state with retry progress
+                progress = attempt / max_retries
+                await self.state_manager.update_state(
+                    connection_state=ConnectionState.CONNECTING,
+                    error_message=f"Reconnecting to {saved_network.ssid}",
+                    connection_status=f"Auto-recovery: attempt {attempt}/{max_retries}",
+                    connection_progress=progress,
+                )
+
+                # Attempt reconnection
+                logger.info(f"Attempting reconnection to {saved_network.ssid}")
+                success = await self.network_manager.reconnect_to_saved_network(saved_network.ssid)
+
+                if success:
+                    # Verify with active connectivity check
+                    if await self.network_manager.verify_connectivity():
+                        connection_info = await self.network_manager.get_connection_info()
+                        if connection_info:
+                            logger.info(
+                                f"Auto-recovery: successfully reconnected to {saved_network.ssid} "
+                                f"on attempt {attempt}/{max_retries}"
+                            )
+                            await self.state_manager.update_state(
+                                connection_state=ConnectionState.CONNECTED,
+                                network_info=NetworkInfo(
+                                    ssid=connection_info.get("ssid"),
+                                    ip_address=connection_info.get("ip_address"),
+                                ),
+                                connection_status=None,
+                                connection_progress=0.0,
+                                reset_retry=True,
+                            )
+                            return
+
+                # Calculate next delay with exponential backoff
+                delay = min(
+                    delay * self.settings.recovery_backoff_factor, self.settings.recovery_max_delay
+                )
+
+                logger.info(f"Reconnection attempt {attempt} failed, next delay: {delay:.1f}s")
+
+            # All retries exhausted
+            logger.warning(
+                f"Auto-recovery: failed to reconnect to {saved_network.ssid} "
+                f"after {max_retries} attempts"
             )
-
-            success = await self.network_manager.reconnect_to_saved_network(saved_network.ssid)
-
-            if success:
-                # Verify with active connectivity check
-                if await self.network_manager.verify_connectivity():
-                    connection_info = await self.network_manager.get_connection_info()
-                    if connection_info:
-                        logger.info(
-                            f"Auto-recovery: successfully reconnected to {saved_network.ssid}"
-                        )
-                        await self.state_manager.update_state(
-                            connection_state=ConnectionState.CONNECTED,
-                            network_info=NetworkInfo(
-                                ssid=connection_info.get("ssid"),
-                                ip_address=connection_info.get("ip_address"),
-                            ),
-                            connection_status=None,
-                            reset_retry=True,
-                        )
-                        return
-
-            # Reconnection failed
-            logger.warning(f"Auto-recovery: failed to reconnect to {saved_network.ssid}")
             await self._fallback_to_ap_mode()
 
         finally:
@@ -359,10 +424,56 @@ class DistillerWiFiApp:
         if not self.settings.debug:
             uvicorn_logger.setLevel(logging.ERROR)
 
+        # Determine host binding with IPv6/IPv4 fallback
+        host = self.settings.web_host
+
+        # Try IPv6 dual-stack first, fallback to IPv4 if unavailable
+        if host == "::":
+            # Test if IPv6 is available
+            if not check_port_available("::", self.settings.web_port):
+                # IPv6 might be disabled or port occupied
+                # Try finding port on IPv6 first
+                selected_port = find_available_port("::", self.settings.web_port, max_attempts=10)
+                if selected_port:
+                    logger.info(f"IPv6 available, using port {selected_port}")
+                    self.settings.web_port = selected_port
+                else:
+                    # IPv6 not available, fallback to IPv4
+                    logger.warning("IPv6 not available, falling back to IPv4")
+                    host = "0.0.0.0"
+                    self.settings.web_host = host
+
+        # Find available port on the selected host
+        selected_port = find_available_port(host, self.settings.web_port, max_attempts=10)
+
+        if selected_port is None:
+            logger.critical(
+                f"No available ports found in range {self.settings.web_port}-"
+                f"{self.settings.web_port + 9} on host {host}. Cannot start web server."
+            )
+            raise RuntimeError(
+                f"Port conflict: all ports {self.settings.web_port}-"
+                f"{self.settings.web_port + 9} are occupied"
+            )
+
+        # Update settings if port changed
+        if selected_port != self.settings.web_port:
+            logger.warning(
+                f"Port {self.settings.web_port} in use, using port {selected_port} instead"
+            )
+            self.settings.web_port = selected_port
+            self.settings.mdns_port = selected_port
+
+            # Update Avahi service with new port
+            self.avahi_service.port = selected_port
+            logger.info(f"Updated Avahi service to advertise port {selected_port}")
+
+        logger.info(f"Starting web server on {host}:{selected_port}")
+
         config = uvicorn.Config(
             app=self.web_server.get_app(),
-            host=self.settings.web_host,
-            port=self.settings.web_port,
+            host=host,
+            port=selected_port,
             log_level="info" if self.settings.debug else "error",
             access_log=self.settings.debug,
         )
