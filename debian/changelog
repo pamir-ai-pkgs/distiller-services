@@ -1,28 +1,3 @@
-distiller-services (3.0.0) unstable; urgency=medium
-
-  [ TianqiYe ]
-  * chore(release): bump version to 2.2.1
-
-  [ utsavbalar1231 ]
-  * feat!: rename project from distiller-cm5-services to distiller-services
-  * fix(debian): update repository URLs to pamir-ai-pkgs org
-  * refactor(debian): streamline maintenance scripts
-  * refactor(build): improve dependency checks and cross-compilation
-  * refactor(debian): update package metadata and architecture
-  * docs: Update for distiller-services v3.0.0
-  * feat(api): add connection request serialization
-  * perf(display): remove redundant polling logic from display service
-  * fix(ap): implement TTL-based password stability during retries
-  * feat(network): implement event monitoring with callback system
-  * chore(Makfile): consolidate install.sh inside Makefile
-  * perf(tunnel): reduce logging noise in network connectivity checks
-  * feat(network): add automatic recovery from connection loss
-  * fix(tunnel): prevent retry storm with exponential backoff and validation
-  * chore(display_screens): clarify text for failed setup recovery
-  * docs: Update for distiller-services v3.0.0
-
- -- PamirAI Incorporated <founders@pamir.ai>  Tue, 07 Oct 2025 23:58:28 +0530
-
 distiller-cm5-services (2.2.1) unstable; urgency=high
 
   [ Codex Hotfix ]
