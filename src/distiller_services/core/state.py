@@ -63,6 +63,10 @@ class SystemState(BaseModel):
         None  # Granular status during connection (e.g., "Connecting...", "Obtaining IP address...")
     )
     sessions: dict[str, SessionInfo] = Field(default_factory=dict)
+    persistence_health: str = "healthy"  # "healthy", "degraded", "failed"
+    persistence_error: str | None = None
+    persistence_failures: int = 0
+    persistence_last_failure: datetime | None = None
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -118,6 +122,10 @@ class StateManager:
                     data["captive_portal_session_expires_at"] = datetime.fromisoformat(
                         data["captive_portal_session_expires_at"]
                     )
+                if "persistence_last_failure" in data and data["persistence_last_failure"]:
+                    data["persistence_last_failure"] = datetime.fromisoformat(
+                        data["persistence_last_failure"]
+                    )
                 # Recreate sessions
                 if "sessions" in data:
                     for _session_id, session_data in data["sessions"].items():
@@ -134,7 +142,7 @@ class StateManager:
             logger.error(f"Failed to load state: {e}")
 
     async def _save_state(self) -> None:
-        """Save state to file."""
+        """Save state to file with health tracking."""
         if not self.state_file:
             return
 
@@ -162,6 +170,8 @@ class StateManager:
                 data["captive_portal_session_expires_at"] = (
                     self.state.captive_portal_session_expires_at.isoformat()
                 )
+            if "persistence_last_failure" in data and self.state.persistence_last_failure:
+                data["persistence_last_failure"] = self.state.persistence_last_failure.isoformat()
 
             # Convert session datetimes
             for session_id, session in self.state.sessions.items():
@@ -174,8 +184,47 @@ class StateManager:
                 json.dump(data, f, indent=2)
             temp_file.rename(self.state_file)
 
+            # Success - check if we need to recover from previous failures
+            if self.state.persistence_failures > 0:
+                old_health = self.state.persistence_health
+                self.state.persistence_failures = 0
+                self.state.persistence_health = "healthy"
+                self.state.persistence_error = None
+                logger.info("State persistence recovered")
+                # Trigger callback if health changed
+                if old_health != "healthy":
+                    await self._trigger_callbacks(
+                        "persistence_health_change", old_health, "healthy"
+                    )
+
+        except OSError as e:
+            # Disk full, permission denied, etc.
+            old_health = self.state.persistence_health
+            self.state.persistence_failures += 1
+            self.state.persistence_last_failure = datetime.now()
+            self.state.persistence_error = str(e)
+
+            # Determine health status based on failure count
+            if self.state.persistence_failures <= 3:
+                new_health = "degraded"
+                logger.warning(
+                    f"State persistence degraded (failure {self.state.persistence_failures}): {e}"
+                )
+            else:
+                new_health = "failed"
+                logger.error(
+                    f"State persistence failed (failure {self.state.persistence_failures}): {e}"
+                )
+
+            self.state.persistence_health = new_health
+
+            # Trigger callback if health changed
+            if old_health != new_health:
+                await self._trigger_callbacks("persistence_health_change", old_health, new_health)
+
         except Exception as e:
-            logger.error(f"Failed to save state: {e}")
+            # Unexpected errors - log but don't track as health issue
+            logger.error(f"Unexpected error saving state: {e}")
 
     async def update_state(
         self,
@@ -302,6 +351,12 @@ class StateManager:
         if "tunnel_url_change" not in self._callbacks:
             self._callbacks["tunnel_url_change"] = []
         self._callbacks["tunnel_url_change"].append(callback)
+
+    def on_persistence_health_change(self, callback: Any) -> None:
+        """Register a callback for persistence health changes."""
+        if "persistence_health_change" not in self._callbacks:
+            self._callbacks["persistence_health_change"] = []
+        self._callbacks["persistence_health_change"].append(callback)
 
     async def _trigger_callbacks(self, event: str, *args, **kwargs) -> None:
         """Trigger registered callbacks for an event."""

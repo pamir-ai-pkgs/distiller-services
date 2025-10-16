@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     mdns_port: int = Field(default=8080, description="mDNS advertised port")
 
     # Web server configuration
-    web_host: str = Field(default="0.0.0.0", description="Web server host")
+    web_host: str = Field(default="::", description="Web server host (:: for IPv6 dual-stack)")
 
     web_port: int = Field(default=8080, description="Web server port")
 
@@ -109,6 +109,23 @@ class Settings(BaseSettings):
 
     tunnel_retry_delay: int = Field(
         default=30, description="Delay between tunnel retries in seconds"
+    )
+
+    # Network recovery configuration
+    recovery_max_retries: int = Field(
+        default=5, description="Maximum auto-recovery retry attempts after network loss"
+    )
+
+    recovery_initial_delay: float = Field(
+        default=3.0, description="Initial delay before first recovery attempt (seconds)"
+    )
+
+    recovery_max_delay: float = Field(
+        default=60.0, description="Maximum delay between recovery attempts (seconds)"
+    )
+
+    recovery_backoff_factor: float = Field(
+        default=2.0, description="Exponential backoff multiplier for recovery delays"
     )
 
     # Runtime settings
