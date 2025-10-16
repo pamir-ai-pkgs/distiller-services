@@ -24,6 +24,11 @@ from .display_layouts import (
 from .display_theme import theme
 
 
+def format_ip_for_url(ip: str) -> str:
+    """Wrap IPv6 addresses in brackets for URL compatibility."""
+    return f"[{ip}]" if ":" in ip else ip
+
+
 def create_setup_screen(
     ap_ssid: str,
     ap_password: str,
@@ -313,7 +318,9 @@ def create_captive_portal_screen(device_ip: str, portal_url: str | None = None) 
         LandscapeLayout
     """
     # Generate QR code URL pointing to device's captive portal proxy
-    proxy_url = f"http://{device_ip}:8080/captive"
+    # Format IP address (IPv6 needs brackets)
+    formatted_ip = format_ip_for_url(device_ip)
+    proxy_url = f"http://{formatted_ip}:8080/captive"
 
     return (
         LandscapeLayout()

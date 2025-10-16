@@ -75,6 +75,7 @@ class WebServer:
         )
         self._connection_lock = asyncio.Lock()
         self._websocket_lock = asyncio.Lock()
+        self._ap_mode_lock = asyncio.Lock()  # Prevent concurrent AP mode initialization
         self._app_connection_lock: asyncio.Lock | None = None  # Will be set by DistillerWiFiApp
 
         self.app = FastAPI(
@@ -239,11 +240,66 @@ class WebServer:
                 ),
             }
 
+        @self.app.get("/api/health")
+        async def get_persistence_health() -> dict:
+            """Get state persistence health status."""
+            state = self.state_manager.get_state()
+            return {
+                "persistence_health": state.persistence_health,
+                "persistence_error": state.persistence_error,
+                "persistence_failures": state.persistence_failures,
+                "persistence_last_failure": (
+                    state.persistence_last_failure.isoformat()
+                    if state.persistence_last_failure
+                    else None
+                ),
+            }
+
         @self.app.post("/api/connect")
         async def connect_to_network(request: Request, conn_req: ConnectionRequest) -> JSONResponse:
-            async with self._connection_lock:
-                session_id = request.cookies.get("session_id", str(uuid.uuid4()))
+            """Connect to WiFi network with non-blocking lock acquisition.
 
+            If auto-recovery or another connection is in progress, returns 503
+            with retry-after header instead of blocking the user's browser.
+            """
+            session_id = request.cookies.get("session_id", str(uuid.uuid4()))
+
+            # Try to acquire lock without blocking
+            try:
+                lock_acquired = self._connection_lock.acquire_nowait()
+            except Exception:
+                lock_acquired = False
+
+            if not lock_acquired:
+                # Lock is held by another operation (likely auto-recovery)
+                current_state = self.state_manager.get_state()
+
+                # Provide helpful message based on current state
+                if current_state.connection_state == ConnectionState.CONNECTING:
+                    message = f"Connection in progress to {current_state.network_info.ssid}"
+                    retry_after = 10
+                elif current_state.connection_state == ConnectionState.DISCONNECTED:
+                    message = "Auto-recovery in progress, please wait"
+                    retry_after = 15
+                else:
+                    message = "Another connection operation in progress"
+                    retry_after = 10
+
+                logger.info(f"User connection request blocked: {message} (session: {session_id})")
+
+                return JSONResponse(
+                    content={
+                        "status": "busy",
+                        "message": message,
+                        "session_id": session_id,
+                        "retry_after": retry_after,
+                    },
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    headers={"Retry-After": str(retry_after)},
+                )
+
+            # Lock acquired, proceed with connection
+            try:
                 await self.state_manager.update_state(
                     connection_state=ConnectionState.CONNECTING,
                     network_info=NetworkInfo(ssid=conn_req.ssid),
@@ -256,6 +312,8 @@ class WebServer:
                     content={"status": "connecting", "session_id": session_id},
                     status_code=status.HTTP_202_ACCEPTED,
                 )
+            finally:
+                self._connection_lock.release()
 
         @self.app.post("/api/disconnect")
         async def disconnect_network(request: Request) -> JSONResponse:
@@ -297,7 +355,11 @@ class WebServer:
         async def connect_form(
             request: Request, ssid: str = Form(...), password: str | None = Form(None)
         ):
-            """Handle form submission for WiFi connection."""
+            """Handle form submission for WiFi connection with non-blocking lock.
+
+            If auto-recovery or another connection is in progress, shows error page
+            with retry message instead of blocking the user's browser.
+            """
             session_id = request.cookies.get("session_id", str(uuid.uuid4()))
 
             # Validate input using the same validation as API
@@ -318,26 +380,70 @@ class WebServer:
                     },
                 )
 
-            # Update state and start connection
-            await self.state_manager.update_state(
-                connection_state=ConnectionState.CONNECTING, network_info=NetworkInfo(ssid=ssid)
-            )
+            # Try to acquire lock without blocking
+            try:
+                lock_acquired = self._connection_lock.acquire_nowait()
+            except Exception:
+                lock_acquired = False
 
-            # Start connection in background
-            asyncio.create_task(self._connect_to_network(ssid, password))
+            if not lock_acquired:
+                # Lock is held by another operation
+                current_state = self.state_manager.get_state()
 
-            # Show connecting page
-            response = self.templates.TemplateResponse(
-                "connecting.html",
-                {
-                    "request": request,
-                    "ssid": ssid,
-                    "session_id": session_id,
-                    "device_name": self.settings.mdns_hostname,
-                },
-            )
-            response.set_cookie("session_id", session_id, max_age=3600)
-            return response
+                # Provide helpful error message
+                if current_state.connection_state == ConnectionState.CONNECTING:
+                    error_message = (
+                        f"Connection already in progress to {current_state.network_info.ssid}. "
+                        "Please wait for it to complete."
+                    )
+                elif current_state.connection_state == ConnectionState.DISCONNECTED:
+                    error_message = (
+                        "Auto-recovery is in progress. Please wait a few seconds and try again."
+                    )
+                else:
+                    error_message = (
+                        "Another connection operation is in progress. Please wait and try again."
+                    )
+
+                logger.info(
+                    f"User form connection request blocked: {error_message} (session: {session_id})"
+                )
+
+                return self.templates.TemplateResponse(
+                    "setup.html",
+                    {
+                        "request": request,
+                        "networks": await self.network_manager.scan_networks(),
+                        "device_name": self.settings.mdns_hostname,
+                        "session_id": session_id,
+                        "error": error_message,
+                    },
+                )
+
+            # Lock acquired, proceed with connection
+            try:
+                # Update state and start connection
+                await self.state_manager.update_state(
+                    connection_state=ConnectionState.CONNECTING, network_info=NetworkInfo(ssid=ssid)
+                )
+
+                # Start connection in background
+                asyncio.create_task(self._connect_to_network(ssid, password))
+
+                # Show connecting page
+                response = self.templates.TemplateResponse(
+                    "connecting.html",
+                    {
+                        "request": request,
+                        "ssid": ssid,
+                        "session_id": session_id,
+                        "device_name": self.settings.mdns_hostname,
+                    },
+                )
+                response.set_cookie("session_id", session_id, max_age=3600)
+                return response
+            finally:
+                self._connection_lock.release()
 
         @self.app.get("/status", response_class=HTMLResponse)
         async def status_page(request: Request):
@@ -796,61 +902,87 @@ class WebServer:
             logger.error(f"Disconnect error: {e}")
 
     async def _restart_ap_mode(self) -> None:
-        """Restart Access Point mode."""
-        try:
-            # Check if existing password is still valid
+        """Restart Access Point mode with idempotency and locking.
+
+        This method can be called from multiple concurrent sources:
+        - User disconnect
+        - Connection failure fallback
+        - Network loss recovery
+
+        Uses double-check locking pattern to prevent race conditions.
+        """
+        # Fast path: Check if already in AP mode (no lock needed)
+        current_state = self.state_manager.get_state()
+        if current_state.connection_state == ConnectionState.AP_MODE:
+            logger.info("Already in AP mode, skipping initialization")
+            return
+
+        # Acquire lock to prevent concurrent AP mode initialization
+        async with self._ap_mode_lock:
+            # Double-check: Verify we're still not in AP mode after acquiring lock
             current_state = self.state_manager.get_state()
-            ap_password = current_state.ap_password
-            password_is_valid = False
+            if current_state.connection_state == ConnectionState.AP_MODE:
+                logger.info("AP mode was initialized by another task, skipping")
+                return
 
-            if ap_password and current_state.ap_password_generated_at:
-                time_since_generation = (
-                    datetime.now() - current_state.ap_password_generated_at
-                ).total_seconds()
-                password_is_valid = time_since_generation < self.settings.ap_password_ttl
+            logger.info("Starting AP mode initialization")
 
-            if password_is_valid:
-                logger.info("=" * 50)
-                logger.info(f"REUSING AP PASSWORD: {ap_password}")
-                logger.info(
-                    f"Password age: {int(time_since_generation)}s / TTL: {self.settings.ap_password_ttl}s"
+            try:
+                # Check if existing password is still valid
+                ap_password = current_state.ap_password
+                password_is_valid = False
+
+                if ap_password and current_state.ap_password_generated_at:
+                    time_since_generation = (
+                        datetime.now() - current_state.ap_password_generated_at
+                    ).total_seconds()
+                    password_is_valid = time_since_generation < self.settings.ap_password_ttl
+
+                if password_is_valid:
+                    logger.info("=" * 50)
+                    logger.info(f"REUSING AP PASSWORD: {ap_password}")
+                    logger.info(
+                        f"Password age: {int(time_since_generation)}s / TTL: {self.settings.ap_password_ttl}s"
+                    )
+                    logger.info("=" * 50)
+                else:
+                    # Generate new password if none exists or TTL expired
+                    ap_password = generate_secure_password()
+                    logger.info("=" * 50)
+                    logger.info(f"NEW AP PASSWORD GENERATED: {ap_password}")
+                    logger.info("=" * 50)
+
+                    # Update state with new password and timestamp
+                    await self.state_manager.update_state(
+                        ap_password=ap_password, ap_password_generated_at=datetime.now()
+                    )
+
+                # Start AP mode with password
+                success = await self.network_manager.start_ap_mode(
+                    ssid=self.settings.ap_ssid,
+                    password=ap_password,
+                    ip_address=self.settings.ap_ip,
+                    channel=self.settings.ap_channel,
                 )
-                logger.info("=" * 50)
-            else:
-                # Generate new password if none exists or TTL expired
-                ap_password = generate_secure_password()
-                logger.info("=" * 50)
-                logger.info(f"NEW AP PASSWORD GENERATED: {ap_password}")
-                logger.info("=" * 50)
 
-                # Update state with new password and timestamp
-                await self.state_manager.update_state(
-                    ap_password=ap_password, ap_password_generated_at=datetime.now()
-                )
+                if success:
+                    await self.state_manager.update_state(
+                        connection_state=ConnectionState.AP_MODE,
+                        network_info=NetworkInfo(),
+                        error_message=None,
+                    )
+                    logger.info(f"Returned to AP mode with password: {ap_password}")
+                else:
+                    logger.error("Failed to restart AP mode")
+                    await self.state_manager.update_state(
+                        error_message="Failed to start Access Point"
+                    )
 
-            # Start AP mode with new password
-            success = await self.network_manager.start_ap_mode(
-                ssid=self.settings.ap_ssid,
-                password=ap_password,
-                ip_address=self.settings.ap_ip,
-                channel=self.settings.ap_channel,
-            )
+                await self._broadcast_status()
 
-            if success:
-                await self.state_manager.update_state(
-                    connection_state=ConnectionState.AP_MODE,
-                    network_info=NetworkInfo(),
-                    error_message=None,
-                )
-                logger.info(f"Returned to AP mode with password: {ap_password}")
-            else:
-                logger.error("Failed to restart AP mode")
-                await self.state_manager.update_state(error_message="Failed to start Access Point")
-
-            await self._broadcast_status()
-
-        except Exception as e:
-            logger.error(f"AP mode error: {e}")
+            except Exception as e:
+                logger.error(f"AP mode initialization error: {e}", exc_info=True)
+                await self.state_manager.update_state(error_message=f"AP mode error: {str(e)}")
 
     async def monitor_captive_portal_auth(self) -> None:
         """Background task that monitors for successful captive portal authentication.

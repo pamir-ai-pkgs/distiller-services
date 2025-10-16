@@ -872,11 +872,22 @@ no-poll
         - Connectivity changes (full, limited, none)
         - Device state changes (disconnected, unavailable, disconnecting)
         - Connection state changes (deactivated, deactivating)
+
+        Implements exponential backoff retry on connection failures.
         """
-        logger.info("Starting NetworkManager event monitor")
+        logger.info("Starting NetworkManager event monitor with auto-reconnection")
+
+        retry_delay = 5.0
+        max_retry_delay = 60.0
+        backoff_factor = 1.5
+        monitoring_active = False
 
         while True:
             try:
+                # Notify that we're attempting to connect to monitoring
+                if not monitoring_active:
+                    logger.info("Connecting to NetworkManager monitoring...")
+
                 process = await asyncio.create_subprocess_exec(
                     "nmcli",
                     "monitor",
@@ -884,10 +895,23 @@ no-poll
                     stderr=asyncio.subprocess.PIPE,
                 )
 
+                # Successfully connected to monitoring
+                if not monitoring_active:
+                    logger.info("NetworkManager monitoring active")
+                    monitoring_active = True
+                    retry_delay = 5.0  # Reset retry delay on successful connection
+
+                    # Trigger callback to notify monitoring is active
+                    await self._trigger_event("monitoring_active", {"status": "connected"})
+
                 while True:
                     line = await process.stdout.readline()
                     if not line:
-                        logger.warning("NetworkManager monitor process ended, restarting...")
+                        logger.warning("NetworkManager monitor process ended")
+                        monitoring_active = False
+
+                        # Notify that monitoring was lost
+                        await self._trigger_event("monitoring_lost", {"reason": "process_ended"})
                         break
 
                     event = line.decode("utf-8").strip()
@@ -940,7 +964,16 @@ no-poll
 
             except Exception as e:
                 logger.error(f"NetworkManager monitor error: {e}", exc_info=True)
+                monitoring_active = False
 
-            # Wait before restarting monitor
-            logger.info("Restarting NetworkManager event monitor in 5 seconds...")
-            await asyncio.sleep(5)
+                # Notify that monitoring was lost due to error
+                await self._trigger_event("monitoring_lost", {"reason": "error", "error": str(e)})
+
+            # Exponential backoff before retry
+            logger.info(
+                f"NetworkManager monitoring disconnected, reconnecting in {retry_delay:.1f}s..."
+            )
+            await asyncio.sleep(retry_delay)
+
+            # Increase delay for next retry (exponential backoff)
+            retry_delay = min(retry_delay * backoff_factor, max_retry_delay)
