@@ -17,31 +17,29 @@ configure)
 	# Create virtual environment with uv
 	cd /usr/lib/distiller-services
 
-	# Create .venv with specific Python version
-	if [ ! -d .venv ]; then
-		uv venv || {
-			echo "ERROR: Failed to create virtual environment" >&2
-			exit 1
-		}
-	fi
+	[ -d .venv ] && rm -rf .venv
 
-	# Enable bytecode compilation for faster startup
+	uv venv --python $(which python3) --system-site-packages || {
+		echo "ERROR: Failed to create virtual environment" >&2
+		exit 1
+	}
+
 	export UV_COMPILE_BYTECODE=1
+	export UV_NO_CACHE=1
 	export UV_LINK_MODE=copy
 
-	# Install the package (production mode, not editable)
-	uv pip install --python .venv/bin/python --compile-bytecode . || {
+	uv sync --frozen --no-editable --compile-bytecode || {
 		echo "ERROR: Failed to install package" >&2
 		exit 1
 	}
 
 	# Install distiller-sdk if available
-	if [ -d /opt/distiller-sdk ]; then
-		echo "INFO: Installing distiller-sdk dependency..."
-		uv pip install --python .venv/bin/python /opt/distiller-sdk || {
-			echo "WARNING: Failed to install distiller-sdk"
-		}
-	fi
+	# if [ -d /opt/distiller-sdk ]; then
+	# 	echo "INFO: Installing distiller-sdk dependency..."
+	# 	uv pip install --python .venv/bin/python /opt/distiller-sdk || {
+	# 		echo "WARNING: Failed to install distiller-sdk"
+	# 	}
+	# fi
 
 	# Set MAC-based hostname on target devices
 	if [ -f /boot/armbianEnv.txt ] || [ -f /boot/firmware/config.txt ]; then
