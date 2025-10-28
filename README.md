@@ -41,7 +41,7 @@ The service operates in two primary modes: Access Point (AP) mode for initial co
 
 ### Display Integration
 
-- **E-ink Display Support**: Event-driven updates for 128x250 and 240x416 pixel displays
+- **E-ink Display Support**: Event-driven updates for EPD128x250 (native: 128×250, mounted: 250×128) and EPD240x416 (240×416) displays
 - **Component-based Layouts**: Modular screen design with theme system
 - **QR Code Generation**: Quick access codes for setup URL and tunnel URLs
 - **Connection Progress**: Real-time visual feedback during network transitions

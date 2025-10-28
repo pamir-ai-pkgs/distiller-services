@@ -10,6 +10,7 @@ from typing import Any, cast
 
 import qrcode
 from PIL import Image, ImageDraw
+from PIL.Image import Resampling
 from PIL.ImageDraw import ImageDraw as ImageDrawType
 from PIL.ImageFont import FreeTypeFont
 
@@ -219,7 +220,7 @@ class QRCode(Component):
         qr_img_raw = qr.make_image(fill_color="black", back_color="white")
         # qrcode may return either PilImage or PyPNGImage, cast to ensure PIL Image
         qr_img = cast(Image.Image, qr_img_raw)
-        qr_img = qr_img.resize((self.size, self.size), Image.NEAREST)
+        qr_img = qr_img.resize((self.size, self.size), Resampling.NEAREST)
 
         # Calculate position based on alignment
         if self.align == "center":
@@ -548,7 +549,9 @@ class LandscapeLayout:
         Returns:
             PIL Image with rendered components
         """
-        # Landscape canvas
+        # Landscape canvas (EPD128x250 mounted orientation: 250×128)
+        # Native hardware is 128×250 (portrait), mounted/rotated to 250×128 (landscape)
+        # Vendor firmware internally uses width=128, height=250
         landscape_width = 250
         landscape_height = 128
         image = Image.new("1", (landscape_width, landscape_height), theme.colors.background)

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Generate preview PNG images of all e-ink display states.
-This script creates sample images showing what would appear on the 122x250 e-ink display.
+This script creates sample images showing what would appear on the EPD128x250 e-ink display
+(native: 128×250 portrait, mounted: 250×128 landscape orientation).
 """
 
 import sys

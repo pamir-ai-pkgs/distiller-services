@@ -1,7 +1,13 @@
 """
 E-ink Display Theme Configuration.
 
-Centralized design system for the 128x250 e-ink display.
+Centralized design system for the EPD128x250 e-ink display.
+
+Note: EPD128x250 native hardware is 128×250 (portrait), but when mounted it appears as
+250×128 (landscape, rotated 90°). This theme uses portrait orientation (128×250) matching
+the native hardware orientation. Vendor firmware requires width=128, height=250 internally
+for proper bit packing.
+
 All spacing, sizing, and styling constants in one place.
 """
 
@@ -11,10 +17,14 @@ from typing import Any
 
 @dataclass
 class DisplayDimensions:
-    """Display dimensions."""
+    """Display dimensions for portrait orientation (128×250).
 
-    width: int = 128
-    height: int = 250
+    EPD128x250 native hardware is 128×250 (portrait). When mounted, it appears as 250×128
+    (landscape, rotated 90°). This theme uses the native portrait orientation (128×250).
+    """
+
+    width: int = 128  # Native portrait width
+    height: int = 250  # Native portrait height
 
 
 @dataclass
@@ -155,9 +165,9 @@ class Colors:
 class Layout:
     """Layout configuration."""
 
-    # Content area (display width minus margins)
-    content_width: int = 116  # 128 - (2 * 6)
-    content_height: int = 238  # 250 - (2 * 6)
+    # Content area for portrait orientation (native 128×250 minus margins)
+    content_width: int = 116  # Portrait width: 128 - (2 * 6 margin)
+    content_height: int = 238  # Portrait height: 250 - (2 * 6 margin)
 
     # Column widths
     left_column_width: int = 50

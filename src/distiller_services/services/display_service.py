@@ -52,15 +52,21 @@ class DisplayService:
     - Status messages and connection info
     - Async updates without blocking
     - Graceful degradation when hardware unavailable
-    - 128x250 pixel e-ink display support
+    - EPD128x250 e-ink display support (native: 128×250 portrait, mounted: 250×128 landscape)
     """
 
     def __init__(self, settings: Settings, state_manager: StateManager):
         self.settings = settings
         self.state_manager = state_manager
-        self.display: Any = None
+        self.display_available = False
         self._running = False
         self._display_lock = asyncio.Lock()
+
+        # Display class references
+        self.Display: Any = None
+        self.DisplayMode: Any = None
+        self.ScalingMethod: Any = None
+        self.DitheringMethod: Any = None
 
         # Template path for UI-generated templates
         self.template_path = Path("/home/distiller/template/default/template.json")
@@ -77,9 +83,9 @@ class DisplayService:
         self.state_manager.on_tunnel_url_change(self._on_tunnel_url_change)
 
     def _init_hardware(self):
-        """Initialize e-ink display but don't hold it."""
+        """Check if e-ink display SDK is available."""
         try:
-            # Import the actual SDK
+            # Import the actual SDK classes
             from distiller_sdk.hardware.eink.display import (
                 Display,
                 DisplayMode,
@@ -87,25 +93,26 @@ class DisplayService:
                 ScalingMethod,
             )
 
-            # Create display object without auto-initialization
-            self.display = Display(auto_init=False)
+            # Store class references for use in context managers
+            self.Display = Display
             self.DisplayMode = DisplayMode
             self.ScalingMethod = ScalingMethod
             self.DitheringMethod = DitheringMethod
 
-            # Initialize the display
-            assert self.display is not None
-            self.display.initialize()
-            width, height = self.display.get_dimensions()
-            logger.info(f"E-ink display ready: {width}x{height}")
+            # Test that display hardware is accessible
+            with Display() as display:
+                width, height = display.get_dimensions()
+                logger.info(f"E-ink display ready: {width}x{height}")
+                display.clear()
 
-            # Clear display on startup
-            self.display.clear()
+            self.display_available = True
 
         except ImportError as e:
             logger.warning(f"E-ink display SDK not available: {e}")
+            self.display_available = False
         except Exception as e:
             logger.error(f"Failed to initialize display: {e}")
+            self.display_available = False
 
     def load_fonts(self) -> dict[str, ImageFont.FreeTypeFont]:
         """Load fonts for rendering."""
@@ -285,8 +292,7 @@ class DisplayService:
                     # Render the layout to an image
                     image = layout.render(self.fonts)
 
-                # Send to display
-                if self.display:
+                if self.display_available:
                     # Image is from template if it was rendered by _render_template
                     is_from_template = (
                         TEMPLATE_RENDERER_AVAILABLE
@@ -295,6 +301,7 @@ class DisplayService:
                         and current_state == ConnectionState.CONNECTED
                         and full_state.tunnel_url
                     )
+                    # Send to display
                     await self._send_to_display(image, current_state, is_template=is_from_template)
                 else:
                     # Save to file for debugging
@@ -318,33 +325,27 @@ class DisplayService:
         await self.update_display(current_state)
 
     async def _send_to_display(self, image, state, is_template=False):
-        """Send image to e-ink display with conditional rotation for templates."""
-        if not self.display:
+        """Send image to e-ink display using context manager for automatic resource cleanup."""
+        if not self.display_available or self.Display is None or self.DisplayMode is None:
             return
 
         try:
-            # Ensure display is initialized (re-initialize if closed)
-            if not self.display.is_initialized():
-                self.display.initialize()
-                width, height = self.display.get_dimensions()
-                logger.debug(f"Re-initialized display: {width}x{height}")
-
+            # Save image to temporary file
             temp_file = Path("/tmp/eink_display.png")
             image.save(str(temp_file), "PNG")
 
-            # Display png image
-            self.display.display_png_auto(
-                str(temp_file),
-                mode=self.DisplayMode.FULL,
-                rotate=90 if is_template else 180,
-                flop=False,
-                flip=True,
-            )
+            # Use context manager to automatically handle initialization and cleanup
+            with self.Display() as display:
+                display.display_png_auto(
+                    str(temp_file),
+                    mode=self.DisplayMode.FULL,
+                    rotate=90 if is_template else 180,  # Landscape display mounted upside-down
+                    flop=False,
+                    flip=True,
+                )
 
-            logger.debug(f"Display updated for state: {state}")
-            await asyncio.sleep(2)  # Give time for the display to refresh
-            self.display.sleep()  # Put display to sleep after update
-            self.display.close()  # Close connection
+                logger.debug(f"Display updated for state: {state}")
+                await asyncio.sleep(2)  # Give time for the display to refresh
 
         except Exception as e:
             logger.error(f"Failed to send image to display: {e}")
@@ -352,14 +353,4 @@ class DisplayService:
     async def stop(self):
         """Stop the display service."""
         self._running = False
-
-        # Clear and close display on shutdown
-        if self.display:
-            try:
-                self.display.clear()
-                self.display.sleep()
-                self.display.close()
-            except Exception as e:
-                logger.error(f"Error during display shutdown: {e}")
-
         logger.info("Display service stopped")
