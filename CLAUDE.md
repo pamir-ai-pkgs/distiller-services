@@ -6,7 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Distiller WiFi Provisioning Service is an async Python service for ARM64 edge devices (Raspberry Pi CM5, Radxa Zero 3/3W) that provides WiFi network configuration through access point mode, web interface, captive portal, e-ink display feedback, and remote access via FRP/Pinggy tunnels.
 
-**Version:** 3.0.0
 **Python:** 3.11+
 **Package Manager:** `uv` (not pip or poetry)
 **Architecture:** Event-driven async with state machine

@@ -1,6 +1,6 @@
 {
   "name": "distiller-services-frontend",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Frontend tooling for Distiller Services",
   "private": true,
   "scripts": {

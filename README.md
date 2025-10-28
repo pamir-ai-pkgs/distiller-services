@@ -6,7 +6,6 @@ Modern asynchronous WiFi provisioning system for Distiller edge computing device
 
 Distiller WiFi Provisioning Service is a production-ready network configuration system designed for ARM-based embedded devices. The service orchestrates multiple subsystems to provide seamless WiFi setup through a web-based interface, automatic service discovery via mDNS, visual feedback through e-ink displays, and secure remote access through dual tunnel mechanisms.
 
-**Version:** 3.0.0
 **Target Platforms:** Raspberry Pi CM5, Radxa Zero 3, Radxa Zero 3W
 **Architecture:** ARM64 Linux
 
