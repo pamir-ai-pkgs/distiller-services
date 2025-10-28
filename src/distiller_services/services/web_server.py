@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 
+from distiller_services import __version__
 from distiller_services.core.captive_portal import CaptivePortal
 from distiller_services.core.config import Settings, generate_secure_password
 from distiller_services.core.network_manager import NetworkManager
@@ -73,14 +74,16 @@ class WebServer:
             gateway_ip=self.settings.ap_ip,
             web_port=self.settings.web_port,
         )
-        self._connection_lock = asyncio.Lock()
-        self._websocket_lock = asyncio.Lock()
-        self._ap_mode_lock = asyncio.Lock()  # Prevent concurrent AP mode initialization
+        self._connection_lock: asyncio.Lock = asyncio.Lock()
+        self._websocket_lock: asyncio.Lock = asyncio.Lock()
+        self._ap_mode_lock: asyncio.Lock = (
+            asyncio.Lock()
+        )  # Prevent concurrent AP mode initialization
         self._app_connection_lock: asyncio.Lock | None = None  # Will be set by DistillerWiFiApp
 
         self.app = FastAPI(
             title="Distiller WiFi Setup",
-            version="3.0.0",
+            version=__version__,
             docs_url="/api/docs" if settings.debug else None,
             redoc_url="/api/redoc" if settings.debug else None,
         )
@@ -265,10 +268,11 @@ class WebServer:
             session_id = request.cookies.get("session_id", str(uuid.uuid4()))
 
             # Try to acquire lock without blocking
-            try:
-                lock_acquired = self._connection_lock.acquire_nowait()
-            except Exception:
+            if self._connection_lock.locked():
                 lock_acquired = False
+            else:
+                await self._connection_lock.acquire()
+                lock_acquired = True
 
             if not lock_acquired:
                 # Lock is held by another operation (likely auto-recovery)
@@ -381,10 +385,11 @@ class WebServer:
                 )
 
             # Try to acquire lock without blocking
-            try:
-                lock_acquired = self._connection_lock.acquire_nowait()
-            except Exception:
+            if self._connection_lock.locked():
                 lock_acquired = False
+            else:
+                await self._connection_lock.acquire()
+                lock_acquired = True
 
             if not lock_acquired:
                 # Lock is held by another operation
@@ -529,7 +534,7 @@ class WebServer:
     ) -> str:
         """Render error page template."""
         state = self.state_manager.get_state()
-        return self.templates.TemplateResponse(
+        response = self.templates.TemplateResponse(
             "error.html",
             {
                 "request": {},
@@ -539,7 +544,9 @@ class WebServer:
                 "details": details,
                 "suggestion": suggestion,
             },
-        ).body.decode()
+        )
+        response_body: bytes = response.body
+        return response_body.decode()
 
     async def _proxy_request(
         self, request: Request, method: str, url: str | None = None

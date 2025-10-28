@@ -90,7 +90,7 @@ class DistillerWiFiApp:
         self.avahi_service = AvahiService(self.settings.web_port)
 
         # Application-level connection lock to prevent concurrent connection attempts
-        self._connection_lock = asyncio.Lock()
+        self._connection_lock: asyncio.Lock = asyncio.Lock()
         self._connection_initiator: str | None = None  # Track who initiated connection
 
         self.web_server = WebServer(self.settings, self.network_manager, self.state_manager)
@@ -314,11 +314,12 @@ class DistillerWiFiApp:
             return
 
         # Try to acquire lock, but don't wait if it's held
-        try:
-            acquired = self._connection_lock.acquire_nowait()
-        except Exception:
+        if self._connection_lock.locked():
             logger.debug("Could not acquire connection lock for recovery")
             return
+
+        await self._connection_lock.acquire()
+        acquired = True
 
         if not acquired:
             logger.info("Skipping auto-recovery - connection already in progress")
