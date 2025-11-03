@@ -1,3 +1,10 @@
+distiller-services (3.1.1) unstable; urgency=medium
+
+  [ utsavbalar1231 ]
+  * refactor(logging): delegate log rotation to system logrotate
+
+ -- PamirAI Incorporated <founders@pamir.ai>  Tue, 04 Nov 2025 00:10:48 +0530
+
 distiller-services (3.1.0) unstable; urgency=medium
 
   [ utsavbalar1231 ]
