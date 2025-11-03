@@ -8,7 +8,6 @@ import os
 import socket
 import sys
 from datetime import datetime
-from logging.handlers import RotatingFileHandler
 
 import uvicorn
 
@@ -35,10 +34,8 @@ def setup_logging(debug: bool = False):
         log_dir = get_log_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
 
-        file_handler = RotatingFileHandler(
+        file_handler = logging.FileHandler(
             log_dir / "distiller-wifi.log",
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=3,
             encoding="utf-8",
         )
         file_handler.setFormatter(logging.Formatter(log_format))

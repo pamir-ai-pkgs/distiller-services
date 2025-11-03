@@ -274,13 +274,22 @@ final_review_gate.py
 # Build artifacts
 build/
 dist/
-debian/tmp/
+
+# Debian packaging
+debian/*.debhelper
+debian/*.debhelper.log
+debian/*.postrm.debhelper
+debian/*.substvars
 debian/.debhelper/
-debian/files
 debian/debhelper-build-stamp
 debian/distiller-services/
-debian/distiller-services.*
-!debian/distiller-services.install
+debian/files
+*.buildinfo
+*.changes
+*.deb
+*.dsc
+*.tar.gz
+*.tar.xz
 
 # Python artifacts
 __pycache__/
