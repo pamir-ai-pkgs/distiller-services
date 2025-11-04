@@ -1,4 +1,5 @@
 debian/distiller-wifi usr/bin/
+debian/distiller-wifi.1 usr/share/man/man1/
 src/distiller_services usr/lib/distiller-services/src/
 pyproject.toml usr/lib/distiller-services/
 uv.lock usr/lib/distiller-services/
