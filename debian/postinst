@@ -44,8 +44,7 @@ configure)
 	# Set MAC-based hostname on target devices
 	if [ -f /boot/armbianEnv.txt ] || [ -f /boot/firmware/config.txt ]; then
 		if [ -x /usr/share/distiller-services/scripts/update-hostname.sh ]; then
-			systemctl is-system-running >/dev/null 2>&1 &&
-				/usr/share/distiller-services/scripts/update-hostname.sh -v || true
+			/usr/share/distiller-services/scripts/update-hostname.sh -v || true
 		fi
 	fi
 

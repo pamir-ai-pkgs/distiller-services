@@ -22,8 +22,7 @@ purge)
 	[ -f /etc/polkit-1/rules.d/50-distiller-networkmanager.rules ] && rm -f /etc/polkit-1/rules.d/50-distiller-networkmanager.rules
 	[ -f /etc/udev/rules.d/99-distiller-hardware.rules ] && rm -f /etc/udev/rules.d/99-distiller-hardware.rules
 
-	# Clean up temporary files
-	find /tmp -maxdepth 1 -name 'distiller-*' -type f -delete 2>/dev/null || true
+	# Clean up runtime files
 	find /var/run -maxdepth 1 -name 'distiller-*' -type f -delete 2>/dev/null || true
 	find /var/lock -maxdepth 1 -name 'distiller-*' -type f -delete 2>/dev/null || true
 
