@@ -175,7 +175,7 @@ TunnelService tries FRP first (if device has serial), falls back to Pinggy, moni
 ### Core Logic
 - `paths.py` - Centralized path management, environment detection, path resolution
 - `core/state.py` - State management, persistence, callbacks (SystemState, StateManager)
-- `core/network_manager.py` - NetworkManager wrapper, WiFi operations, SSID validation
+- `core/network_manager.py` - NetworkManager wrapper, WiFi operations
 - `core/config.py` - Pydantic Settings with environment variable support
 - `core/device_config.py` - Device ID generation from MAC address
 - `core/captive_portal.py` - Captive portal DNS configuration
@@ -203,14 +203,11 @@ TunnelService tries FRP first (if device has serial), falls back to Pinggy, moni
 
 ## Critical Implementation Details
 
-### SSID Validation
-`NetworkManager._validate_ssid()` prevents command injection by validating SSIDs against regex `^[a-zA-Z0-9\s\-_.]+$` and checking for dangerous characters ($, `, ;, |, etc.). Always use this before passing SSIDs to nmcli commands.
-
 ### Captive Portal
 Uses NetworkManager's dnsmasq with wildcard DNS (`address=/#/192.168.4.1`) to trigger captive portal popups on Android, iOS, Windows. Configuration in `/etc/NetworkManager/dnsmasq-shared.d/80-distiller-captive.conf`.
 
 ### Network Profile Validation
-`_validate_network_profile()` checks file ownership (root), permissions (0600), and content for suspicious patterns before using existing profiles.
+`_validate_network_profile()` checks file ownership (root) and permissions (0600) before using existing profiles.
 
 ### State Persistence
 StateManager saves to `/var/lib/distiller/state.json` on every update using atomic writes (temp file + rename). Datetime objects converted to ISO format for JSON serialization.
@@ -293,10 +290,9 @@ Test network operations require:
 4. **Development Auto-Detection**: Checks for `templates/` and `static/` in project root. Missing these triggers production mode.
 5. **Captive Portal**: Requires NetworkManager restart after config changes. Use `sudo systemctl restart NetworkManager`.
 6. **Display**: Requires distiller-sdk >= 3.0.0. Development looks for `../distiller-sdk/src/` (monorepo).
-7. **SSID Validation**: Always validate SSIDs via `_validate_ssid()` before nmcli operations.
-8. **AP Password**: Dynamically generated on each AP mode entry. Check logs or state file for current password.
-9. **Tunnel URLs**: FRP requires device serial. Development won't have `/etc/pamir/device.env`, only Pinggy works.
-10. **NetworkManager Profiles**: Stored in `/etc/NetworkManager/system-connections/` with 0600 permissions.
+7. **AP Password**: Dynamically generated on each AP mode entry. Check logs or state file for current password.
+8. **Tunnel URLs**: FRP requires device serial. Development won't have `/etc/pamir/device.env`, only Pinggy works.
+9. **NetworkManager Profiles**: Stored in `/etc/NetworkManager/system-connections/` with 0600 permissions.
 
 ## Debugging
 

@@ -56,7 +56,6 @@ The service operates in two primary modes: Access Point (AP) mode for initial co
 
 ### Security
 
-- **Input Validation**: Regex-based validation against command injection
 - **Secure Password Generation**: Cryptographically secure random passwords
 - **Atomic Operations**: Race condition prevention in file operations
 - **Symlink Attack Prevention**: Temp file security validation

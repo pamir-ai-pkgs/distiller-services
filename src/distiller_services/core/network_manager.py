@@ -370,20 +370,6 @@ no-poll
                 )
                 return False
 
-            # Check for suspicious content
-            with open(profile_path) as f:
-                content = f.read()
-
-                # Check for suspicious scripts or commands
-                suspicious_patterns = ["script=", "exec=", "system(", "$(", "`", "|", "&&", ";"]
-
-                for pattern in suspicious_patterns:
-                    if pattern in content:
-                        logger.warning(
-                            f"Profile {profile_name} contains suspicious pattern: {pattern}"
-                        )
-                        return False
-
             logger.debug(f"Profile {profile_name} validation passed")
             return True
 
@@ -412,24 +398,17 @@ no-poll
         return f"Connection failed: {stderr[:100]}"
 
     def _validate_ssid(self, ssid: str) -> bool:
-        """Validate SSID to prevent injection attacks."""
+        """Validate SSID length per WiFi spec."""
 
         # Check length (WiFi spec: 1-32 chars)
         if not ssid or len(ssid) > 32:
             logger.error(f"Invalid SSID length: {len(ssid)}")
             return False
 
-        # Allow only safe characters: alphanumeric, spaces, hyphens, underscores, dots
-        # This regex prevents shell metacharacters and control characters
-        safe_ssid_pattern = re.compile(r"^[a-zA-Z0-9\s\-_.]+$")
-        if not safe_ssid_pattern.match(ssid):
-            logger.error(f"SSID contains invalid characters: {ssid}")
-            return False
-
         return True
 
     async def connect_to_network(self, ssid: str, password: str | None) -> bool:
-        # Validate SSID to prevent injection attacks
+        # Validate SSID length
         if not self._validate_ssid(ssid):
             logger.error(f"SSID validation failed for: {ssid}")
             return False
@@ -798,7 +777,7 @@ no-poll
         Returns False if profile is stale (wrong password) or doesn't exist,
         forcing fallback to AP mode where user can enter new password.
         """
-        # Validate SSID to prevent injection attacks
+        # Validate SSID length
         if not self._validate_ssid(ssid):
             logger.error(f"SSID validation failed for reconnection: {ssid}")
             return False

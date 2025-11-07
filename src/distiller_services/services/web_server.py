@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import re
 import uuid
 from datetime import datetime
 
@@ -30,12 +29,8 @@ class ConnectionRequest(BaseModel):
     @field_validator("ssid")
     @classmethod
     def validate_ssid(cls, v):
-        # Check for dangerous characters that could be used in command injection
         if not v or len(v.strip()) == 0:
             raise ValueError("SSID cannot be empty")
-        # Allow only safe characters for SSID
-        if not re.match(r"^[a-zA-Z0-9\s\-_.]+$", v):
-            raise ValueError("SSID contains invalid characters")
         return v.strip()
 
     @field_validator("password")
@@ -46,10 +41,6 @@ class ConnectionRequest(BaseModel):
         # WPA/WPA2 requires 8-63 characters
         if len(v) < 8 or len(v) > 63:
             raise ValueError("Password must be 8-63 characters")
-        # Check for shell-dangerous characters
-        dangerous_chars = ["`", "$", "\\", '"', "'", ";", "&", "|", ">", "<", "\n", "\r"]
-        if any(char in v for char in dangerous_chars):
-            raise ValueError("Password contains invalid characters")
         return v
 
 
