@@ -1,3 +1,17 @@
+distiller-services (3.2.0) unstable; urgency=medium
+
+  [ utsavbalar1231 ]
+  * build(debian): switch to git-buildpackage for changelog generation
+  * build(debian): add man page installation
+  * build(debian): harden package and simplify maintenance scripts
+  * refactor(validation): remove shell-dangerous character checks
+  * feat(core): add profile validation and reconciliation
+  * fix(captive_portal): allow direct access to web server port
+  * fix(config): simplify web server binding to IPv4 only
+  * fix(core): prevent race conditions in state transitions
+
+ -- PamirAI Incorporated <founders@pamir.ai>  Sun, 09 Nov 2025 01:27:14 +0530
+
 distiller-services (3.1.1) unstable; urgency=medium
 
   [ utsavbalar1231 ]
