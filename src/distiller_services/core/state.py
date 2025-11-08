@@ -251,6 +251,10 @@ class StateManager:
             # Update fields
             if connection_state is not None:
                 self.state.connection_state = connection_state
+                # Clear tunnel URL when disconnecting to prevent stale URLs
+                if connection_state in (ConnectionState.DISCONNECTED, ConnectionState.AP_MODE, ConnectionState.FAILED):
+                    self.state.tunnel_url = None
+                    self.state.tunnel_provider = None
 
             if network_info is not None:
                 self.state.network_info = network_info

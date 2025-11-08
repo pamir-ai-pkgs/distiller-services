@@ -944,10 +944,16 @@ no-poll
 
                     # Parse connection state changes
                     if "deactivating" in event.lower() or "deactivated" in event.lower():
-                        # Extract connection name if present
-                        connection_match = re.search(r"'([^']+)'", event)
+                        # Extract connection name from various formats:
+                        # "Connection 'name' deactivated" or "Connection name deactivated"
+                        connection_match = re.search(
+                            r"[Cc]onnection\s+['\"]?([^'\":\s]+)['\"]?\s+deactivat", event
+                        )
+                        if not connection_match:
+                            # Fallback: try to find any quoted string
+                            connection_match = re.search(r"'([^']+)'", event)
                         connection_name = (
-                            connection_match.group(1) if connection_match else "unknown"
+                            connection_match.group(1).strip() if connection_match else "unknown"
                         )
                         if connection_name != self.ap_connection_name:
                             logger.warning(f"Connection {connection_name} deactivated")

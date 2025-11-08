@@ -801,45 +801,21 @@ class WebServer:
                             f"Connected to {ssid} but captive portal requires authentication"
                         )
                     else:
-                        # Verify actual internet connectivity
+                        # Connection successful - trust DHCP success
+                        # The tunnel service will validate actual internet connectivity
                         await self.state_manager.update_state(
-                            connection_status="Checking internet connectivity...",
-                            connection_progress=0.8,
+                            connection_state=ConnectionState.CONNECTED,
+                            network_info=NetworkInfo(
+                                ssid=ssid,
+                                ip_address=info.get("ip_address") if info else None,
+                                connected_at=datetime.now(),
+                            ),
+                            connection_progress=1.0,
+                            connection_status=None,  # Clear status on success
+                            error_message=None,
+                            reset_retry=True,
                         )
-                        await self._broadcast_status()
-
-                        has_internet = await self.network_manager.verify_connectivity()
-
-                        # Connection complete
-                        if has_internet:
-                            await self.state_manager.update_state(
-                                connection_state=ConnectionState.CONNECTED,
-                                network_info=NetworkInfo(
-                                    ssid=ssid,
-                                    ip_address=info.get("ip_address") if info else None,
-                                    connected_at=datetime.now(),
-                                ),
-                                connection_progress=1.0,
-                                connection_status=None,  # Clear status on success
-                                error_message=None,
-                                reset_retry=True,
-                            )
-                            logger.info(f"Successfully connected to {ssid} with internet access")
-                        else:
-                            # WiFi connected but no internet (no captive portal detected)
-                            await self.state_manager.update_state(
-                                connection_state=ConnectionState.CONNECTED,
-                                network_info=NetworkInfo(
-                                    ssid=ssid,
-                                    ip_address=info.get("ip_address") if info else None,
-                                    connected_at=datetime.now(),
-                                ),
-                                connection_progress=1.0,
-                                connection_status=None,  # Clear status
-                                error_message="Limited connectivity - no internet access",
-                                reset_retry=True,
-                            )
-                            logger.warning(f"Connected to {ssid} but no internet access")
+                        logger.info(f"Successfully connected to {ssid}")
                 else:
                     # Connection failed - get user-friendly error message
                     error_msg = "Failed to connect to network"

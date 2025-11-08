@@ -7,6 +7,7 @@ import logging
 import os
 import socket
 import sys
+import time
 from datetime import datetime
 
 import uvicorn
@@ -89,6 +90,9 @@ class DistillerWiFiApp:
         # Application-level connection lock to prevent concurrent connection attempts
         self._connection_lock: asyncio.Lock = asyncio.Lock()
         self._connection_initiator: str | None = None  # Track who initiated connection
+
+        # Track recent events to prevent duplicate processing
+        self._last_event_time: dict[str, float] = {}
 
         self.web_server = WebServer(self.settings, self.network_manager, self.state_manager)
         self.display_service = DisplayService(self.settings, self.state_manager)
@@ -274,6 +278,14 @@ class DistillerWiFiApp:
 
     async def _handle_network_event(self, event_type: str, details: dict):
         """Handle network events from NetworkManager monitoring."""
+        # Check for duplicate events within 500ms window
+        current_time = time.time()
+        last_time = self._last_event_time.get(event_type, 0)
+        if current_time - last_time < 0.5:  # 500ms window
+            logger.debug(f"Ignoring duplicate {event_type} event within 500ms")
+            return
+        self._last_event_time[event_type] = current_time
+
         logger.info(f"Network event: {event_type} - {details}")
 
         current_state = self.state_manager.get_state()
