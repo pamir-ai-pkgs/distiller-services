@@ -771,6 +771,34 @@ no-poll
         logger.debug("All connectivity checks failed - no internet or network issue")
         return (False, None)
 
+    async def profile_exists(self, ssid: str) -> bool:
+        """Check if a NetworkManager connection profile exists for the given SSID.
+
+        Args:
+            ssid: The SSID to check for
+
+        Returns:
+            True if a profile exists, False otherwise
+        """
+        # Validate SSID length first
+        if not self._validate_ssid(ssid):
+            logger.error(f"SSID validation failed: {ssid}")
+            return False
+
+        returncode, stdout, _ = await self._run_command(
+            ["nmcli", "-t", "-f", "NAME", "connection", "show"]
+        )
+
+        if returncode != 0:
+            logger.error("Failed to list network connections")
+            return False
+
+        for line in stdout.split("\n"):
+            if line.strip() == ssid:
+                return True
+
+        return False
+
     async def reconnect_to_saved_network(self, ssid: str) -> bool:
         """Try to reconnect to a previously saved network connection.
 
@@ -796,21 +824,7 @@ no-poll
         logger.info(f"Attempting to reconnect to saved network: {ssid}")
 
         # Check if the connection profile exists
-        returncode, stdout, _ = await self._run_command(
-            ["nmcli", "-t", "-f", "NAME", "connection", "show"]
-        )
-
-        if returncode != 0:
-            logger.error("Failed to list network connections")
-            return False
-
-        connection_exists = False
-        for line in stdout.split("\n"):
-            if line.strip() == ssid:
-                connection_exists = True
-                break
-
-        if not connection_exists:
+        if not await self.profile_exists(ssid):
             logger.info(f"No saved connection profile for {ssid}")
             return False
 

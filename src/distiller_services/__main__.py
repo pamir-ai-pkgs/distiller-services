@@ -140,17 +140,27 @@ class DistillerWiFiApp:
 
         elif saved_state.network_info and saved_state.network_info.ssid:
             # Not currently connected, but we have a saved network to try
-            logger.info(f"Found saved network: {saved_state.network_info.ssid}")
-            logger.info("Attempting to reconnect to saved network...")
+            saved_ssid = saved_state.network_info.ssid
+            logger.info(f"Found saved network: {saved_ssid}")
 
-            # Try to reconnect to the saved network
-            reconnected = await self.network_manager.reconnect_to_saved_network(
-                saved_state.network_info.ssid
-            )
+            # Proactive validation: Check if NetworkManager profile exists before attempting connection
+            profile_exists = await self.network_manager.profile_exists(saved_ssid)
+            if not profile_exists:
+                logger.warning(
+                    f"NetworkManager profile for '{saved_ssid}' was deleted externally, "
+                    "cleaning up state"
+                )
+                await self.state_manager.clear_saved_network()
+                reconnected = False
+            else:
+                logger.info("Attempting to reconnect to saved network...")
+
+                # Try to reconnect to the saved network
+                reconnected = await self.network_manager.reconnect_to_saved_network(saved_ssid)
 
             if reconnected:
                 # Update state to connected
-                logger.info(f"Successfully reconnected to {saved_state.network_info.ssid}")
+                logger.info(f"Successfully reconnected to {saved_ssid}")
 
                 # Get updated connection info
                 connection_info = await self.network_manager.get_connection_info()
@@ -223,19 +233,27 @@ class DistillerWiFiApp:
     async def _handle_state_change(self, old_state: ConnectionState, new_state: ConnectionState):
         logger.info(f"State transition: {old_state} -> {new_state}")
 
-        # Disable captive portal when leaving AP mode
+        # Disable captive portal and stop Avahi when leaving AP mode
         if old_state == ConnectionState.AP_MODE and new_state != ConnectionState.AP_MODE:
             if self.settings.enable_captive_portal:
                 logger.info("Disabling captive portal as we're leaving AP mode")
                 await self.web_server.disable_captive_portal()
 
-        # Enable captive portal when entering AP mode (e.g., after disconnect)
+            # Restart Avahi when returning to client mode (mDNS will work again)
+            logger.info("Restarting Avahi service for client mode")
+            self.avahi_service.stop()
+            self.avahi_service.start()
+
+        # Enable captive portal and stop Avahi when entering AP mode
         elif new_state == ConnectionState.AP_MODE and old_state != ConnectionState.AP_MODE:
             if self.settings.enable_captive_portal:
                 logger.info("Enabling captive portal")
                 await self.web_server.enable_captive_portal()
 
-        # Avahi handles all network transitions automatically
+            # Stop Avahi in AP mode (mDNS won't work for isolated AP clients)
+            logger.info("Stopping Avahi service in AP mode (mDNS not functional in isolated AP)")
+            self.avahi_service.stop()
+
         # NetworkManager's dnsmasq handles DNS with wildcard configuration
 
     async def _handle_persistence_health_change(self, old_health: str, new_health: str):
@@ -334,6 +352,16 @@ class DistillerWiFiApp:
                 await self._fallback_to_ap_mode()
                 return
 
+            # Check if NetworkManager profile still exists before attempting recovery
+            if not await self.network_manager.profile_exists(saved_network.ssid):
+                logger.warning(
+                    f"NetworkManager profile for '{saved_network.ssid}' no longer exists "
+                    "(likely deleted externally), skipping recovery"
+                )
+                await self.state_manager.clear_saved_network()
+                await self._fallback_to_ap_mode()
+                return
+
             # Exponential backoff retry loop
             delay = self.settings.recovery_initial_delay
             max_retries = self.settings.recovery_max_retries
@@ -422,24 +450,10 @@ class DistillerWiFiApp:
         if not self.settings.debug:
             uvicorn_logger.setLevel(logging.ERROR)
 
-        # Determine host binding with IPv6/IPv4 fallback
+        # Determine host binding
         host = self.settings.web_host
 
-        # Try IPv6 dual-stack first, fallback to IPv4 if unavailable
-        if host == "::":
-            # Test if IPv6 is available
-            if not check_port_available("::", self.settings.web_port):
-                # IPv6 might be disabled or port occupied
-                # Try finding port on IPv6 first
-                selected_port = find_available_port("::", self.settings.web_port, max_attempts=10)
-                if selected_port:
-                    logger.info(f"IPv6 available, using port {selected_port}")
-                    self.settings.web_port = selected_port
-                else:
-                    # IPv6 not available, fallback to IPv4
-                    logger.warning("IPv6 not available, falling back to IPv4")
-                    host = "0.0.0.0"
-                    self.settings.web_host = host
+        logger.info(f"Web server configured to bind to: {host}")
 
         # Find available port on the selected host
         selected_port = find_available_port(host, self.settings.web_port, max_attempts=10)
@@ -466,7 +480,7 @@ class DistillerWiFiApp:
             self.avahi_service.port = selected_port
             logger.info(f"Updated Avahi service to advertise port {selected_port}")
 
-        logger.info(f"Starting web server on {host}:{selected_port}")
+        logger.info(f"Starting web server on {host}:{selected_port} (IPv4 all interfaces)")
 
         config = uvicorn.Config(
             app=self.web_server.get_app(),
@@ -488,6 +502,53 @@ class DistillerWiFiApp:
                 logger.error(f"Session cleanup error: {e}")
                 await asyncio.sleep(60)
 
+    async def run_state_reconciliation(self):
+        """Periodic task to reconcile state with NetworkManager profiles.
+
+        Detects when profiles are deleted externally (via nmtui, nmcli, etc.)
+        and automatically cleans up stale state entries.
+        """
+        # Wait a bit after startup before starting reconciliation
+        await asyncio.sleep(60)
+
+        while self.running:
+            try:
+                current_state = self.state_manager.get_state()
+
+                # Only reconcile if we have a saved network and we're not actively connecting
+                if (
+                    current_state.network_info
+                    and current_state.network_info.ssid
+                    and current_state.connection_state
+                    not in (ConnectionState.CONNECTING, ConnectionState.SWITCHING)
+                ):
+                    saved_ssid = current_state.network_info.ssid
+
+                    # Check if NetworkManager still has this profile
+                    profile_exists = await self.network_manager.profile_exists(saved_ssid)
+
+                    if not profile_exists:
+                        logger.warning(
+                            f"State reconciliation: NetworkManager profile for '{saved_ssid}' "
+                            "was deleted externally, cleaning up state"
+                        )
+                        await self.state_manager.clear_saved_network()
+
+                        # If we're currently "connected" but the profile is gone,
+                        # we need to fall back to AP mode
+                        if current_state.connection_state == ConnectionState.CONNECTED:
+                            logger.info(
+                                "Profile deletion detected while connected, restarting AP mode"
+                            )
+                            await self._fallback_to_ap_mode()
+
+                # Run reconciliation every 60 seconds
+                await asyncio.sleep(60)
+
+            except Exception as e:
+                logger.error(f"State reconciliation error: {e}")
+                await asyncio.sleep(60)
+
     async def run_network_monitor(self):
         await self.network_manager.monitor_events()
 
@@ -501,6 +562,7 @@ class DistillerWiFiApp:
                 asyncio.create_task(self.display_service.run()),
                 asyncio.create_task(self.tunnel_service.run()),
                 asyncio.create_task(self.run_session_cleanup()),
+                asyncio.create_task(self.run_state_reconciliation()),
                 asyncio.create_task(self.web_server.monitor_captive_portal_auth()),
             ]
 

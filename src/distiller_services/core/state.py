@@ -309,6 +309,22 @@ class StateManager:
                     "tunnel_url_change", old_tunnel_url, self.state.tunnel_url
                 )
 
+    async def clear_saved_network(self) -> None:
+        """Clear saved network information from state.
+
+        This is used when a network profile is deleted externally
+        (e.g., via nmtui or nmcli) to keep state synchronized.
+        """
+        async with self._lock:
+            logger.info("Clearing saved network from state")
+            self.state.network_info = NetworkInfo()  # Reset to empty
+            self.state.error_message = None
+            self.state.retry_count = 0
+            self.state.connection_progress = 0.0
+            self.state.connection_status = None
+            self.state.updated_at = datetime.now()
+            await self._save_state()
+
     async def add_session(self, session: SessionInfo) -> None:
         """Add or update a session."""
         async with self._lock:
