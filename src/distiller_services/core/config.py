@@ -55,7 +55,9 @@ class Settings(BaseSettings):
     mdns_port: int = Field(default=8080, description="mDNS advertised port")
 
     # Web server configuration
-    web_host: str = Field(default="::", description="Web server host (:: for IPv6 dual-stack)")
+    web_host: str = Field(
+        default="0.0.0.0", description="Web server host (0.0.0.0 for IPv4 all interfaces)"
+    )
 
     web_port: int = Field(default=8080, description="Web server port")
 
