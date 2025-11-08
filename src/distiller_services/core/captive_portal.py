@@ -53,6 +53,22 @@ class CaptivePortal:
             await self._remove_iptables_rules()
 
         commands = [
+            # Allow direct access to web server port (8080) without redirection
+            [
+                "iptables",
+                "-t",
+                "nat",
+                "-A",
+                "PREROUTING",
+                "-i",
+                self.interface,
+                "-p",
+                "tcp",
+                "--dport",
+                str(self.web_port),
+                "-j",
+                "ACCEPT",
+            ],
             # Redirect HTTP traffic (port 80) to our web server port
             [
                 "iptables",
@@ -121,6 +137,21 @@ class CaptivePortal:
 
         # Convert -A (append) to -D (delete) for removal
         commands = [
+            [
+                "iptables",
+                "-t",
+                "nat",
+                "-D",
+                "PREROUTING",
+                "-i",
+                self.interface,
+                "-p",
+                "tcp",
+                "--dport",
+                str(self.web_port),
+                "-j",
+                "ACCEPT",
+            ],
             [
                 "iptables",
                 "-t",
