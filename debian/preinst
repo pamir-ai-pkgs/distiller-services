@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+export PATH="/root/.local/bin:/root/.cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
 # Architecture check
 check_architecture() {
 	arch=$(dpkg --print-architecture)
