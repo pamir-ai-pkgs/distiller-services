@@ -10,8 +10,10 @@ from .display_layouts import (
     Checklist,
     Component,
     Dots,
+    Divider,
     Label,
     LandscapeLayout,
+    LandscapeSingleColumn,
     Layout,
     ProgressBar,
     QRCode,
@@ -35,7 +37,7 @@ def create_setup_screen(
     mdns_hostname: str,
     ap_ip: str = "192.168.4.1",
     web_port: int = 8080,
-) -> LandscapeLayout:
+) -> Layout:
     """
     Create WiFi setup screen with dual QR codes optimized for small display.
 
@@ -52,24 +54,16 @@ def create_setup_screen(
     # Generate WiFi connection string for QR code
     wifi_string = f"WIFI:T:WPA;S:{ap_ssid};P:{ap_password};;"
 
-    # Generate web URL for second QR code (using IP since we're in AP mode)
-    web_url = f"http://{mdns_hostname}.local:{web_port}"
-
-    return (
-        LandscapeLayout()
-        .add_left(
-            Caption("1. Join Wifi"),
-            QRCode(wifi_string, size="small"),
-            Caption(ap_ssid),
-            Caption(ap_password),
-        )
-        .add_right(
-            Caption("2. Open this site"),
-            QRCode(web_url, size="small"),
-            Caption(ap_ip),
-            Caption(f":{web_port}"),
-        )
+    layout = LandscapeSingleColumn()
+    layout.add(
+        # Space(height=theme.spacing.xl),
+        Title("JOIN WIFI"),
+        Space(height=theme.spacing.md),
+        QRCode(wifi_string, size="medium", align="center"),
+        Space(height=theme.spacing.md),
+        Text(f"VISIT : {ap_ip}:{web_port}", style="label", align="center"),
     )
+    return layout
 
 
 def create_connecting_screen(
@@ -163,48 +157,48 @@ def create_tunnel_screen(
     Returns:
         LandscapeLayout
     """
-    # Build right side content based on provider
-    right_content: list[Component] = []
-    right_content.extend(
-        [
-            Space(height=theme.spacing.md),
-            Space(height=theme.spacing.md),
-            Space(height=theme.spacing.md),
-        ]
-    )
+    # Build right side content
+    display_url = tunnel_url.replace("https://", "").replace("http://", "")
+    formatted_ip = format_ip_for_url(ip_address) if ip_address else "0.0.0.0"
+    local_url = f"{formatted_ip}"
 
-    if provider == "frp":
-        # FRP has permanent URLs, no expiration warning
-        # Show the URL without https:// prefix for better fit
-        display_url = tunnel_url.replace("https://", "").replace("http://", "")
-        right_content.extend(
-            [
-                Value(display_url),
-                Space(),  # Push to bottom
-                Value("or visit"),
-                Label(f"{ip_address}  :3000"),
-            ]
-        )
-    else:
-        # Pinggy has temporary URLs
-        right_content.extend(
-            [
-                Value("QR valid only"),
-                Label("55 minutes"),
-                Space(),  # Push to bottom
-                Value("or visit"),
-                Label(f"{ip_address}  :3000"),
-            ]
-        )
+    local_hints: list[Component] = [
+        Text("Local network", style="label", align="center"),
+        Text(f"{local_url}/distiller/https", style="value", align="center"),
+    ]
 
     return (
         LandscapeLayout()
         .add_left(
             Title("REMOTE ACCESS"),
-            Space(),
-            QRCode(tunnel_url, size="small"),
+            Space(height=theme.spacing.sm),
+            QRCode(tunnel_url, size="medium", align="center"),
+            Space(height=theme.spacing.sm),
         )
-        .add_right(*right_content)
+        .add_right(
+            Space(height=theme.spacing.lg),
+            Space(height=theme.spacing.lg),
+            Text(f"{tunnel_url}", style="value", align="center"),
+            # Space(height=theme.spacing.md),
+            Divider("or"),
+            # Space(height=theme.spacing.md),
+            Text(f"{local_url}/distiller/https", style="value", align="center"),
+        )
+        if provider == "frp" else LandscapeLayout()
+        .add_left(
+            Title("REMOTE ACCESS"),
+            Space(height=theme.spacing.sm),
+            QRCode(tunnel_url, size="medium", align="center"),
+            Space(height=theme.spacing.sm),
+        )
+        .add_right(
+            Space(height=theme.spacing.lg),
+            Space(height=theme.spacing.lg),
+            Space(height=theme.spacing.lg),
+            Space(height=theme.spacing.lg),
+            Space(height=theme.spacing.lg),
+            *local_hints,
+        )
     )
 
 

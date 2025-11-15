@@ -186,6 +186,71 @@ class Space(Component):
         return self.height
 
 
+class Divider(Component):
+    """Horizontal divider line with optional centered label."""
+
+    def __init__(
+        self,
+        text: str | None = None,
+        thickness: int = 1,
+        padding: int = 2,
+        gap: int = 4,
+    ):
+        """
+        Create a divider.
+
+        Args:
+            text: Optional label to display in the middle of the divider
+            thickness: Line thickness in pixels
+            padding: Empty space above/below the divider
+            gap: Space between text and divider lines
+        """
+        self.text = text
+        self.thickness = max(1, thickness)
+        self.padding = max(0, padding)
+        self.gap = max(0, gap)
+
+    def render(
+        self, draw: "ImageDrawType", x: int, y: int, width: int, fonts: dict[str, Any]
+    ) -> int:
+        """Draw the divider and optional label."""
+        top = y + self.padding
+        baseline = top + self.thickness // 2
+
+        if self.text:
+            font = fonts.get("small")
+            label = self.text.upper()
+            text_bbox = font.getbbox(label)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
+            text_x = x + (width - text_width) // 2
+            text_y = top
+
+            # Left line up to text
+            left_end = text_x - self.gap
+            if left_end > x:
+                draw.line((x, baseline, left_end, baseline), fill=theme.colors.foreground)
+
+            # Right line
+            right_start = text_x + text_width + self.gap
+            if right_start < x + width:
+                draw.line(
+                    (right_start, baseline, x + width, baseline),
+                    fill=theme.colors.foreground,
+                )
+
+            draw.text((text_x, text_y), label, font=font, fill=theme.colors.foreground)
+            consumed = text_height
+        else:
+            draw.rectangle(
+                ((x, top), (x + width, top + self.thickness)),
+                fill=theme.colors.foreground,
+            )
+            consumed = self.thickness
+
+        return (self.padding * 2) + consumed
+
+
 class QRCode(Component):
     """QR Code component."""
 
@@ -496,6 +561,46 @@ class Layout:
         """Clear all components."""
         self.components = []
         return self
+
+
+class LandscapeSingleColumn:
+    """Single-column layout centered in landscape orientation."""
+
+    def __init__(self):
+        self.components: list[Component] = []
+        self.column_width = theme.layout.content_width * 2 # single column 
+
+    def add(self, *components: Component) -> "LandscapeSingleColumn":
+        for component in components:
+            if component is not None:
+                self.components.append(component)
+        return self
+
+    def render(self, fonts: dict) -> Image.Image:
+        landscape_width = 250
+        landscape_height = 128
+        image = Image.new("1", (landscape_width, landscape_height), theme.colors.background)
+        draw = ImageDraw.Draw(image)
+        draw.fontmode = "L"
+
+        margin = theme.spacing.margin
+        x = (landscape_width - self.column_width) // 2
+        y = margin
+
+        for i, component in enumerate(self.components):
+            if i > 0 and not isinstance(component, Space):
+                if not isinstance(self.components[i - 1], Space):
+                    y += theme.spacing.between_components
+
+            height = component.render(draw, x, y, self.column_width, fonts)
+            y += height
+
+            if y > landscape_height - margin:
+                break
+
+        # Rotate 90 degrees so the content appears in landscape orientation like
+        # other layouts (LandscapeLayout also rotates before returning).
+        return image.rotate(90, expand=True)
 
 
 class LandscapeLayout:
