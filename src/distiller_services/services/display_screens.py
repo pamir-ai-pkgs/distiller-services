@@ -9,8 +9,8 @@ from .display_layouts import (
     Caption,
     Checklist,
     Component,
-    Dots,
     Divider,
+    Dots,
     Label,
     LandscapeLayout,
     LandscapeSingleColumn,
@@ -37,9 +37,9 @@ def create_setup_screen(
     mdns_hostname: str,
     ap_ip: str = "192.168.4.1",
     web_port: int = 8080,
-) -> Layout:
+) -> LandscapeSingleColumn:
     """
-    Create WiFi setup screen with dual QR codes optimized for small display.
+    Create WiFi setup screen with single-column layout.
 
     Args:
         ap_ssid: Access point SSID
@@ -49,14 +49,13 @@ def create_setup_screen(
         web_port: Web server port (default: 8080)
 
     Returns:
-        LandscapeLayout
+        LandscapeSingleColumn
     """
     # Generate WiFi connection string for QR code
     wifi_string = f"WIFI:T:WPA;S:{ap_ssid};P:{ap_password};;"
 
     layout = LandscapeSingleColumn()
     layout.add(
-        # Space(height=theme.spacing.xl),
         Title("JOIN WIFI"),
         Space(height=theme.spacing.md),
         QRCode(wifi_string, size="medium", align="center"),
@@ -158,48 +157,33 @@ def create_tunnel_screen(
         LandscapeLayout
     """
     # Build right side content
-    display_url = tunnel_url.replace("https://", "").replace("http://", "")
     formatted_ip = format_ip_for_url(ip_address) if ip_address else "0.0.0.0"
-    local_url = f"{formatted_ip}"
+    local_url = formatted_ip
 
-    local_hints: list[Component] = [
-        Text("Local network", style="label", align="center"),
-        Text(f"{local_url}/distiller/https", style="value", align="center"),
+    # FRP and Pinggy have different layout requirements
+    left_panel: list[Component] = [
+        Title("REMOTE ACCESS"),
+        Space(height=theme.spacing.sm),
+        QRCode(tunnel_url, size="medium", align="center"),
+        Space(height=theme.spacing.sm),
     ]
 
-    return (
-        LandscapeLayout()
-        .add_left(
-            Title("REMOTE ACCESS"),
-            Space(height=theme.spacing.sm),
-            QRCode(tunnel_url, size="medium", align="center"),
-            Space(height=theme.spacing.sm),
-        )
-        .add_right(
+    if provider == "frp":
+        right_panel: list[Component] = [
             Space(height=theme.spacing.lg),
             Space(height=theme.spacing.lg),
-            Text(f"{tunnel_url}", style="value", align="center"),
-            # Space(height=theme.spacing.md),
+            Text(tunnel_url, style="value", align="center"),
             Divider("or"),
-            # Space(height=theme.spacing.md),
             Text(f"{local_url}/distiller/https", style="value", align="center"),
-        )
-        if provider == "frp" else LandscapeLayout()
-        .add_left(
-            Title("REMOTE ACCESS"),
-            Space(height=theme.spacing.sm),
-            QRCode(tunnel_url, size="medium", align="center"),
-            Space(height=theme.spacing.sm),
-        )
-        .add_right(
+        ]
+    else:  # Pinggy provider
+        right_panel: list[Component] = [
             Space(height=theme.spacing.lg),
             Space(height=theme.spacing.lg),
-            Space(height=theme.spacing.lg),
-            Space(height=theme.spacing.lg),
-            Space(height=theme.spacing.lg),
-            *local_hints,
-        )
-    )
+            Text(tunnel_url, style="value", align="center"),
+        ]
+
+    return LandscapeLayout().add_left(*left_panel).add_right(*right_panel)
 
 
 def create_initializing_screen() -> LandscapeLayout:
@@ -236,7 +220,9 @@ def create_initializing_screen() -> LandscapeLayout:
 
 
 def create_error_screen(
-    error_title: str = "ERROR", error_message: str | None = None, retry_info: str | None = None
+    error_title: str = "ERROR",
+    error_message: str | None = None,
+    retry_info: str | None = None,
 ) -> Layout:
     """
     Create error screen.
@@ -253,7 +239,8 @@ def create_error_screen(
 
     if error_message:
         layout.add(
-            Text(error_message, style="body", align="center"), Space(height=theme.spacing.lg)
+            Text(error_message, style="body", align="center"),
+            Space(height=theme.spacing.lg),
         )
 
     if retry_info:
@@ -286,7 +273,7 @@ def create_failed_screen(
         )
         .add_right(
             Text(
-                error_message if error_message else "Invalid password or network unreachable",
+                (error_message if error_message else "Invalid password or network unreachable"),
                 style="body",
             ),
             Space(height=theme.spacing.xxl),

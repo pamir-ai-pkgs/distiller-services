@@ -215,7 +215,7 @@ class Divider(Component):
     ) -> int:
         """Draw the divider and optional label."""
         top = y + self.padding
-        baseline = top + self.thickness // 2
+        consumed: int
 
         if self.text:
             font = fonts.get("small")
@@ -229,18 +229,21 @@ class Divider(Component):
             # Left line up to text
             left_end = text_x - self.gap
             if left_end > x:
-                draw.line((x, baseline, left_end, baseline), fill=theme.colors.foreground)
+                draw.rectangle(
+                    ((x, top), (left_end, top + self.thickness)),
+                    fill=theme.colors.foreground,
+                )
 
             # Right line
             right_start = text_x + text_width + self.gap
             if right_start < x + width:
-                draw.line(
-                    (right_start, baseline, x + width, baseline),
+                draw.rectangle(
+                    ((right_start, top), (x + width, top + self.thickness)),
                     fill=theme.colors.foreground,
                 )
 
             draw.text((text_x, text_y), label, font=font, fill=theme.colors.foreground)
-            consumed = text_height
+            consumed = max(int(text_height), self.thickness)
         else:
             draw.rectangle(
                 ((x, top), (x + width, top + self.thickness)),
@@ -568,7 +571,9 @@ class LandscapeSingleColumn:
 
     def __init__(self):
         self.components: list[Component] = []
-        self.column_width = theme.layout.content_width * 2 # single column 
+        # Use 2x portrait content width for centered single column (232px on 250px canvas)
+        # This gives 9px margins on each side, more conservative than standard 6px
+        self.column_width = theme.layout.content_width * 2
 
     def add(self, *components: Component) -> "LandscapeSingleColumn":
         for component in components:
